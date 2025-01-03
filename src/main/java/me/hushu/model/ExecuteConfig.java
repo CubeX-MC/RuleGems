@@ -1,4 +1,4 @@
-package me.hushu;
+package me.hushu.model;
 
 import java.util.List;
 
