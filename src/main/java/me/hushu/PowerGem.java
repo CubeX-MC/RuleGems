@@ -1,5 +1,6 @@
 package me.hushu;
 
+import me.hushu.metrics.Metrics;
 import org.bukkit.Bukkit;
 import static org.bukkit.Bukkit.getPluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -35,6 +36,7 @@ public class PowerGem extends JavaPlugin {
 //        this.configManager.loadConfigs();   // 读 config.yml, powergems.yml
         this.gemManager = new GemManager(this, configManager, effectUtils, languageManager);
 
+        Metrics metrics = new Metrics(this, 24346);
         loadPlugin();
 
         // 注册命令
