@@ -1,4 +1,4 @@
-me\hushu\listeners\GemInventoryListener.class
+me\hushu\metrics\Metrics.class
 me\hushu\PowerGem.class
 me\hushu\manager\GemManager.class
 me\hushu\listeners\PlayerEventListener.class
@@ -8,5 +8,17 @@ me\hushu\listeners\GemPlaceListener.class
 me\hushu\manager\LanguageManager.class
 me\hushu\model\ExecuteConfig.class
 me\hushu\commands\PowerGemTabCompleter.class
+me\hushu\metrics\Metrics$SimpleBarChart.class
 me\hushu\commands\PowerGemCommand.class
 me\hushu\manager\ConfigManager.class
+me\hushu\metrics\Metrics$AdvancedPie.class
+me\hushu\metrics\Metrics$CustomChart.class
+me\hushu\metrics\Metrics$MetricsBase.class
+me\hushu\metrics\Metrics$SimplePie.class
+me\hushu\metrics\Metrics$JsonObjectBuilder.class
+me\hushu\listeners\GemInventoryListener.class
+me\hushu\metrics\Metrics$AdvancedBarChart.class
+me\hushu\metrics\Metrics$JsonObjectBuilder$JsonObject.class
+me\hushu\metrics\Metrics$MultiLineChart.class
+me\hushu\metrics\Metrics$DrilldownPie.class
+me\hushu\metrics\Metrics$SingleLineChart.class

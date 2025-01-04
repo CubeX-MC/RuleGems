@@ -66,7 +66,6 @@ public class GemManager {
     }
 
     public void loadGems() {
-        System.out.println("Loading gems data...");
         // 获取 gemsData
         FileConfiguration gemsData = configManager.readGemsData();
 
@@ -74,12 +73,9 @@ public class GemManager {
             plugin.getLogger().warning("无法加载 gemsData 配置！请检查文件是否存在。");
             return;
         }
-        System.out.println("gemsData: " + gemsData);
 //        locationToGemUuid.clear();
-        System.out.println("locationToGemUuid: " + locationToGemUuid);
         // 读取powerPlayer数据
         ConfigurationSection powerPlayerSection = gemsData.getConfigurationSection("power_player");
-        System.out.println("powerPlayerSection: " + powerPlayerSection);
         if (powerPlayerSection != null) {
             String uuidStr = powerPlayerSection.getString("uuid");
             if (uuidStr != null) {
@@ -90,7 +86,6 @@ public class GemManager {
         // 读取宝石数据
         // 放置的宝石
         ConfigurationSection placedGemsSection = gemsData.getConfigurationSection("placed-gems");
-        System.out.println("placedGemsSection: " + placedGemsSection);
         if (placedGemsSection != null) {
             for (String uuidStr : placedGemsSection.getKeys(false)) {
                 // key 类似 "gems.<uuid>"
@@ -110,7 +105,6 @@ public class GemManager {
                 locationToGemUuid.put(loc, gemId);
             }
         }
-        System.out.println("locationToGemUuid: " + locationToGemUuid);
 
         // 持有的宝石
         ConfigurationSection heldGemsSection = gemsData.getConfigurationSection("held-gems");
@@ -119,8 +113,6 @@ public class GemManager {
                 // key 就是uuid
                 String playerUUIDStr = heldGemsSection.getString(uuidStr + ".player_uuid");
 
-                System.out.println("playerUUIDStr: " + playerUUIDStr);
-                System.out.println("uuidStr: " + uuidStr);
                 UUID playerUUID = UUID.fromString(playerUUIDStr);
                 UUID gemId = UUID.fromString(uuidStr);
                 Player player = Bukkit.getPlayer(playerUUID);
@@ -140,7 +132,6 @@ public class GemManager {
                     gemUuidToHolder.put(gemId, player);
                 }
             }
-            System.out.println("gemUuidToHolder: " + gemUuidToHolder);
         }
 
         Map<String, String> placeholders = new HashMap<>();
@@ -155,9 +146,7 @@ public class GemManager {
         gemsData.set("placed-gems", null);
         gemsData.set("held-gems", null);
         gemsData.set("power_player", null);
-        System.out.println("gemsData: " + gemsData);
 
-        System.out.println("Saving gems data...");
         for (Location loc : locationToGemUuid.keySet()) {
             String path = "placed-gams." + locationToGemUuid.get(loc).toString();
             gemsData.set(path + ".world", loc.getWorld().getName());
@@ -165,7 +154,6 @@ public class GemManager {
             gemsData.set(path + ".y", loc.getY());
             gemsData.set(path + ".z", loc.getZ());
 //            gemsData.set(path + ".uuid", locationToGemUuid.get(loc).toString());
-            System.out.println("Saved gem at " + loc);
         }
         for (UUID gemId : gemUuidToHolder.keySet()) {
             Player player = gemUuidToHolder.get(gemId);
@@ -173,13 +161,11 @@ public class GemManager {
             gemsData.set(path + ".player", player.getName());
             gemsData.set(path + ".player_uuid", player.getUniqueId().toString());
 //            gemsData.set(path + ".uuid", gemId.toString());
-            System.out.println("Saved held gem " + gemId + " for " + player.getName());
         }
         // 保存powerPlayer数据
         if (this.powerPlayer != null) {
             gemsData.set("power_player.uuid", this.powerPlayer.getUniqueId().toString());
         }
-        System.out.println("Add to data: " + gemsData);
         configManager.saveGemData(gemsData);
     }
 
@@ -232,7 +218,6 @@ public class GemManager {
     @EventHandler
     public void onGemBroken(BlockBreakEvent event) {
         Block block = event.getBlock();
-        System.out.println("破坏了一个方块");
 
         // 如果这个坐标存在于 locationToGemUuid，说明是宝石方块
         if (locationToGemUuid.containsKey(block.getLocation())) {
@@ -251,7 +236,6 @@ public class GemManager {
                 // 给破坏者掉落/添加对应UUID的物品
                 // 从Map里移除
                 // locationToGemUuid.remove(block.getLocation());
-                System.out.println("放入背包");
                 ItemStack gemItem = createPowerGem(gemId); // 同一个UUID
                 // 放进玩家背包
                 inv.addItem(gemItem);
@@ -338,7 +322,6 @@ public class GemManager {
                 if (!gemUuidToHolder.containsKey(gemId)) {
                     inv.remove(item);
                     gemUuidToHolder.remove(gemId);
-                    System.out.println("玩家有非法宝石，已移除");
                 }
             }
         }
@@ -553,13 +536,9 @@ public class GemManager {
      * 随机放置指定数量的宝石。
      */
     private void randomPlaceGem(UUID gemId, Location corner1, Location corner2) {
-        System.out.println("corner1: " + corner1);
-        System.out.println("corner2: " + corner2);
         Location loc = findSafeLocation(corner1, corner2, 10);
-        System.out.println("Randomly placing a gem at " + loc);
         if (loc != null) {
             placePowerGem(loc, gemId);
-            System.out.println("Placed a gem at " + loc);
         }
     }
 
@@ -583,12 +562,6 @@ public class GemManager {
         }
         Block block = loc.getBlock();
 
-        System.out.println("Checking block at: " + loc);
-        System.out.println(block.getType() == Material.AIR &&
-                !locationToGemUuid.keySet().contains(loc));
-        System.out.println(block.getType() == Material.AIR);
-        System.out.println(block.getType());
-        System.out.println(!locationToGemUuid.keySet().contains(loc));
         // 检查当前位置是空气
         return block.getType() == Material.AIR &&
                 !locationToGemUuid.keySet().contains(loc);
@@ -640,7 +613,6 @@ public class GemManager {
             int y = world.getHighestBlockYAt(x, z) + 1;
 
             Location loc = new Location(world, x, y, z);
-            System.out.println("Checking location: " + loc);
 
             // 检查该位置是否适合放置宝石
             if (isSafeLocation(loc)) {

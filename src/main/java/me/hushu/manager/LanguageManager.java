@@ -33,7 +33,6 @@ public class LanguageManager {
 //        File outFile = new File(localFolder, lang + ".yml");
 //        System.out.println("outFile: " + outFile);
         File outFile = new File(plugin.getDataFolder(), "local/" + lang + ".yml");
-        System.out.println(outFile.exists());
         plugin.saveResource("local/" + lang + ".yml", false);
     }
 
@@ -42,13 +41,10 @@ public class LanguageManager {
         this.language = plugin.getConfig().getString("language", "zh");
         loadLangConfig(language);
         if (langConfig == null) {
-            System.out.println("Missing language file: " + language);
             this.language = "zh";
             copyLangFileIfNotExists("zh");
             loadLangConfig("zh");
         }
-        System.out.println("loaded language is null? " + (langConfig == null));
-        System.out.println("prefix: " + langConfig.getString("prefix"));
         this.prefix = langConfig.getString("prefix", "&7[&6PowerGem&7] ");
     }
 
@@ -86,21 +82,17 @@ public class LanguageManager {
         String message = getMessage(path, lang);
         message = formatText(message, placeholders);
         // 替换前缀
-        System.out.println("message: " + message);
         if (message != null)
             message = message.replace("%prefix%", prefix);
         return message;
     }
 
     public String formatText(String message, Map<String, String> placeholders) {
-        System.out.println("placeholders: " + placeholders);
-        System.out.println("message: " + message);
         if (placeholders != null) {
             for (String key : placeholders.keySet()) {
                 message = message.replace("%" + key + "%", placeholders.get(key));
             }
         }
-        System.out.println("replaced message: " + message);
         return message;
     }
 
@@ -125,7 +117,7 @@ public class LanguageManager {
 
     public void logMessage(String path, Map<String, String> placeholders) {
         Logger logger = plugin.getLogger();
-        String message = formatMessage("logger." + path, placeholders);
+        String message = formatMessage(path, placeholders);
         logger.info(translateColorCodes(message));
     }
 
@@ -148,7 +140,6 @@ public class LanguageManager {
     public void showTitle(Player player, String path, Map<String, String> placeholders) {
         if (langConfig == null) return;
         List<String> titleMessages = langConfig.getStringList("title." + path);
-        System.out.println("titleMessages: " + titleMessages);
         // 如果没有配置标题消息，直接返回
          if (titleMessages.size() == 1) {
             player.sendTitle(
@@ -157,7 +148,6 @@ public class LanguageManager {
                     10,
                     70,
                     20);
-             System.out.println("titleMessages.get(0): " + titleMessages.get(0));
          } else if (titleMessages.size() == 2) {
             player.sendTitle(
                     translateColorCodes(formatText(titleMessages.get(0), placeholders)),
@@ -165,8 +155,6 @@ public class LanguageManager {
                     10,
                     70,
                     20);
-                System.out.println("titleMessages.get(0): " + titleMessages.get(0));
-                System.out.println("titleMessages.get(1): " + titleMessages.get(1));
          }
     }
 } 

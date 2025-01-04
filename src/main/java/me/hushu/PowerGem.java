@@ -63,13 +63,13 @@ public class PowerGem extends JavaPlugin {
 
         gemManager.startParticleEffectTask(configManager.getGemParticle());
 
-        languageManager.logMessage("logger.plugin_enabled");
+        languageManager.logMessage("plugin_enabled");
     }
 
     @Override
     public void onDisable() {
         gemManager.saveGems();
-        languageManager.logMessage("logger.plugin_disabled");
+        languageManager.logMessage("plugin_disabled");
     }
 
     /**

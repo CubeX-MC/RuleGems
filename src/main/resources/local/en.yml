@@ -1,0 +1,63 @@
+prefix: "&7[&cPowerGem&7]&r"
+
+messages:
+  command:
+    no_permission: "&c%prefix% You don't have permission to execute this command!"
+    usage: "&e%prefix% Usage: /powergem <place|revoke|reload|powerplayer|gems|scatter|help>"
+    reload_success: "&a%prefix% Configuration reloaded!"
+    powerplayer_status: "&a%prefix% Current powerPlayer is: &e%player%"
+    no_power_player: "&c%prefix% No powerPlayer!"
+    scatter_success: "&a%prefix% Power revoked, gems have been scattered!"
+    unknown_subcommand: "&e%prefix% Unknown subcommand. Usage: /powergem <place|revoke|reload|powerplayer|gems|scatter|help>"
+    place:
+      usage: "&c%prefix% Usage: /powergem place <x> <y> <z>"
+      player_only: "&c%prefix% Only players can execute this command!"
+      invalid_coordinates: "&c%prefix% Coordinates must be numbers or ~!"
+      success: "&a%prefix% Placed a gem at &e%x% %y% %z%&a."
+      gem_limit_reached: "&c%prefix% Gem limit reached!"
+    revoke:
+      no_power_player: "&c%prefix% No powerPlayer!"
+      success: "&a%prefix% Revoked permissions from &e%player%&a."
+    help:
+      header: "&a=== PowerGem Help ==="
+      place: "&e/powergem place <x> <y> <z> &f- Place a gem block at specified coordinates"
+      revoke: "&e/powergem revoke <playerName> &f- Revoke player's permissions"
+      reload: "&e/powergem reload &f- Reload configuration"
+      powerplayer: "&e/powergem powerplayer &f- View current powerPlayer"
+      gems: "&e/powergem gems &f- View all gem information"
+      scatter: "&e/powergem scatter &f- Scatter gems"
+      help: "&e/powergem help &f- Show help information"
+      footer: "&a======================"
+  inventory:
+    drag_denied: "&c%prefix% Cannot drag Power Gem here!"
+    inventory_full: "&7%prefix% Inventory full, gem has been placed."
+  gem_status:
+    header: "&a====== Gem Status ======"
+    total_expected: "&a%prefix% Expected gem count: &e%count%"
+    total_counts: "&a%prefix% &e%placed_count% placed &a%held_count% held"
+    gem_location: "&a%prefix% Location: &e%x% %y% %z% %world%"
+    player_holding: "&a%prefix% Player: &e%player% &aholding &e%count% &agems"
+    player_gem_uuid: "&a%prefix% Player: &e%player% &aholding gem: &e%uuid%"
+    footer: "&a======================"
+title:
+  gems_recollected:
+    - "&cAll gems collected"
+    - "&eCollector: &a%player%"
+  gems_scattered:
+    - "&aScattered"
+    - "&e%count% &agems"
+  power_revoked:
+    - "&cPower Revoked"
+    - "&e%player%"
+logger:
+  invalid_sound: "%prefix% &cInvalid sound name: %sound%"
+  invalid_particle: "%prefix% &cInvalid particle name: %particle%"
+  gem_limit_reached: "%prefix% &cGem limit reached!"
+  gems_loaded: "%prefix% &aLoaded &e%count% &aplaced gems."
+  gems_held_loaded: "%prefix% &aLoaded &e%count% &aheld gems."
+  scatter_start: "%prefix% &aScattering gems..."
+  gems_recollected: "%prefix% &aAll gems have been collected."
+  gems_scattered: "%prefix% &aScattered &e%count% &agems."
+  inventory_full: "%prefix% &cInventory full, dropped on ground"
+  plugin_enabled: "%prefix% &aPlugin enabled successfully!"
+  plugin_disabled: "%prefix% &cPlugin disabled!" 

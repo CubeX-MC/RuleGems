@@ -1,0 +1,63 @@
+prefix: "&7[&cPowerGem&7]&r"
+
+messages:
+  command:
+    no_permission: "&c%prefix% ¡No tienes permiso para ejecutar este comando!"
+    usage: "&e%prefix% Uso: /powergem <place|revoke|reload|powerplayer|gems|scatter|help>"
+    reload_success: "&a%prefix% ¡Configuración recargada!"
+    powerplayer_status: "&a%prefix% El powerPlayer actual es: &e%player%"
+    no_power_player: "&c%prefix% ¡No hay powerPlayer!"
+    scatter_success: "&a%prefix% ¡Poder revocado, las gemas han sido esparcidas!"
+    unknown_subcommand: "&e%prefix% Subcomando desconocido. Uso: /powergem <place|revoke|reload|powerplayer|gems|scatter|help>"
+    place:
+      usage: "&c%prefix% Uso: /powergem place <x> <y> <z>"
+      player_only: "&c%prefix% ¡Solo los jugadores pueden ejecutar este comando!"
+      invalid_coordinates: "&c%prefix% ¡Las coordenadas deben ser números o ~!"
+      success: "&a%prefix% Gema colocada en &e%x% %y% %z%&a."
+      gem_limit_reached: "&c%prefix% ¡Límite de gemas alcanzado!"
+    revoke:
+      no_power_player: "&c%prefix% ¡No hay powerPlayer!"
+      success: "&a%prefix% Permisos revocados de &e%player%&a."
+    help:
+      header: "&a=== Ayuda de PowerGem ==="
+      place: "&e/powergem place <x> <y> <z> &f- Colocar una gema en las coordenadas especificadas"
+      revoke: "&e/powergem revoke <playerName> &f- Revocar permisos del jugador"
+      reload: "&e/powergem reload &f- Recargar configuración"
+      powerplayer: "&e/powergem powerplayer &f- Ver el powerPlayer actual"
+      gems: "&e/powergem gems &f- Ver información de todas las gemas"
+      scatter: "&e/powergem scatter &f- Esparcir gemas"
+      help: "&e/powergem help &f- Mostrar información de ayuda"
+      footer: "&a======================"
+  inventory:
+    drag_denied: "&c%prefix% ¡No puedes arrastrar Power Gem aquí!"
+    inventory_full: "&7%prefix% Inventario lleno, la gema ha sido colocada."
+  gem_status:
+    header: "&a====== Estado de Gemas ======"
+    total_expected: "&a%prefix% Cantidad esperada de gemas: &e%count%"
+    total_counts: "&a%prefix% &e%placed_count% colocadas &a%held_count% en posesión"
+    gem_location: "&a%prefix% Ubicación: &e%x% %y% %z% %world%"
+    player_holding: "&a%prefix% Jugador: &e%player% &atiene &e%count% &agemas"
+    player_gem_uuid: "&a%prefix% Jugador: &e%player% &atiene gema: &e%uuid%"
+    footer: "&a======================"
+title:
+  gems_recollected:
+    - "&cTodas las gemas recolectadas"
+    - "&eRecolector: &a%player%"
+  gems_scattered:
+    - "&aEsparcidas"
+    - "&e%count% &agemas"
+  power_revoked:
+    - "&cPoder Revocado"
+    - "&e%player%"
+logger:
+  invalid_sound: "%prefix% &cNombre de sonido inválido: %sound%"
+  invalid_particle: "%prefix% &cNombre de partícula inválido: %particle%"
+  gem_limit_reached: "%prefix% &c¡Límite de gemas alcanzado!"
+  gems_loaded: "%prefix% &aCargadas &e%count% &agemas colocadas."
+  gems_held_loaded: "%prefix% &aCargadas &e%count% &agemas en posesión."
+  scatter_start: "%prefix% &aEsparciendo gemas..."
+  gems_recollected: "%prefix% &aTodas las gemas han sido recolectadas."
+  gems_scattered: "%prefix% &aEsparcidas &e%count% &agemas."
+  inventory_full: "%prefix% &cInventario lleno, caído al suelo"
+  plugin_enabled: "%prefix% &a¡Plugin activado exitosamente!"
+  plugin_disabled: "%prefix% &c¡Plugin desactivado!" 

@@ -127,7 +127,6 @@ public class ConfigManager {
     public void initGemFile() {
         gemsFile = new File(this.plugin.getDataFolder(), "powergems.yml");
         if (!gemsFile.exists()) {
-            System.out.println("未找到 powergems.yml，正在创建...");
             gemsFile.getParentFile().mkdirs();
             this.plugin.saveResource("powergems.yml", false);
         }

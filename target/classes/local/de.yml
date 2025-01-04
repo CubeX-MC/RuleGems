@@ -1,0 +1,63 @@
+prefix: "&7[&cPowerGem&7]&r"
+
+messages:
+  command:
+    no_permission: "&c%prefix% Du hast keine Berechtigung, diesen Befehl auszuführen!"
+    usage: "&e%prefix% Verwendung: /powergem <place|revoke|reload|powerplayer|gems|scatter|help>"
+    reload_success: "&a%prefix% Konfiguration neu geladen!"
+    powerplayer_status: "&a%prefix% Aktueller powerPlayer ist: &e%player%"
+    no_power_player: "&c%prefix% Kein powerPlayer!"
+    scatter_success: "&a%prefix% Macht entzogen, Edelsteine wurden verstreut!"
+    unknown_subcommand: "&e%prefix% Unbekannter Unterbefehl. Verwendung: /powergem <place|revoke|reload|powerplayer|gems|scatter|help>"
+    place:
+      usage: "&c%prefix% Verwendung: /powergem place <x> <y> <z>"
+      player_only: "&c%prefix% Nur Spieler können diesen Befehl ausführen!"
+      invalid_coordinates: "&c%prefix% Koordinaten müssen Zahlen oder ~ sein!"
+      success: "&a%prefix% Edelstein platziert bei &e%x% %y% %z%&a."
+      gem_limit_reached: "&c%prefix% Edelstein-Limit erreicht!"
+    revoke:
+      no_power_player: "&c%prefix% Kein powerPlayer!"
+      success: "&a%prefix% Berechtigungen von &e%player%&a entzogen."
+    help:
+      header: "&a=== PowerGem Hilfe ==="
+      place: "&e/powergem place <x> <y> <z> &f- Platziere einen Edelstein an den angegebenen Koordinaten"
+      revoke: "&e/powergem revoke <playerName> &f- Entziehe Spielerberechtigungen"
+      reload: "&e/powergem reload &f- Konfiguration neu laden"
+      powerplayer: "&e/powergem powerplayer &f- Zeige aktuellen powerPlayer"
+      gems: "&e/powergem gems &f- Zeige alle Edelstein-Informationen"
+      scatter: "&e/powergem scatter &f- Verstreue Edelsteine"
+      help: "&e/powergem help &f- Zeige Hilfeinformationen"
+      footer: "&a======================"
+  inventory:
+    drag_denied: "&c%prefix% Power Gem kann hier nicht abgelegt werden!"
+    inventory_full: "&7%prefix% Inventar voll, Edelstein wurde platziert."
+  gem_status:
+    header: "&a====== Edelstein-Status ======"
+    total_expected: "&a%prefix% Erwartete Edelsteinanzahl: &e%count%"
+    total_counts: "&a%prefix% &e%placed_count% platziert &a%held_count% gehalten"
+    gem_location: "&a%prefix% Position: &e%x% %y% %z% %world%"
+    player_holding: "&a%prefix% Spieler: &e%player% &ahält &e%count% &aEdelsteine"
+    player_gem_uuid: "&a%prefix% Spieler: &e%player% &ahält Edelstein: &e%uuid%"
+    footer: "&a======================"
+title:
+  gems_recollected:
+    - "&cAlle Edelsteine eingesammelt"
+    - "&eSammler: &a%player%"
+  gems_scattered:
+    - "&aVerstreut"
+    - "&e%count% &aEdelsteine"
+  power_revoked:
+    - "&cMacht entzogen"
+    - "&e%player%"
+logger:
+  invalid_sound: "%prefix% &cUngültiger Soundname: %sound%"
+  invalid_particle: "%prefix% &cUngültiger Partikelname: %particle%"
+  gem_limit_reached: "%prefix% &cEdelstein-Limit erreicht!"
+  gems_loaded: "%prefix% &a&e%count% &aplatzierte Edelsteine geladen."
+  gems_held_loaded: "%prefix% &a&e%count% &agehaltene Edelsteine geladen."
+  scatter_start: "%prefix% &aVerstreue Edelsteine..."
+  gems_recollected: "%prefix% &aAlle Edelsteine wurden eingesammelt."
+  gems_scattered: "%prefix% &a&e%count% &aEdelsteine verstreut."
+  inventory_full: "%prefix% &cInventar voll, auf den Boden gefallen"
+  plugin_enabled: "%prefix% &aPlugin erfolgreich aktiviert!"
+  plugin_disabled: "%prefix% &cPlugin deaktiviert!" 

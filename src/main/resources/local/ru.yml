@@ -1,0 +1,63 @@
+prefix: "&7[&cPowerGem&7]&r"
+
+messages:
+  command:
+    no_permission: "&c%prefix% У вас нет прав для выполнения этой команды!"
+    usage: "&e%prefix% Использование: /powergem <place|revoke|reload|powerplayer|gems|scatter|help>"
+    reload_success: "&a%prefix% Конфигурация перезагружена!"
+    powerplayer_status: "&a%prefix% Текущий powerPlayer: &e%player%"
+    no_power_player: "&c%prefix% Нет powerPlayer!"
+    scatter_success: "&a%prefix% Права отозваны, камни рассеяны!"
+    unknown_subcommand: "&e%prefix% Неизвестная подкоманда. Использование: /powergem <place|revoke|reload|powerplayer|gems|scatter|help>"
+    place:
+      usage: "&c%prefix% Использование: /powergem place <x> <y> <z>"
+      player_only: "&c%prefix% Только игроки могут использовать эту команду!"
+      invalid_coordinates: "&c%prefix% Координаты должны быть числами или ~!"
+      success: "&a%prefix% Размещен камень на &e%x% %y% %z%&a."
+      gem_limit_reached: "&c%prefix% Достигнут лимит камней!"
+    revoke:
+      no_power_player: "&c%prefix% Нет powerPlayer!"
+      success: "&a%prefix% Права отозваны у &e%player%&a."
+    help:
+      header: "&a=== PowerGem Помощь ==="
+      place: "&e/powergem place <x> <y> <z> &f- Разместить камень по указанным координатам"
+      revoke: "&e/powergem revoke <playerName> &f- Отозвать права игрока"
+      reload: "&e/powergem reload &f- Перезагрузить конфигурацию"
+      powerplayer: "&e/powergem powerplayer &f- Посмотреть текущего powerPlayer"
+      gems: "&e/powergem gems &f- Посмотреть информацию о всех камнях"
+      scatter: "&e/powergem scatter &f- Рассеять камни"
+      help: "&e/powergem help &f- Показать справку"
+      footer: "&a======================"
+  inventory:
+    drag_denied: "&c%prefix% Нельзя перетащить Power Gem сюда!"
+    inventory_full: "&7%prefix% Инвентарь полон, камень размещен."
+  gem_status:
+    header: "&a====== Статус камней ======"
+    total_expected: "&a%prefix% Ожидаемое количество камней: &e%count%"
+    total_counts: "&a%prefix% &e%placed_count% размещено &a%held_count% в наличии"
+    gem_location: "&a%prefix% Локация: &e%x% %y% %z% %world%"
+    player_holding: "&a%prefix% Игрок: &e%player% &aдержит &e%count% &aкамней"
+    player_gem_uuid: "&a%prefix% Игрок: &e%player% &aдержит камень: &e%uuid%"
+    footer: "&a======================"
+title:
+  gems_recollected:
+    - "&cВсе камни собраны"
+    - "&eСобиратель: &a%player%"
+  gems_scattered:
+    - "&aРассеяны"
+    - "&e%count% &aкамней"
+  power_revoked:
+    - "&cПрава отозваны"
+    - "&e%player%"
+logger:
+  invalid_sound: "%prefix% &cНеверное название звука: %sound%"
+  invalid_particle: "%prefix% &cНеверное название частицы: %particle%"
+  gem_limit_reached: "%prefix% &cДостигнут лимит камней!"
+  gems_loaded: "%prefix% &aЗагружено &e%count% &aразмещенных камней."
+  gems_held_loaded: "%prefix% &aЗагружено &e%count% &aкамней в наличии."
+  scatter_start: "%prefix% &aРассеивание камней..."
+  gems_recollected: "%prefix% &aВсе камни собраны."
+  gems_scattered: "%prefix% &aРассеяно &e%count% &aкамней."
+  inventory_full: "%prefix% &cИнвентарь полон, выброшено на землю"
+  plugin_enabled: "%prefix% &aПлагин успешно включен!"
+  plugin_disabled: "%prefix% &cПлагин отключен!" 
