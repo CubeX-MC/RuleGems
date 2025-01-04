@@ -5,8 +5,8 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>hushu</groupId>
-    <artifactId>power-gems</artifactId>
-    <version>1.0.0</version>
+    <artifactId>PowerGem</artifactId>
+    <version>0.1.0</version>
     <packaging>jar</packaging>
 
     <name>PowerGems</name>
