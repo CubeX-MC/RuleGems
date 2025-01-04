@@ -1,6 +1,6 @@
 # PowerGem
 
-[中文](README_zh.md)
+[中文](README.md)
 
 A Minecraft plugin that implements a power gem system for server management.
 
