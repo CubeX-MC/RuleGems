@@ -1,12 +1,7 @@
 package me.hushu;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-
 import org.bukkit.Bukkit;
 import static org.bukkit.Bukkit.getPluginManager;
-import org.bukkit.Location;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import me.hushu.commands.PowerGemCommand;
@@ -16,6 +11,7 @@ import me.hushu.listeners.GemPlaceListener;
 import me.hushu.listeners.PlayerEventListener;
 import me.hushu.manager.ConfigManager;
 import me.hushu.manager.GemManager;
+import me.hushu.manager.LanguageManager;
 import me.hushu.utils.EffectUtils;
 
 /**
@@ -27,31 +23,27 @@ public class PowerGem extends JavaPlugin {
     private ConfigManager configManager;
     private GemManager gemManager;
     private EffectUtils effectUtils;
-
-    private final Map<Location, UUID> locationToGemUuid = new HashMap<>();
+    private LanguageManager languageManager;
 
     @Override
     public void onEnable() {
-
         // 初始化配置管理器
+
         this.configManager = new ConfigManager(this);
-        this.configManager.loadConfigs();   // 读 config.yml, powergems.yml
-
-        // 初始化 ActionUtils
+        this.languageManager = new LanguageManager(this);
         this.effectUtils = new EffectUtils(this);
-
-        // 初始化宝石管理器
-        this.gemManager = new GemManager(this, configManager, effectUtils);
+//        this.configManager.loadConfigs();   // 读 config.yml, powergems.yml
+        this.gemManager = new GemManager(this, configManager, effectUtils, languageManager);
 
         loadPlugin();
 
         // 注册命令
-        PowerGemCommand powerGemCommand = new PowerGemCommand(this, gemManager, configManager);
+        PowerGemCommand powerGemCommand = new PowerGemCommand(this, gemManager, configManager, languageManager);
         getCommand("powergem").setExecutor(powerGemCommand);
         getCommand("powergem").setTabCompleter(new PowerGemTabCompleter());
         // 注册监听器
         getPluginManager().registerEvents(new GemPlaceListener(this, gemManager), this);
-        getPluginManager().registerEvents(new GemInventoryListener(gemManager), this);
+        getPluginManager().registerEvents(new GemInventoryListener(gemManager, languageManager), this);
         getPluginManager().registerEvents(new PlayerEventListener(this, gemManager), this);
 
         Bukkit.getScheduler().runTaskTimer(
@@ -71,13 +63,13 @@ public class PowerGem extends JavaPlugin {
 
         gemManager.startParticleEffectTask(configManager.getGemParticle());
 
-        getLogger().info("PowerGem 插件已成功启用！");
+        languageManager.logMessage("logger.plugin_enabled");
     }
 
     @Override
     public void onDisable() {
         gemManager.saveGems();
-        getLogger().info("PowerGems has been disabled!");
+        languageManager.logMessage("logger.plugin_disabled");
     }
 
     /**
@@ -85,6 +77,7 @@ public class PowerGem extends JavaPlugin {
      */
     public void loadPlugin() {
         saveDefaultConfig();
+        languageManager.loadLanguage();
         configManager.initGemFile();
         configManager.loadConfigs();
         configManager.getGemsData();
@@ -95,5 +88,6 @@ public class PowerGem extends JavaPlugin {
     public ConfigManager getConfigManager() { return configManager; }
     public GemManager getGemManager() { return gemManager; }
     public EffectUtils getEffectUtils() { return effectUtils; }
+    public LanguageManager getLanguageManager() { return languageManager; }
 
 }

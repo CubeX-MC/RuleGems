@@ -45,11 +45,10 @@ public class PowerGemTabCompleter implements TabCompleter {
         // 例如对 `/powergem place <参数>` 做自动补全
         if (args.length == 2 && args[0].equalsIgnoreCase("place")) {
             // 如果需要，你可以对 place 子命令的第二个参数进行自动补全。这里仅做示例：
-            // 比如要补全某些配置中已经写好的“宝石名称”等等
             List<String> placeArgs = new ArrayList<>();
-            placeArgs.add("DiamondGem");
-            placeArgs.add("GoldenGem");
-            placeArgs.add("CustomGem");
+            placeArgs.add("~");
+            placeArgs.add("~");
+            placeArgs.add("~");
             List<String> suggestions = new ArrayList<>();
             for (String s : placeArgs) {
                 if (s.toLowerCase().startsWith(args[1].toLowerCase())) {

@@ -6,5 +6,6 @@ D:\Minecraft\MC server\power-gems\src\main\java\me\hushu\manager\GemManager.java
 D:\Minecraft\MC server\power-gems\src\main\java\me\hushu\listeners\PlayerEventListener.java
 D:\Minecraft\MC server\power-gems\src\main\java\me\hushu\listeners\GemPlaceListener.java
 D:\Minecraft\MC server\power-gems\src\main\java\me\hushu\manager\ConfigManager.java
+D:\Minecraft\MC server\power-gems\src\main\java\me\hushu\manager\LanguageManager.java
 D:\Minecraft\MC server\power-gems\src\main\java\me\hushu\commands\PowerGemTabCompleter.java
 D:\Minecraft\MC server\power-gems\src\main\java\me\hushu\PowerGem.java

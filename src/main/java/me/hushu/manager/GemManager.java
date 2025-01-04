@@ -13,8 +13,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
-import static org.bukkit.Bukkit.getConsoleSender;
-import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -47,6 +45,7 @@ public class GemManager {
     private final PowerGem plugin;
     private final ConfigManager configManager;
     private final EffectUtils effectUtils;
+    private final LanguageManager languageManager;
 
     private final NamespacedKey powerGemKey;
     private final NamespacedKey uniqueIdKey;
@@ -55,10 +54,12 @@ public class GemManager {
 
     private Player powerPlayer;
 
-    public GemManager(PowerGem plugin, ConfigManager configManager, EffectUtils effectUtils) {
+    public GemManager(PowerGem plugin, ConfigManager configManager, EffectUtils effectUtils,
+                      LanguageManager languageManager) {
         this.plugin = plugin;
         this.configManager = configManager;
         this.effectUtils = effectUtils;
+        this.languageManager = languageManager;
         this.powerGemKey = new NamespacedKey(plugin, "power_gem");
         this.uniqueIdKey = new NamespacedKey(plugin, "unique_id");
     }
@@ -133,8 +134,11 @@ public class GemManager {
             }
         }
 
-        plugin.getLogger().info("已加载 " + locationToGemUuid.size() + " 个放置的宝石。");
-        plugin.getLogger().info("已加载 " + locationToGemUuid.size() + " 个持有的宝石。");
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("placed_count", String.valueOf(locationToGemUuid.size()));
+        placeholders.put("held_count", String.valueOf(gemUuidToHolder.size()));
+        languageManager.logMessage("gems_loaded", placeholders);
+        languageManager.logMessage("gems_held_loaded", placeholders);
     }
 
     public void saveGems() {
@@ -142,7 +146,6 @@ public class GemManager {
         gemsData.set("gems", null);
         gemsData.set("power_player", null);
 
-        int index = 0;
         for (Location loc : locationToGemUuid.keySet()) {
             String path = "placed-gams." + locationToGemUuid.get(loc).toString();
             gemsData.set(path + ".world", loc.getWorld().getName());
@@ -170,7 +173,7 @@ public class GemManager {
         Player player = event.getPlayer();
         ItemStack inHand = event.getItemInHand();
 
-        // 判断这个 block 是否是我们的“特殊方块”
+        // 判断这个 block 是否是我们的"特殊方块"
         if (!isPowerGem(inHand)) {
             return;
         }
@@ -190,21 +193,31 @@ public class GemManager {
 
         // 如果达到要求的数量
         if (checkWinCondition()) {
+            // 撤销旧的powerPlayer
+            if (this.powerPlayer != null) {
+                revokePermission(this.powerPlayer);
+            }
+            // 设置新的powerPlayer
+            this.powerPlayer = player;
+            // 执行情景效果
             ExecuteConfig gemUnionExecute = configManager.getGemUnionExecute();
             effectUtils.executeCommands(gemUnionExecute, Collections.singletonMap("%player%", player.getName()));
             effectUtils.playGlobalSound(gemUnionExecute, 1.0f, 1.0f);
             effectUtils.playParticle(placedLoc, gemUnionExecute);
 
-            // 一次性触发
-            // placedCount = 0;
-
-            // 或者如果只想触发一次，就可以把监听器注销掉
-            // HandlerList.unregisterAll(this);
+            // 显示收集完成的标题
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("player", player.getName());
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                languageManager.showTitle(p, "gems_recollected", placeholders);
+            }
         }
     }
 
+    @EventHandler
     public void onGemBroken(BlockBreakEvent event) {
         Block block = event.getBlock();
+        System.out.println("破坏了一个方块");
 
         // 如果这个坐标存在于 locationToGemUuid，说明是宝石方块
         if (locationToGemUuid.containsKey(block.getLocation())) {
@@ -212,20 +225,23 @@ public class GemManager {
             UUID gemId = locationToGemUuid.get(block.getLocation());
             Player player = event.getPlayer();
             Inventory inv = player.getInventory();
-            System.out.println("检查背包已满的情况：" + inv.firstEmpty());
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("slot", String.valueOf(inv.firstEmpty()));
+            languageManager.logMessage("inventory_full", placeholders);
             if (inv.firstEmpty() == -1) {
-                System.out.println("背包已满，掉落在地上");
+                languageManager.logMessage("inventory_full");
                 event.setCancelled(true);
                 placePowerGem(block.getLocation(), gemId);
             } else {
                 // 给破坏者掉落/添加对应UUID的物品
                 // 从Map里移除
-                locationToGemUuid.remove(block.getLocation());
+                // locationToGemUuid.remove(block.getLocation());
+                System.out.println("放入背包");
                 ItemStack gemItem = createPowerGem(gemId); // 同一个UUID
                 // 放进玩家背包
                 inv.addItem(gemItem);
-                unplacePowerGem(block.getLocation(), gemId);
                 gemUuidToHolder.put(gemId, player);
+                unplacePowerGem(block.getLocation(), gemId);
             }
         }
     }
@@ -245,11 +261,9 @@ public class GemManager {
 
                 // 在玩家脚下放置方块
                 Location loc = player.getLocation();
-                placePowerGem(loc, gemId);
-
-                // 记录到Map
+                
                 gemUuidToHolder.remove(gemId);
-                locationToGemUuid.put(loc, gemId);
+                placePowerGem(loc, gemId);
             }
         }
     }
@@ -303,7 +317,7 @@ public class GemManager {
      * 随机放置宝石
      */
     public void scatterGems() {
-        System.out.println("Scattering gems...");
+        languageManager.logMessage("scatter_start");
         Set<Location> locCopy = new HashSet<>(locationToGemUuid.keySet());
         for (Location loc : locCopy) {
             unplacePowerGem(loc, locationToGemUuid.get(loc));
@@ -317,23 +331,26 @@ public class GemManager {
                 }
             }
         }
-        System.out.println("Recollected all gems.");
+        languageManager.logMessage("gems_recollected");
         for (int i = 0; i < configManager.getRequiredCount(); i++) {
             UUID gemId = UUID.randomUUID();
             randomPlaceGem(gemId, configManager.getRandomPlaceCorner1(), configManager.getRandomPlaceCorner2());
         }
-        System.out.println("Scattered " + configManager.getRequiredCount() + " gems.");
-        // 执行情景效果 %amount% 和 %powerPlayer% 两个占位符
         Map<String, String> placeholders = new HashMap<>();
-        placeholders.put("%amount%", String.valueOf(configManager.getRequiredCount()));
+        placeholders.put("count", String.valueOf(configManager.getRequiredCount()));
+        languageManager.logMessage("gems_scattered", placeholders);
+
         if (this.powerPlayer != null) {
-            placeholders.put("%player%", powerPlayer.getName());
+            placeholders.put("player", powerPlayer.getName());
             this.powerPlayer = null;
         }
         ExecuteConfig gemScatterExecute = configManager.getGemScatterExecute();
         effectUtils.executeCommands(gemScatterExecute, placeholders);
         effectUtils.playGlobalSound(gemScatterExecute, 1.0f, 1.0f);
         // 保存到配置文件
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            languageManager.showTitle(p, "gems_scattered", placeholders);
+        }
         saveGems();
     }
 
@@ -342,8 +359,6 @@ public class GemManager {
      * 显示宝石数量，每个宝石的坐标或者持有者
      */
     public void gemStatus(CommandSender sender) {
-        // 你可以在这里实现查看宝石状态的逻辑
-        // 例如：显示宝石数量，每个宝石的坐标或者持有者
         HashMap<String, Integer> gemHolders = new HashMap<>();
         for (Player p : Bukkit.getOnlinePlayers()) {
             Inventory inv = p.getInventory();
@@ -360,24 +375,41 @@ public class GemManager {
         int heldGems = 0;
         for (String p : gemHolders.keySet()) {
             heldGems += gemHolders.get(p);
-        }
-        sender.sendMessage(ChatColor.GREEN + "预计宝石数量: " + configManager.getRequiredCount());
-        sender.sendMessage(ChatColor.GREEN + "放置宝石数量: " + locationToGemUuid.size());
-        sender.sendMessage(ChatColor.GREEN + "持有宝石数量: " + heldGems);
+        }// 测试用，以后不需要
+
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("count", String.valueOf(configManager.getRequiredCount()));
+        placeholders.put("placed_count", String.valueOf(heldGems));
+        placeholders.put("placed_count", String.valueOf(locationToGemUuid.size()));
+        placeholders.put("held_count", String.valueOf(gemUuidToHolder.size()));
+        languageManager.sendMessage(sender, "gem_status.total_expected", placeholders);
+        languageManager.sendMessage(sender, "gem_status.total_counts", placeholders);
+
         // 展示所有宝石及坐标
         for (Location loc : locationToGemUuid.keySet()) {
-            sender.sendMessage(ChatColor.GREEN + "坐标: " + loc.getBlockX() + " " + loc.getBlockY() + " " +
-                    loc.getBlockZ() + " " + loc.getWorld().getName());
+            placeholders = new HashMap<>();
+            placeholders.put("x", String.valueOf(loc.getBlockX()));
+            placeholders.put("y", String.valueOf(loc.getBlockY()));
+            placeholders.put("z", String.valueOf(loc.getBlockZ()));
+            placeholders.put("world", loc.getWorld().getName());
+            languageManager.sendMessage(sender, "gem_status.gem_location", placeholders);
         }
+
         // 展示所有玩家及持有宝石数量
         for (String p : gemHolders.keySet()) {
-            sender.sendMessage(ChatColor.GREEN + "玩家: " + p + " 持有 " + gemHolders.get(p) + " 颗宝石");
+            placeholders = new HashMap<>();
+            placeholders.put("player", p);
+            placeholders.put("count", String.valueOf(gemHolders.get(p)));
+            languageManager.sendMessage(sender, "gem_status.player_holding", placeholders);
         }
 
         // 列出所有的UUID，用gemUuidToHolder和locationToGemUuid
         for (UUID gemId : gemUuidToHolder.keySet()) {
             Player player = gemUuidToHolder.get(gemId);
-            sender.sendMessage(ChatColor.GREEN + "玩家: " + player.getName() + " 持有宝石: " + gemId);
+            placeholders = new HashMap<>();
+            placeholders.put("player", player.getName());
+            placeholders.put("uuid", gemId.toString());
+            languageManager.sendMessage(sender, "gem_status.player_gem_uuid", placeholders);
         }
     }
 
@@ -405,7 +437,7 @@ public class GemManager {
     }
 
     /**
-     * 根据指定的 UUID，创建一颗“权力宝石”物品。
+     * 根据指定的 UUID，创建一颗"权力宝石"物品。
      * @param gemId 这颗宝石的专属 UUID
      */
     public ItemStack createPowerGem(UUID gemId) {
@@ -444,14 +476,39 @@ public class GemManager {
         }
     }
 
+    /*
+     * get total gem count
+     */
+    public int getTotalGemCount() {
+        return locationToGemUuid.size() + gemUuidToHolder.size();
+    }
+
     /**
-     * 示例：在某处注册一个方法，当玩家放置方块时，如果它是“自定义方块”，就记录坐标
+     * 示例：在某处注册一个方法，当玩家放置方块时，如果它是"自定义方块"，就记录坐标
      */
     public void placePowerGem(Location loc, UUID gemId) {
+        if (getTotalGemCount() >= configManager.getRequiredCount()) {
+            languageManager.logMessage("gem_limit_reached");
+            return;
+        }
         Block block = loc.getBlock();
-        block.setType(configManager.getGemMaterial());
-        getConsoleSender().sendMessage(ChatColor.GREEN + "放置了一个宝石方块在 " + loc.getBlockX() + " " + loc.getBlockY() + " " + loc.getBlockZ());
-
+        // 如果位置为solid，提高y值
+        if (block.getType().isSolid()) {
+            loc.add(0, 1, 0);
+        }
+        if (!isSafeLocation(loc)) {
+            loc = findSafeLocationAround(loc, 10, 10);
+        }
+        if (loc == null) {
+            randomPlaceGem(gemId, configManager.getRandomPlaceCorner1(), configManager.getRandomPlaceCorner2());
+        }
+        // getConsoleSender().sendMessage(ChatColor.GREEN + "放置了一个宝石方块在 " + loc.getBlockX() + " " + loc.getBlockY() + " " + loc.getBlockZ());
+        loc.getBlock().setType(configManager.getGemMaterial());
+//        Map<String, String> placeholders = new HashMap<>();
+//        placeholders.put("x", String.valueOf(loc.getBlockX()));
+//        placeholders.put("y", String.valueOf(loc.getBlockY()));
+//        placeholders.put("z", String.valueOf(loc.getBlockZ()));
+//        languageManager.logMessage("place_gem", placeholders);
         locationToGemUuid.put(loc, gemId);
     }
 
@@ -622,7 +679,7 @@ public class GemManager {
     }
 
     /**
-     * 判断当前所有的“特殊方块”是否都在 (0,60,0) 为中心、半径5 的**立方体**范围内
+     * 判断当前所有的"特殊方块"是否都在 (0,60,0) 为中心、半径5 的**立方体**范围内
      */
     private boolean checkWinCondition() {
         if (locationToGemUuid.size() < configManager.getRequiredCount()) {
@@ -704,7 +761,7 @@ public class GemManager {
 
     /**
      * 判断某个坐标是否在以 center 为中心、边长=半径*2+1 的立方体内
-     * 这里用“绝对值 <= 半径”来判断
+     * 这里用"绝对值 <= 半径"来判断
      */
     private boolean isInCube(Location loc, Location center, double radius) {
         // 如果世界不一致，直接返回 false
@@ -721,13 +778,17 @@ public class GemManager {
     }
 
     /** 收回权限 */
-    public void revokePermission() {
+    public void revokePermission(CommandSender sender) {
+        if (this.powerPlayer == null) {
+            languageManager.sendMessage(sender, "command.revoke.no_power_player");
+            return;
+        }
         ExecuteConfig revokeExecute = configManager.getPowerRevokeExecute();
         effectUtils.executeCommands(revokeExecute, Collections.singletonMap("%player%", this.powerPlayer.getName()));
         effectUtils.playGlobalSound(revokeExecute, 1.0f, 1.0f);
         if (this.powerPlayer.isOnline()) {
             effectUtils.playParticle(this.powerPlayer.getLocation(), revokeExecute);
-            this.powerPlayer.sendMessage(ChatColor.RED + "你的权力已被收回！");
+            languageManager.sendMessage(this.powerPlayer, "command.revoke.success", Collections.singletonMap("player", this.powerPlayer.getName()));
         }
         this.powerPlayer = null;
         saveGems();

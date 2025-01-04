@@ -59,6 +59,7 @@
                     <include>plugin.yml</include>
                     <include>config.yml</include>
                     <include>powergems.yml</include>
+                    <include>**/*.yml</include>
                 </includes>
             </resource>
         </resources>

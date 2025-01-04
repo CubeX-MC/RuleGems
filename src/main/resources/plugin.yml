@@ -11,4 +11,9 @@ commands:
     usage: /<command> <place|revoke|reload|powerplayer|gems|scatter|help>
     description: PowerGem plugin command
     aliases: [pg]
-    permission: op
+    permission: powergem.admin
+
+permissions:
+  powergem.admin:
+    description: Allows access to all PowerGem commands
+    default: op

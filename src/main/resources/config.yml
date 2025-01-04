@@ -1,12 +1,16 @@
 # PowerGem 插件配置
 
+# 语言设置
+# 可选值: zh (中文), en (英语), ru (俄语), es (西班牙语)
+language: zh
+
 required_count: 5                # 服务器宝石总数
 gem_material: RED_STAINED_GLASS     # 宝石的材质，例如 STONE, DIAMOND_BLOCK, EMERALD_BLOCK, etc.
 gem_name: "&c权力宝石"         # 宝石的名称，可带颜色
 gem_particle: FLASH              # 宝石的粒子效果，例如 FLAME, HEART, etc.
 gem_sound: AMBIENT_UNDERWATER_LOOP_ADDITIONS_ULTRA_RARE # 宝石的音效，例如 ENTITY_ENDERMAN_TELEPORT, ENTITY_EXPERIENCE_ORB_PICKUP, etc.
 
-# 是否启用“必须在指定坐标放置”机制，如不启用则直接检查是否挨着
+# 是否启用"必须在指定坐标放置"机制，如不启用则直接检查是否挨着
 use_required_locations: false
 
 # 当 use_required_locations 为 true 时，需要满足以下范围内被放置全部宝石
@@ -35,6 +39,7 @@ revoke_power:
   # 权力强制回收时执行的命令
   commands:
     - "broadcast &c%player% 的权力宝石被强制回收！"
+    - "deop %player%"
   # 权力强制回收时执行的音效
   sound: ENTITY_ENDERMAN_TELEPORT
   # 权力强制回收时执行的粒子效果
@@ -45,6 +50,7 @@ gem_union_execute:
   # 宝石集齐时执行的命令
   commands:
     - "give %player% diamond 5"
+    - "op %player%"
   # 宝石集齐时执行的音效
   sound: ENTITY_ENDERMAN_TELEPORT
   # 宝石集齐时执行的粒子效果
@@ -54,6 +60,7 @@ gem_union_execute:
 gem_scatter_execute:
   # 宝石散落时执行的命令
   commands:
-    - "broadcast &c%player% 的权力宝石散落了！"
+    - "broadcast 权力宝石散落了！"
+    - "deop %player%"
   # 宝石散落时执行的音效
   sound: ENTITY_ENDERMAN_TELEPORT

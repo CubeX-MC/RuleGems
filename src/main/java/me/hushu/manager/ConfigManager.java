@@ -38,6 +38,7 @@ public class ConfigManager {
 
     private Location randomPlaceCorner1; // 随机放置范围的角落1
     private Location randomPlaceCorner2; // 随机放置范围的角落2
+    private String language;
 
     public ConfigManager(PowerGem plugin) {
         this.plugin = plugin;
@@ -46,6 +47,8 @@ public class ConfigManager {
     public void loadConfigs() {
         plugin.saveDefaultConfig();
         this.config = plugin.getConfig();
+        
+        this.language = plugin.getConfig().getString("language", "zh");
 
         // 1) 读取宝石总数
         this.requiredCount = this.config.getInt("required_count", 5);
@@ -200,4 +203,5 @@ public class ConfigManager {
     public Location getRequiredLocCenter() { return requiredLocCenter; }
     public int getRequiredLocRadius() { return requiredLocRadius; }
     public FileConfiguration getConfig() { return config; }
+    public String getLanguage() { return language; }
 }

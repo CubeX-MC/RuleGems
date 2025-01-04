@@ -5,6 +5,7 @@ me\hushu\listeners\PlayerEventListener.class
 me\hushu\manager\GemManager$1.class
 me\hushu\utils\EffectUtils.class
 me\hushu\listeners\GemPlaceListener.class
+me\hushu\manager\LanguageManager.class
 me\hushu\model\ExecuteConfig.class
 me\hushu\commands\PowerGemTabCompleter.class
 me\hushu\commands\PowerGemCommand.class

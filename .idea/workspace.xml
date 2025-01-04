@@ -5,22 +5,28 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2bd5c143-f501-43b5-8e93-c823eda16600" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/encodings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/jarRepositories.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/power_gems.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/artifacts/power_gems_jar.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/power-gems.iml" beforeDir="false" afterPath="$PROJECT_DIR$/power-gems.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/me/hushu/ExecuteConfig.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/me/hushu/PowerGem.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/me/hushu/PowerGemTabCompleter.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/plugin.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/powergems.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/me/hushu/PowerGem.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/me/hushu/PowerGem.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/me/hushu/commands/PowerGemCommand.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/me/hushu/commands/PowerGemCommand.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/me/hushu/commands/PowerGemTabCompleter.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/me/hushu/commands/PowerGemTabCompleter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/me/hushu/listeners/GemInventoryListener.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/me/hushu/listeners/GemInventoryListener.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/me/hushu/manager/ConfigManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/me/hushu/manager/ConfigManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/me/hushu/manager/GemManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/me/hushu/manager/GemManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/config.yml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/config.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/plugin.yml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/plugin.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/PowerGem.jar" beforeDir="false" afterPath="$PROJECT_DIR$/target/PowerGem.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/config.yml" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/config.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/me/hushu/PowerGem.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/me/hushu/PowerGem.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/me/hushu/commands/PowerGemCommand.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/me/hushu/commands/PowerGemCommand.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/me/hushu/commands/PowerGemTabCompleter.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/me/hushu/commands/PowerGemTabCompleter.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/me/hushu/listeners/GemInventoryListener.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/me/hushu/listeners/GemInventoryListener.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/me/hushu/manager/ConfigManager.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/me/hushu/manager/ConfigManager.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/me/hushu/manager/GemManager$1.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/me/hushu/manager/GemManager$1.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/me/hushu/manager/GemManager.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/me/hushu/manager/GemManager.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst" beforeDir="false" afterPath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" beforeDir="false" afterPath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/original-PowerGem.jar" beforeDir="false" afterPath="$PROJECT_DIR$/target/original-PowerGem.jar" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -79,7 +85,11 @@
       <option name="presentableId" value="Default" />
       <updated>1735929934305</updated>
       <workItem from="1735929935393" duration="682000" />
-      <workItem from="1735931017570" duration="1536000" />
+      <workItem from="1735931017570" duration="3156000" />
+      <workItem from="1735938519364" duration="9000" />
+      <workItem from="1735940073106" duration="710000" />
+      <workItem from="1735943291824" duration="6150000" />
+      <workItem from="1735950747060" duration="5479000" />
     </task>
     <servers />
   </component>
