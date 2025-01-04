@@ -127,6 +127,7 @@ public class ConfigManager {
     public void initGemFile() {
         gemsFile = new File(this.plugin.getDataFolder(), "powergems.yml");
         if (!gemsFile.exists()) {
+            System.out.println("未找到 powergems.yml，正在创建...");
             gemsFile.getParentFile().mkdirs();
             this.plugin.saveResource("powergems.yml", false);
         }
@@ -160,34 +161,34 @@ public class ConfigManager {
     }
 
     // 把宝石数据写回到 gemsData 并保存
-    public void saveGemData(/* 你需要的映射 */) {
-        // gemsData.set("gems", null);
-        // ...
+//    public void saveGemData(/* 你需要的映射 */) {
+//        try {
+//            gemsData.save(gemsFile);
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//    }
+    public void saveGemData(FileConfiguration data) {
         try {
-            gemsData.save(gemsFile);
+            data.save(gemsFile);
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public FileConfiguration readGemsData() {
+        initGemFile();
+        gemsData = YamlConfiguration.loadConfiguration(gemsFile);
+        return gemsData;
     }
 
     public FileConfiguration getGemsData() {
         if (gemsData == null) {
-            initGemFile();
-            gemsData = YamlConfiguration.loadConfiguration(gemsFile);
+            readGemsData();
         }
         return gemsData;
     }
 
-    public void saveGemsData() {
-        if (gemsData == null || gemsFile == null) {
-            return;
-        }
-        try {
-            gemsData.save(gemsFile);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
     // 读取/写入某些具体数据
     public int getRequiredCount() { return requiredCount; }
     public ExecuteConfig getGemUnionExecute() { return gemUnionExecute; }

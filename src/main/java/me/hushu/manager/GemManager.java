@@ -29,6 +29,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -65,15 +66,20 @@ public class GemManager {
     }
 
     public void loadGems() {
+        System.out.println("Loading gems data...");
         // 获取 gemsData
-        FileConfiguration gemsData = configManager.getGemsData();
+        FileConfiguration gemsData = configManager.readGemsData();
+
         if (gemsData == null) {
             plugin.getLogger().warning("无法加载 gemsData 配置！请检查文件是否存在。");
             return;
         }
-        locationToGemUuid.clear();
+        System.out.println("gemsData: " + gemsData);
+//        locationToGemUuid.clear();
+        System.out.println("locationToGemUuid: " + locationToGemUuid);
         // 读取powerPlayer数据
         ConfigurationSection powerPlayerSection = gemsData.getConfigurationSection("power_player");
+        System.out.println("powerPlayerSection: " + powerPlayerSection);
         if (powerPlayerSection != null) {
             String uuidStr = powerPlayerSection.getString("uuid");
             if (uuidStr != null) {
@@ -83,15 +89,15 @@ public class GemManager {
         }
         // 读取宝石数据
         // 放置的宝石
-        ConfigurationSection gemsSection = gemsData.getConfigurationSection("placed-gems");
-        if (gemsSection != null) {
-            for (String key : gemsSection.getKeys(false)) {
+        ConfigurationSection placedGemsSection = gemsData.getConfigurationSection("placed-gems");
+        System.out.println("placedGemsSection: " + placedGemsSection);
+        if (placedGemsSection != null) {
+            for (String uuidStr : placedGemsSection.getKeys(false)) {
                 // key 类似 "gems.<uuid>"
-                String worldName = gemsSection.getString(key + ".world");
-                double x = gemsSection.getDouble(key + ".x");
-                double y = gemsSection.getDouble(key + ".y");
-                double z = gemsSection.getDouble(key + ".z");
-                String uuidStr = gemsSection.getString(key);
+                String worldName = placedGemsSection.getString(uuidStr + ".world");
+                double x = placedGemsSection.getDouble(uuidStr + ".x");
+                double y = placedGemsSection.getDouble(uuidStr + ".y");
+                double z = placedGemsSection.getDouble(uuidStr + ".z");
 
                 World w = Bukkit.getWorld(worldName);
                 if (w == null || uuidStr == null) {
@@ -104,15 +110,17 @@ public class GemManager {
                 locationToGemUuid.put(loc, gemId);
             }
         }
+        System.out.println("locationToGemUuid: " + locationToGemUuid);
 
         // 持有的宝石
         ConfigurationSection heldGemsSection = gemsData.getConfigurationSection("held-gems");
         if (heldGemsSection != null) {
-            for (String key : heldGemsSection.getKeys(false)) {
-                // key 类似 "held-gems.<uuid>"
-                String playerUUIDStr = heldGemsSection.getString(key + ".player_uuid");
-                String uuidStr = heldGemsSection.getString(key);
+            for (String uuidStr : heldGemsSection.getKeys(false)) {
+                // key 就是uuid
+                String playerUUIDStr = heldGemsSection.getString(uuidStr + ".player_uuid");
 
+                System.out.println("playerUUIDStr: " + playerUUIDStr);
+                System.out.println("uuidStr: " + uuidStr);
                 UUID playerUUID = UUID.fromString(playerUUIDStr);
                 UUID gemId = UUID.fromString(uuidStr);
                 Player player = Bukkit.getPlayer(playerUUID);
@@ -132,6 +140,7 @@ public class GemManager {
                     gemUuidToHolder.put(gemId, player);
                 }
             }
+            System.out.println("gemUuidToHolder: " + gemUuidToHolder);
         }
 
         Map<String, String> placeholders = new HashMap<>();
@@ -143,9 +152,12 @@ public class GemManager {
 
     public void saveGems() {
         FileConfiguration gemsData = configManager.getGemsData();
-        gemsData.set("gems", null);
+        gemsData.set("placed-gems", null);
+        gemsData.set("held-gems", null);
         gemsData.set("power_player", null);
+        System.out.println("gemsData: " + gemsData);
 
+        System.out.println("Saving gems data...");
         for (Location loc : locationToGemUuid.keySet()) {
             String path = "placed-gams." + locationToGemUuid.get(loc).toString();
             gemsData.set(path + ".world", loc.getWorld().getName());
@@ -153,6 +165,7 @@ public class GemManager {
             gemsData.set(path + ".y", loc.getY());
             gemsData.set(path + ".z", loc.getZ());
 //            gemsData.set(path + ".uuid", locationToGemUuid.get(loc).toString());
+            System.out.println("Saved gem at " + loc);
         }
         for (UUID gemId : gemUuidToHolder.keySet()) {
             Player player = gemUuidToHolder.get(gemId);
@@ -160,12 +173,14 @@ public class GemManager {
             gemsData.set(path + ".player", player.getName());
             gemsData.set(path + ".player_uuid", player.getUniqueId().toString());
 //            gemsData.set(path + ".uuid", gemId.toString());
+            System.out.println("Saved held gem " + gemId + " for " + player.getName());
         }
         // 保存powerPlayer数据
         if (this.powerPlayer != null) {
             gemsData.set("power_player.uuid", this.powerPlayer.getUniqueId().toString());
         }
-        configManager.saveGemData();
+        System.out.println("Add to data: " + gemsData);
+        configManager.saveGemData(gemsData);
     }
 
     @EventHandler
@@ -225,9 +240,9 @@ public class GemManager {
             UUID gemId = locationToGemUuid.get(block.getLocation());
             Player player = event.getPlayer();
             Inventory inv = player.getInventory();
-            Map<String, String> placeholders = new HashMap<>();
-            placeholders.put("slot", String.valueOf(inv.firstEmpty()));
-            languageManager.logMessage("inventory_full", placeholders);
+//            Map<String, String> placeholders = new HashMap<>();
+//            placeholders.put("slot", String.valueOf(inv.firstEmpty()));
+//            languageManager.logMessage("inventory_full", placeholders);
             if (inv.firstEmpty() == -1) {
                 languageManager.logMessage("inventory_full");
                 event.setCancelled(true);
@@ -313,6 +328,22 @@ public class GemManager {
         }
     }
 
+    // onPlayerJoin
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        Inventory inv = player.getInventory();
+        for (ItemStack item : inv.getContents()) {
+            if (isPowerGem(item)) {
+                UUID gemId = getGemUUID(item);
+                if (!gemUuidToHolder.containsKey(gemId)) {
+                    inv.remove(item);
+                    gemUuidToHolder.remove(gemId);
+                    System.out.println("玩家有非法宝石，已移除");
+                }
+            }
+        }
+    }
+
     /**
      * 随机放置宝石
      */
@@ -372,14 +403,9 @@ public class GemManager {
                 }
             }
         }
-        int heldGems = 0;
-        for (String p : gemHolders.keySet()) {
-            heldGems += gemHolders.get(p);
-        }// 测试用，以后不需要
 
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("count", String.valueOf(configManager.getRequiredCount()));
-        placeholders.put("placed_count", String.valueOf(heldGems));
         placeholders.put("placed_count", String.valueOf(locationToGemUuid.size()));
         placeholders.put("held_count", String.valueOf(gemUuidToHolder.size()));
         languageManager.sendMessage(sender, "gem_status.total_expected", placeholders);
@@ -460,21 +486,21 @@ public class GemManager {
     /**
      * 根据locationToGemUuid里的数据，初始化宝石方块
      */
-    public void setGems() {
-        for (Location loc : locationToGemUuid.keySet()) {
-            placePowerGem(loc, locationToGemUuid.get(loc));
-        }
-        // 检查所有在线玩家，如果背包里有宝石，设置宝石材质
-        // 刚开机应该不会有
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            Inventory inv = player.getInventory();
-            for (ItemStack item : inv.getContents()) {
-                if (isPowerGem(item)) {
-                    placePowerGem(player.getLocation(), getGemUUID(item));
-                }
-            }
-        }
-    }
+//    public void setGems() {
+//        for (Location loc : locationToGemUuid.keySet()) {
+//            placePowerGem(loc, locationToGemUuid.get(loc));
+//        }
+//        // 检查所有在线玩家，如果背包里有宝石，设置宝石材质
+//        // 刚开机应该不会有
+//        for (Player player : Bukkit.getOnlinePlayers()) {
+//            Inventory inv = player.getInventory();
+//            for (ItemStack item : inv.getContents()) {
+//                if (isPowerGem(item)) {
+//                    placePowerGem(player.getLocation(), getGemUUID(item));
+//                }
+//            }
+//        }
+//    }
 
     /*
      * get total gem count

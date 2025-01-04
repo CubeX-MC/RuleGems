@@ -82,7 +82,7 @@ public class PowerGem extends JavaPlugin {
         configManager.loadConfigs();
         configManager.getGemsData();
         gemManager.loadGems();
-        gemManager.setGems();
+//        gemManager.setGems();
     }
 
     public ConfigManager getConfigManager() { return configManager; }
