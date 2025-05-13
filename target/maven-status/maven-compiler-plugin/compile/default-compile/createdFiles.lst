@@ -2,7 +2,6 @@ me\hushu\metrics\Metrics.class
 me\hushu\PowerGem.class
 me\hushu\manager\GemManager.class
 me\hushu\listeners\PlayerEventListener.class
-me\hushu\manager\GemManager$1.class
 me\hushu\utils\EffectUtils.class
 me\hushu\listeners\GemPlaceListener.class
 me\hushu\manager\LanguageManager.class
@@ -20,5 +19,6 @@ me\hushu\listeners\GemInventoryListener.class
 me\hushu\metrics\Metrics$AdvancedBarChart.class
 me\hushu\metrics\Metrics$JsonObjectBuilder$JsonObject.class
 me\hushu\metrics\Metrics$MultiLineChart.class
+me\hushu\utils\SchedulerUtils.class
 me\hushu\metrics\Metrics$DrilldownPie.class
 me\hushu\metrics\Metrics$SingleLineChart.class

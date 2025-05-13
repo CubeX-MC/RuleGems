@@ -14,6 +14,7 @@ import me.hushu.manager.ConfigManager;
 import me.hushu.manager.GemManager;
 import me.hushu.manager.LanguageManager;
 import me.hushu.utils.EffectUtils;
+import me.hushu.utils.SchedulerUtils;
 
 /**
  * PowerGem 插件主类
@@ -48,15 +49,16 @@ public class PowerGem extends JavaPlugin {
         getPluginManager().registerEvents(new GemInventoryListener(gemManager, languageManager), this);
         getPluginManager().registerEvents(new PlayerEventListener(this, gemManager), this);
 
-        Bukkit.getScheduler().runTaskTimer(
+        // 使用SchedulerUtils替换Bukkit调度器
+        SchedulerUtils.runGlobalTask(
                 this,
                 () -> gemManager.checkPlayersNearPowerGems(),
                 20L,  // 1秒后第一次执行
                 20L   // 每隔1秒执行一次
         );
 
-        // store gemData per hour
-        Bukkit.getScheduler().runTaskTimer(
+        // store gemData per hour - 使用SchedulerUtils替换Bukkit调度器
+        SchedulerUtils.runGlobalTask(
                 this,
                 () -> gemManager.saveGems(),
                 20L * 60 * 60,  // 1小时后第一次执行

@@ -21,7 +21,7 @@ messages:
     help:
       header: "&a=== PowerGem Hilfe ==="
       place: "&e/powergem place <x> <y> <z> &f- Platziere einen Edelstein an den angegebenen Koordinaten"
-      revoke: "&e/powergem revoke <playerName> &f- Entziehe Spielerberechtigungen"
+      revoke: "&e/powergem revoke &f- Entziehe Spielerberechtigungen"
       reload: "&e/powergem reload &f- Konfiguration neu laden"
       powerplayer: "&e/powergem powerplayer &f- Zeige aktuellen powerPlayer"
       gems: "&e/powergem gems &f- Zeige alle Edelstein-Informationen"

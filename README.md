@@ -25,6 +25,7 @@ PowerGem 是一个实验性的插件，它为您的 Minecraft 服务器添加了
 - 基于权限的权力系统
 - 防滥用机制（宝石不能存储在容器中）
 - 持久化存储宝石位置和权力者数据
+- 支持 Folia 服务器
 
 ## 命令
 
@@ -95,10 +96,11 @@ gem_scatter_execute:            # 宝石散布时的动作
 ## 依赖
 
 - 需要 Spigot/Paper 1.16 或更高版本
+- 支持 Folia 服务器
 
 ## 构建
 
-项目使用 Java 开发，需要 Spigot API。使用您喜欢的 Java IDE 或构建系统进行构建。
+项目使用 Java 开发，需要 Spigot API 和 Folia API。使用您喜欢的 Java IDE 或构建系统进行构建。
 
 ## 许可
 

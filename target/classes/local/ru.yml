@@ -21,7 +21,7 @@ messages:
     help:
       header: "&a=== PowerGem Помощь ==="
       place: "&e/powergem place <x> <y> <z> &f- Разместить камень по указанным координатам"
-      revoke: "&e/powergem revoke <playerName> &f- Отозвать права игрока"
+      revoke: "&e/powergem revoke &f- Отозвать права игрока"
       reload: "&e/powergem reload &f- Перезагрузить конфигурацию"
       powerplayer: "&e/powergem powerplayer &f- Посмотреть текущего powerPlayer"
       gems: "&e/powergem gems &f- Посмотреть информацию о всех камнях"

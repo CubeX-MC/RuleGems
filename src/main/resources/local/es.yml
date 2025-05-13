@@ -21,7 +21,7 @@ messages:
     help:
       header: "&a=== Ayuda de PowerGem ==="
       place: "&e/powergem place <x> <y> <z> &f- Colocar una gema en las coordenadas especificadas"
-      revoke: "&e/powergem revoke <playerName> &f- Revocar permisos del jugador"
+      revoke: "&e/powergem revoke &f- Revocar permisos del jugador"
       reload: "&e/powergem reload &f- Recargar configuración"
       powerplayer: "&e/powergem powerplayer &f- Ver el powerPlayer actual"
       gems: "&e/powergem gems &f- Ver información de todas las gemas"

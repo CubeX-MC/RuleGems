@@ -29,6 +29,10 @@
             <id>papermc</id>
             <url>https://repo.papermc.io/repository/maven-public/</url>
         </repository>
+        <repository>
+            <id>folia-repo</id>
+            <url>https://repo.papermc.io/repository/maven-public/</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -36,6 +40,12 @@
             <groupId>org.spigotmc</groupId>
             <artifactId>spigot-api</artifactId>
             <version>1.16.5-R0.1-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>dev.folia</groupId>
+            <artifactId>folia-api</artifactId>
+            <version>1.20.2-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         <!-- 添加测试依赖 -->
@@ -94,6 +104,15 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <version>3.3.0</version>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>2.3.1</version>
+                <configuration>
+                    <outputDirectory>C:\Users\Angus\Desktop\MC server\test server\plugins</outputDirectory>
+                </configuration>
             </plugin>
         </plugins>
     </build>

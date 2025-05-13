@@ -22,6 +22,11 @@
       <option name="url" value="https://repository.jboss.org/nexus/content/repositories/public/" />
     </remote-repository>
     <remote-repository>
+      <option name="id" value="folia-repo" />
+      <option name="name" value="folia-repo" />
+      <option name="url" value="https://repo.papermc.io/repository/maven-public/" />
+    </remote-repository>
+    <remote-repository>
       <option name="id" value="papermc" />
       <option name="name" value="papermc" />
       <option name="url" value="https://repo.papermc.io/repository/maven-public/" />

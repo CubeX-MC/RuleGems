@@ -6,6 +6,8 @@ description: "一个管理 PowerGem（权力宝石）的示例插件"
 
 # 如果你的插件需要在更高版本的 Spigot/Paper 运行，可以指定 api-version
 api-version: "1.16"
+# Folia支持标记
+folia-supported: true
 commands:
   powergem:
     usage: /<command> <place|revoke|reload|powerplayer|gems|scatter|help>

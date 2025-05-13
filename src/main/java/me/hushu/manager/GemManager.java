@@ -41,6 +41,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 import me.hushu.PowerGem;
 import me.hushu.model.ExecuteConfig;
 import me.hushu.utils.EffectUtils;
+import me.hushu.utils.SchedulerUtils;
 
 public class GemManager {
     private final PowerGem plugin;
@@ -625,18 +626,16 @@ public class GemManager {
     }
 
     public void startParticleEffectTask(Particle particle) {
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                for (Location loc : locationToGemUuid.keySet()) {
-                    World world = loc.getWorld();
-                    if (world == null) continue;
+        // 使用调度器工具类替换BukkitRunnable
+        SchedulerUtils.runGlobalTask(plugin, () -> {
+            for (Location loc : locationToGemUuid.keySet()) {
+                World world = loc.getWorld();
+                if (world == null) continue;
 
-                    // 简单的例子特效
-                    world.spawnParticle(particle, loc, 1);
-                }
+                // 使用调度器工具类的粒子生成方法
+                SchedulerUtils.spawnParticle(world, particle, loc, 1);
             }
-        }.runTaskTimer(plugin, 0L, 20L); // 每秒更新一次粒子
+        }, 0L, 20L); // 每秒更新一次粒子
     }
 
     /**

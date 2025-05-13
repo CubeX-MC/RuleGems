@@ -21,7 +21,7 @@ messages:
     help:
       header: "&a=== PowerGem 帮助 ==="
       place: "&e/powergem place <x> <y> <z> &f- 在指定坐标放置宝石方块"
-      revoke: "&e/powergem revoke <playerName> &f- 收回该玩家的权限"
+      revoke: "&e/powergem revoke &f- 收回权力玩家的权限"
       reload: "&e/powergem reload &f- 重新加载配置"
       powerplayer: "&e/powergem powerplayer &f- 查看当前的 powerPlayer"
       gems: "&e/powergem gems &f- 查看所有宝石信息"
