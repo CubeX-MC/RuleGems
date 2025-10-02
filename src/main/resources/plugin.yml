@@ -1,33 +1,33 @@
-name: PowerGem
+name: RulerGem
 version: 0.2.0
-main: me.hushu.PowerGem
+main: me.hushu.RulerGem
 author: angushushu
-description: "一个管理 PowerGem（权力宝石）的示例插件"
+description: "一个管理 RulerGem（权力宝石）的示例插件"
 
 # 如果你的插件需要在更高版本的 Spigot/Paper 运行，可以指定 api-version
 api-version: "1.16"
 folia-supported: true
 depend: [Vault]
 commands:
-  powergem:
+  rulergem:
     usage: /<command> <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>
-    description: PowerGem plugin command
-    aliases: [pg]
+    description: RulerGem plugin command
+    aliases: [rg]
     permission: 
 
 permissions:
-  powergem.admin:
-    description: Allows access to all PowerGem commands
+  rulergem.admin:
+    description: Allows access to all RulerGem commands
     default: op
-  powergem.redeem:
-    description: Allows using /powergem redeem
+  rulergem.redeem:
+    description: Allows using /rulergem redeem
     default: true
-  powergem.redeemall:
-    description: Allows using /powergem redeemall
+  rulergem.redeemall:
+    description: Allows using /rulergem redeemall
     default: op
-  powergem.powerplayer:
-    description: Allows using /powergem powerplayer
+  rulergem.powerplayer:
+    description: Allows using /rulergem powerplayer
     default: true
-  powergem.help:
-    description: Allows using /powergem help
+  rulergem.help:
+    description: Allows using /rulergem help
     default: true

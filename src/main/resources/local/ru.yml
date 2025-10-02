@@ -1,16 +1,16 @@
-prefix: "&7[&cPowerGem&7]&r"
+prefix: "&7[&cRulerGem&7]&r"
 
 messages:
   command:
     no_permission: "&c%prefix% У вас нет прав для выполнения этой команды!"
-    usage: "&e%prefix% Использование: /powergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
+  usage: "&e%prefix% Использование: /rulergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
     reload_success: "&a%prefix% Конфигурация перезагружена!"
     powerplayer_status: "&a%prefix% Текущий powerPlayer: &e%player%"
     no_power_player: "&c%prefix% Нет powerPlayer!"
     scatter_success: "&a%prefix% Права отозваны, камни рассеяны!"
-    unknown_subcommand: "&e%prefix% Неизвестная подкоманда. Использование: /powergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
+  unknown_subcommand: "&e%prefix% Неизвестная подкоманда. Использование: /rulergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
     redeem:
-      usage: "&c%prefix% Использование: /powergem redeem <имя или ключ>"
+  usage: "&c%prefix% Использование: /rulergem redeem <имя или ключ>"
       player_only: "&c%prefix% Только игроки могут использовать эту команду!"
       disabled: "&c%prefix% Функция обмена отключена."
       failed: "&c%prefix% Обмен не удался. Убедитесь, что у вас есть нужный камень."
@@ -21,7 +21,7 @@ messages:
       failed: "&c%prefix% Массовый обмен не удался. Убедитесь, что у вас есть все необходимые камни."
       success: "&a%prefix% Массовый обмен успешен!"
     place:
-      usage: "&c%prefix% Использование: /powergem place <x> <y> <z>"
+  usage: "&c%prefix% Использование: /rulergem place <x> <y> <z>"
       player_only: "&c%prefix% Только игроки могут использовать эту команду!"
       invalid_coordinates: "&c%prefix% Координаты должны быть числами или ~!"
       success: "&a%prefix% Размещен камень на &e%x% %y% %z%&a."
@@ -30,14 +30,14 @@ messages:
       no_power_player: "&c%prefix% Нет powerPlayer!"
       success: "&a%prefix% Права отозваны у &e%player%&a."
     help:
-      header: "&a=== PowerGem Помощь ==="
-      place: "&e/powergem place <x> <y> <z> &f- Разместить камень по указанным координатам"
-      revoke: "&e/powergem revoke <playerName> &f- Отозвать права игрока"
-      reload: "&e/powergem reload &f- Перезагрузить конфигурацию"
-      powerplayer: "&e/powergem powerplayer &f- Посмотреть текущего powerPlayer"
-      gems: "&e/powergem gems &f- Посмотреть информацию о всех камнях"
-      scatter: "&e/powergem scatter &f- Рассеять камни"
-      help: "&e/powergem help &f- Показать справку"
+  header: "&a=== RulerGem Помощь ==="
+  place: "&e/rulergem place <x> <y> <z> &f- Разместить камень по указанным координатам"
+  revoke: "&e/rulergem revoke <playerName> &f- Отозвать права игрока"
+  reload: "&e/rulergem reload &f- Перезагрузить конфигурацию"
+  powerplayer: "&e/rulergem powerplayer &f- Посмотреть текущего powerPlayer"
+  gems: "&e/rulergem gems &f- Посмотреть информацию о всех камнях"
+  scatter: "&e/rulergem scatter &f- Рассеять камни"
+  help: "&e/rulergem help &f- Показать справку"
       footer: "&a======================"
   inventory:
     drag_denied: "&c%prefix% Нельзя перетащить Power Gem сюда!"

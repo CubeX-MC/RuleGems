@@ -7,15 +7,15 @@ import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
-import me.hushu.PowerGem;
+import me.hushu.RulerGem;
 import me.hushu.manager.GemManager;
 
 public class PlayerEventListener implements Listener {
 
-    private final PowerGem plugin;
+    private final RulerGem plugin;
     private final GemManager gemManager;
 
-    public PlayerEventListener(PowerGem plugin, GemManager gemManager) {
+    public PlayerEventListener(RulerGem plugin, GemManager gemManager) {
         this.plugin = plugin;
         this.gemManager = gemManager;
     }

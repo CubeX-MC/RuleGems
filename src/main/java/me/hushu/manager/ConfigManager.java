@@ -13,12 +13,12 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
-import me.hushu.PowerGem;
+import me.hushu.RulerGem;
 import me.hushu.model.ExecuteConfig;
 import me.hushu.model.GemDefinition;
 
 public class ConfigManager {
-    private final PowerGem plugin;
+    private final RulerGem plugin;
 
     private FileConfiguration config;
     private FileConfiguration gemsData;
@@ -52,7 +52,7 @@ public class ConfigManager {
     private boolean redeemEnabled;
     private boolean fullSetGrantsAllEnabled;
 
-    public ConfigManager(PowerGem plugin) {
+    public ConfigManager(RulerGem plugin) {
         this.plugin = plugin;
     }
 
@@ -273,10 +273,10 @@ public class ConfigManager {
     }
 
     public void initGemFile() {
-        gemsFile = new File(this.plugin.getDataFolder(), "powergem.yml");
+        gemsFile = new File(this.plugin.getDataFolder(), "rulergem.yml");
         if (!gemsFile.exists()) {
             gemsFile.getParentFile().mkdirs();
-            this.plugin.saveResource("powergem.yml", false);
+            this.plugin.saveResource("rulergem.yml", false);
         }
     }
 

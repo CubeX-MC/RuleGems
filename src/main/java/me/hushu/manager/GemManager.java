@@ -36,13 +36,13 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
-import me.hushu.PowerGem;
+import me.hushu.RulerGem;
 import me.hushu.model.ExecuteConfig;
 import me.hushu.utils.EffectUtils;
 import me.hushu.utils.SchedulerUtil;
 
 public class GemManager {
-    private final PowerGem plugin;
+    private final RulerGem plugin;
     private final ConfigManager configManager;
     private final EffectUtils effectUtils;
     private final LanguageManager languageManager;
@@ -64,7 +64,7 @@ public class GemManager {
 
     private Player powerPlayer;
 
-    public GemManager(PowerGem plugin, ConfigManager configManager, EffectUtils effectUtils,
+    public GemManager(RulerGem plugin, ConfigManager configManager, EffectUtils effectUtils,
                       LanguageManager languageManager) {
         this.plugin = plugin;
         this.configManager = configManager;

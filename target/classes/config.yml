@@ -1,4 +1,4 @@
-# PowerGem 插件配置
+# RulerGem 插件配置
 
 # 语言设置
 # 可选值: zh (中文), en (英语), ru (俄语), es (西班牙语)
@@ -154,5 +154,5 @@ gem_scatter_execute:
 # 授权策略
 grant_policy:
   inventory_grants: false       # 背包即生效（true 开启）
-  redeem_enabled: true         # 是否允许 /powergem redeem*
+  redeem_enabled: true         # 是否允许 /rulergem redeem*
   full_set_grants_all: true    # 是否允许集齐后一次性生效（配合 redeemall）

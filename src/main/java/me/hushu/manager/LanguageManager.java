@@ -12,16 +12,16 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
-import me.hushu.PowerGem;
+import me.hushu.RulerGem;
 import me.hushu.utils.SchedulerUtil;
 
 public class LanguageManager {
-    private final PowerGem plugin;
+    private final RulerGem plugin;
     private String language;
     private FileConfiguration langConfig;
     private String prefix;
 
-    public LanguageManager(PowerGem plugin) {
+    public LanguageManager(RulerGem plugin) {
         this.plugin = plugin;
     }
 
@@ -45,7 +45,7 @@ public class LanguageManager {
             copyLangFileIfNotExists("zh");
             loadLangConfig("zh");
         }
-        this.prefix = langConfig.getString("prefix", "&7[&6PowerGem&7] ");
+    this.prefix = langConfig.getString("prefix", "&7[&6RulerGem&7] ");
     }
 
     private void loadLangConfig(String lang) {

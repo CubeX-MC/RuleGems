@@ -11,11 +11,11 @@ import org.bukkit.command.TabCompleter;
 import me.hushu.manager.ConfigManager;
 import me.hushu.model.GemDefinition;
 
-public class PowerGemTabCompleter implements TabCompleter {
+public class RulerGemTabCompleter implements TabCompleter {
 
     private final ConfigManager configManager;
 
-    public PowerGemTabCompleter(ConfigManager configManager) {
+    public RulerGemTabCompleter(ConfigManager configManager) {
         this.configManager = configManager;
     }
 
@@ -35,7 +35,7 @@ public class PowerGemTabCompleter implements TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
 
-        if (!command.getName().equalsIgnoreCase("powergem")) {
+        if (!command.getName().equalsIgnoreCase("rulergem")) {
             return null; // 不处理其它指令
         }
 
@@ -50,7 +50,7 @@ public class PowerGemTabCompleter implements TabCompleter {
             return suggestions;
         }
 
-        // /powergem place <x>
+        // /rulergem place <x>
         if (args.length == 2 && args[0].equalsIgnoreCase("place")) {
             List<String> placeArgs = new ArrayList<>();
             placeArgs.add("~");
@@ -65,7 +65,7 @@ public class PowerGemTabCompleter implements TabCompleter {
             return suggestions;
         }
 
-        // /powergem redeem <key>
+        // /rulergem redeem <key>
         if (args.length == 2 && args[0].equalsIgnoreCase("redeem")) {
             List<String> keys = new ArrayList<>();
             if (configManager != null && configManager.getGemDefinitions() != null) {

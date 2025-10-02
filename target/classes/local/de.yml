@@ -1,16 +1,16 @@
-prefix: "&7[&cPowerGem&7]&r"
+prefix: "&7[&cRulerGem&7]&r"
 
 messages:
   command:
     no_permission: "&c%prefix% Du hast keine Berechtigung, diesen Befehl auszuführen!"
-    usage: "&e%prefix% Verwendung: /powergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
+  usage: "&e%prefix% Verwendung: /rulergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
     reload_success: "&a%prefix% Konfiguration neu geladen!"
     powerplayer_status: "&a%prefix% Aktueller powerPlayer ist: &e%player%"
     no_power_player: "&c%prefix% Kein powerPlayer!"
     scatter_success: "&a%prefix% Macht entzogen, Edelsteine wurden verstreut!"
-    unknown_subcommand: "&e%prefix% Unbekannter Unterbefehl. Verwendung: /powergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
+  unknown_subcommand: "&e%prefix% Unbekannter Unterbefehl. Verwendung: /rulergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
     redeem:
-      usage: "&c%prefix% Verwendung: /powergem redeem <Name oder Schlüssel>"
+  usage: "&c%prefix% Verwendung: /rulergem redeem <Name oder Schlüssel>"
       player_only: "&c%prefix% Nur Spieler können diesen Befehl ausführen!"
       disabled: "&c%prefix% Einlösen ist deaktiviert."
       failed: "&c%prefix% Einlösen fehlgeschlagen. Stelle sicher, dass du den erforderlichen Edelstein hast."
@@ -21,7 +21,7 @@ messages:
       failed: "&c%prefix% Gesamteinlösen fehlgeschlagen. Stelle sicher, dass du alle erforderlichen Edelsteine besitzt."
       success: "&a%prefix% Gesamteinlösen erfolgreich!"
     place:
-      usage: "&c%prefix% Verwendung: /powergem place <x> <y> <z>"
+  usage: "&c%prefix% Verwendung: /rulergem place <x> <y> <z>"
       player_only: "&c%prefix% Nur Spieler können diesen Befehl ausführen!"
       invalid_coordinates: "&c%prefix% Koordinaten müssen Zahlen oder ~ sein!"
       success: "&a%prefix% Edelstein platziert bei &e%x% %y% %z%&a."
@@ -30,14 +30,14 @@ messages:
       no_power_player: "&c%prefix% Kein powerPlayer!"
       success: "&a%prefix% Berechtigungen von &e%player%&a entzogen."
     help:
-      header: "&a=== PowerGem Hilfe ==="
-      place: "&e/powergem place <x> <y> <z> &f- Platziere einen Edelstein an den angegebenen Koordinaten"
-      revoke: "&e/powergem revoke <playerName> &f- Entziehe Spielerberechtigungen"
-      reload: "&e/powergem reload &f- Konfiguration neu laden"
-      powerplayer: "&e/powergem powerplayer &f- Zeige aktuellen powerPlayer"
-      gems: "&e/powergem gems &f- Zeige alle Edelstein-Informationen"
-      scatter: "&e/powergem scatter &f- Verstreue Edelsteine"
-      help: "&e/powergem help &f- Zeige Hilfeinformationen"
+  header: "&a=== RulerGem Hilfe ==="
+  place: "&e/rulergem place <x> <y> <z> &f- Platziere einen Edelstein an den angegebenen Koordinaten"
+  revoke: "&e/rulergem revoke <playerName> &f- Entziehe Spielerberechtigungen"
+  reload: "&e/rulergem reload &f- Konfiguration neu laden"
+  powerplayer: "&e/rulergem powerplayer &f- Zeige aktuellen powerPlayer"
+  gems: "&e/rulergem gems &f- Zeige alle Edelstein-Informationen"
+  scatter: "&e/rulergem scatter &f- Verstreue Edelsteine"
+  help: "&e/rulergem help &f- Zeige Hilfeinformationen"
       footer: "&a======================"
   inventory:
     drag_denied: "&c%prefix% Power Gem kann hier nicht abgelegt werden!"

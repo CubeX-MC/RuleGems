@@ -3,8 +3,8 @@ package me.hushu;
 import static org.bukkit.Bukkit.getPluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import me.hushu.commands.PowerGemCommand;
-import me.hushu.commands.PowerGemTabCompleter;
+import me.hushu.commands.RulerGemTabCompleter;
+import me.hushu.commands.RulerGemCommand;
 import me.hushu.listeners.GemInventoryListener;
 import me.hushu.listeners.GemPlaceListener;
 import me.hushu.listeners.PlayerEventListener;
@@ -17,10 +17,10 @@ import me.hushu.utils.SchedulerUtil;
 import net.milkbowl.vault.permission.Permission;
 
 /**
- * PowerGem 插件主类
+ * RulerGem 插件主类
  */
 
-public class PowerGem extends JavaPlugin {
+public class RulerGem extends JavaPlugin {
 
     private ConfigManager configManager;
     private GemManager gemManager;
@@ -36,20 +36,20 @@ public class PowerGem extends JavaPlugin {
         this.configManager = new ConfigManager(this);
         this.languageManager = new LanguageManager(this);
         this.effectUtils = new EffectUtils(this);
-//        this.configManager.loadConfigs();   // 读 config.yml, powergem.yml
+//        this.configManager.loadConfigs();   // 读 config.yml, rulergem.yml
         this.gemManager = new GemManager(this, configManager, effectUtils, languageManager);
 
         this.metrics = new Metrics(this, 27436);
         loadPlugin();
 
         // 注册命令
-        PowerGemCommand powerGemCommand = new PowerGemCommand(this, gemManager, configManager, languageManager);
-        org.bukkit.command.PluginCommand cmd = getCommand("powergem");
+        RulerGemCommand powerGemCommand = new RulerGemCommand(this, gemManager, configManager, languageManager);
+        org.bukkit.command.PluginCommand cmd = getCommand("rulergem");
         if (cmd != null) {
             cmd.setExecutor(powerGemCommand);
-            cmd.setTabCompleter(new PowerGemTabCompleter(configManager));
+            cmd.setTabCompleter(new RulerGemTabCompleter(configManager));
         } else {
-            getLogger().warning("Command 'powergem' not found in plugin.yml");
+            getLogger().warning("Command 'rulergem' not found in plugin.yml");
         }
         // 注册监听器
         getPluginManager().registerEvents(new GemPlaceListener(this, gemManager), this);

@@ -6,13 +6,13 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.BlockDamageEvent;
 
-import me.hushu.PowerGem;
+import me.hushu.RulerGem;
 import me.hushu.manager.GemManager;
 
 public class GemPlaceListener implements Listener {
     private final GemManager gemManager;
 
-    public GemPlaceListener(PowerGem plugin, GemManager gemManager) {
+    public GemPlaceListener(RulerGem plugin, GemManager gemManager) {
         this.gemManager = gemManager;
     }
 

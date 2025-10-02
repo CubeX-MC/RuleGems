@@ -10,14 +10,14 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
-import me.hushu.PowerGem;
+import me.hushu.RulerGem;
 import me.hushu.model.ExecuteConfig;
 
 public class EffectUtils {
 
-    private final PowerGem plugin;
+    private final RulerGem plugin;
 
-    public EffectUtils(PowerGem plugin) {
+    public EffectUtils(RulerGem plugin) {
         this.plugin = plugin;
     }
 
@@ -48,7 +48,7 @@ public class EffectUtils {
             }
             // 若仍存在未解析的 %...% 占位符，则跳过执行以避免错误
             if (replaced.matches(".*%[A-Za-z0-9_]+%.*")) {
-                plugin.getLogger().log(Level.WARNING, "[PowerGem] 跳过执行命令，未解析占位符: {0}", replaced);
+                plugin.getLogger().log(Level.WARNING, "[RulerGem] 跳过执行命令，未解析占位符: {0}", replaced);
                 continue;
             }
             // 以控制台身份执行命令：统一通过 SchedulerUtil 调度，内部已根据服务端类型与线程处理
@@ -68,7 +68,7 @@ public class EffectUtils {
                     SchedulerUtil.entityRun(plugin, p, () -> p.playSound(p.getLocation(), sound, volume, pitch), 0L, -1L);
                 }
             } catch (Exception ex) {
-                plugin.getLogger().log(Level.WARNING, "[PowerGem] 无效的音效名称: {0}", execCfg.getSound());
+                plugin.getLogger().log(Level.WARNING, "[RulerGem] 无效的音效名称: {0}", execCfg.getSound());
             }
         }
     }
@@ -82,7 +82,7 @@ public class EffectUtils {
                 Sound sound = Sound.valueOf(execCfg.getSound());
                 SchedulerUtil.regionRun(plugin, location, () -> location.getWorld().playSound(location, sound, volume, pitch), 0L, -1L);
             } catch (Exception ex) {
-                plugin.getLogger().log(Level.WARNING, "[PowerGem] 无效的音效名称: {0}", execCfg.getSound());
+                plugin.getLogger().log(Level.WARNING, "[RulerGem] 无效的音效名称: {0}", execCfg.getSound());
             }
         }
     }
@@ -96,7 +96,7 @@ public class EffectUtils {
                 Particle particle = Particle.valueOf(execCfg.getParticle());
                 SchedulerUtil.regionRun(plugin, location, () -> location.getWorld().spawnParticle(particle, location, 1), 0L, -1L);
             } catch (Exception ex) {
-                plugin.getLogger().log(Level.WARNING, "[PowerGem] 无效的粒子名称: {0}", execCfg.getParticle());
+                plugin.getLogger().log(Level.WARNING, "[RulerGem] 无效的粒子名称: {0}", execCfg.getParticle());
             }
         }
     }

@@ -5,11 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>hushu</groupId>
-    <artifactId>PowerGem</artifactId>
+    <artifactId>RulerGem</artifactId>
     <version>0.2.0</version>
     <packaging>jar</packaging>
 
-    <name>PowerGems</name>
+    <name>RulerGems</name>
     <description>A Minecraft plugin that adds powerful gems to the game</description>
 
     <properties>
@@ -58,7 +58,7 @@
     </dependencies>
 
     <build>
-        <finalName>PowerGem</finalName>
+    <finalName>RulerGem</finalName>
         <defaultGoal>clean package</defaultGoal>
         
         <resources>
@@ -68,7 +68,7 @@
                 <includes>
                     <include>plugin.yml</include>
                     <include>config.yml</include>
-                    <include>powergems.yml</include>
+                    <include>rulergem.yml</include>
                     <include>**/*.yml</include>
                 </includes>
             </resource>

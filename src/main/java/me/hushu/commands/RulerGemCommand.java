@@ -12,18 +12,18 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
-import me.hushu.PowerGem;
+import me.hushu.RulerGem;
 import me.hushu.manager.ConfigManager;
 import me.hushu.manager.GemManager;
 import me.hushu.manager.LanguageManager;
 
-public class PowerGemCommand implements CommandExecutor {
-    private final PowerGem plugin;
+public class RulerGemCommand implements CommandExecutor {
+    private final RulerGem plugin;
     private final GemManager gemManager;
     private final ConfigManager configManager;
     private final LanguageManager languageManager;
 
-    public PowerGemCommand(PowerGem plugin, GemManager gemManager, ConfigManager configManager, LanguageManager languageManager) {
+    public RulerGemCommand(RulerGem plugin, GemManager gemManager, ConfigManager configManager, LanguageManager languageManager) {
         this.plugin = plugin;
         this.gemManager = gemManager;
         this.configManager = configManager;
@@ -33,7 +33,7 @@ public class PowerGemCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
 
-        if (!cmd.getName().equalsIgnoreCase("powergem")) {
+        if (!cmd.getName().equalsIgnoreCase("rulergem")) {
             return false;
         }
 
@@ -44,7 +44,7 @@ public class PowerGemCommand implements CommandExecutor {
 
         switch (args[0].toLowerCase()) {
             case "reload":
-                if (require(sender, "powergem.admin")) return true;
+                if (require(sender, "rulergem.admin")) return true;
                 gemManager.saveGems();
                 configManager.reloadConfigs();
                 languageManager.loadLanguage();
@@ -52,7 +52,7 @@ public class PowerGemCommand implements CommandExecutor {
                 languageManager.sendMessage(sender, "command.reload_success");
                 return true;
             case "powerplayer":
-                if (require(sender, "powergem.powerplayer")) return true;
+                if (require(sender, "rulergem.powerplayer")) return true;
                 java.util.Map<java.util.UUID, java.util.Set<String>> holders = gemManager.getCurrentPowerHolders();
                 if (holders.isEmpty()) {
                     languageManager.sendMessage(sender, "command.no_power_player");
@@ -68,33 +68,33 @@ public class PowerGemCommand implements CommandExecutor {
                 }
                 return true;
             case "gems":
-                if (require(sender, "powergem.admin")) return true;
+                if (require(sender, "rulergem.admin")) return true;
                 gemManager.gemStatus(sender);
                 return true;
             case "scatter":
-                if (require(sender, "powergem.admin")) return true;
+                if (require(sender, "rulergem.admin")) return true;
                 gemManager.scatterGems();
                 languageManager.sendMessage(sender, "command.scatter_success");
                 return true;
             case "redeem":
-                if (require(sender, "powergem.redeem")) return true;
+                if (require(sender, "rulergem.redeem")) return true;
                 if (!configManager.isRedeemEnabled()) {
                     languageManager.sendMessage(sender, "command.redeem.disabled");
                     return true;
                 }
                 return handleRedeem(sender, args);
             case "redeemall":
-                if (require(sender, "powergem.redeemall")) return true;
+                if (require(sender, "rulergem.redeemall")) return true;
                 if (!configManager.isFullSetGrantsAllEnabled()) {
                     languageManager.sendMessage(sender, "command.redeemall.disabled");
                     return true;
                 }
                 return handleRedeemAll(sender);
             case "place":
-                if (require(sender, "powergem.admin")) return true;
+                if (require(sender, "rulergem.admin")) return true;
                 return handlePlaceCommand(sender, args);
             case "revoke":
-                if (require(sender, "powergem.admin")) return true;
+                if (require(sender, "rulergem.admin")) return true;
                 return handleRevokeCommand(sender);
             case "help":
                 sendHelp(sender);

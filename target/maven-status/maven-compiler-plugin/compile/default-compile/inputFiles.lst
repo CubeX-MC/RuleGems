@@ -1,14 +1,14 @@
-C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\commands\PowerGemCommand.java
-C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\PowerGem.java
 C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\manager\ConfigManager.java
 C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\metrics\Metrics.java
 C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\manager\LanguageManager.java
 C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\utils\EffectUtils.java
 C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\manager\GemManager.java
 C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\model\GemDefinition.java
+C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\commands\RulerGemCommand.java
 C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\listeners\PlayerEventListener.java
 C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\listeners\GemInventoryListener.java
 C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\model\ExecuteConfig.java
+C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\commands\RulerGemTabCompleter.java
+C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\RulerGem.java
 C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\utils\SchedulerUtil.java
-C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\commands\PowerGemTabCompleter.java
 C:\Users\Angus\Desktop\MC server\PowerGem\src\main\java\me\hushu\listeners\GemPlaceListener.java
