@@ -39,7 +39,7 @@ public class PowerGem extends JavaPlugin {
 //        this.configManager.loadConfigs();   // 读 config.yml, powergem.yml
         this.gemManager = new GemManager(this, configManager, effectUtils, languageManager);
 
-        this.metrics = new Metrics(this, 24346);
+        this.metrics = new Metrics(this, 27436);
         loadPlugin();
 
         // 注册命令
@@ -106,6 +106,8 @@ public class PowerGem extends JavaPlugin {
         gemManager.loadGems();
         // 恢复已记录坐标的宝石方块材质，确保首次启动即可看到实体方块
         gemManager.initializePlacedGemBlocks();
+        // 补齐配置定义但当前不存在的宝石，保证“服务器里永远有配置中的所有 gems”
+        gemManager.ensureConfiguredGemsPresent();
     }
 
     public ConfigManager getConfigManager() { return configManager; }

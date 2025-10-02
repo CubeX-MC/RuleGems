@@ -39,6 +39,10 @@ public class ConfigManager {
     private String language;
     // Global toggles
     private boolean broadcastRedeemTitle = true;
+    // Redeem all presentation
+    private java.util.List<String> redeemAllTitle = java.util.Collections.emptyList();
+    private Boolean redeemAllBroadcast = null; // null => inherit global
+    private String redeemAllSound = "ENTITY_ENDER_DRAGON_GROWL";
 
     // 每颗宝石的定义（可选）。当存在时，requiredCount 默认等于定义数量
     private java.util.List<GemDefinition> gemDefinitions = new java.util.ArrayList<>();
@@ -125,6 +129,29 @@ public class ConfigManager {
         ConfigurationSection toggles = this.config.getConfigurationSection("toggles");
         if (toggles != null) {
             this.broadcastRedeemTitle = toggles.getBoolean("broadcast_redeem_title", true);
+        }
+
+        // 7.2) titles
+        ConfigurationSection titles = this.config.getConfigurationSection("titles");
+        if (titles != null) {
+            ConfigurationSection ra = titles.getConfigurationSection("redeem_all");
+            if (ra != null) {
+                Object titlesObj = ra.get("titles");
+                this.redeemAllTitle = toStringList(titlesObj);
+                if (ra.isSet("broadcast")) {
+                    this.redeemAllBroadcast = ra.getBoolean("broadcast");
+                } else {
+                    this.redeemAllBroadcast = null;
+                }
+                String s = stringOf(ra.get("sound"));
+                if (s != null && !s.isEmpty()) this.redeemAllSound = s;
+            } else {
+                this.redeemAllTitle = java.util.Collections.emptyList();
+                this.redeemAllBroadcast = null;
+            }
+        } else {
+            this.redeemAllTitle = java.util.Collections.emptyList();
+            this.redeemAllBroadcast = null;
         }
 
         // 8) 读取情景效果
@@ -327,4 +354,7 @@ public class ConfigManager {
     public boolean isRedeemEnabled() { return redeemEnabled; }
     public boolean isFullSetGrantsAllEnabled() { return fullSetGrantsAllEnabled; }
     public boolean isBroadcastRedeemTitle() { return broadcastRedeemTitle; }
+    public java.util.List<String> getRedeemAllTitle() { return redeemAllTitle; }
+    public Boolean getRedeemAllBroadcastOverride() { return redeemAllBroadcast; }
+    public String getRedeemAllSound() { return redeemAllSound; }
 }

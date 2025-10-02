@@ -65,10 +65,16 @@ public class SchedulerUtil {
         } else {
             if (period < 0) {
                 // 只执行一次的任务
-                if (delay == 0)
-                    return Bukkit.getScheduler().runTask(plugin, task);
-                else
+                if (delay == 0) {
+                    if (Bukkit.isPrimaryThread()) {
+                        task.run();
+                        return null; // ran inline, no handle
+                    } else {
+                        return Bukkit.getScheduler().runTask(plugin, task);
+                    }
+                } else {
                     return Bukkit.getScheduler().runTaskLater(plugin, task, delay);
+                }
             } else {
                 // 重复执行的任务
                 return Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period);
@@ -138,13 +144,19 @@ public class SchedulerUtil {
         } else {
             if (period <= 0) {
                 // 只执行一次的任务
-                if (delay == 0)
-                    return Bukkit.getScheduler().runTask(plugin, (Runnable) task);
-                else
-                    return Bukkit.getScheduler().runTaskLater(plugin, (Runnable) task, delay);
+                if (delay == 0) {
+                    if (Bukkit.isPrimaryThread()) {
+                        task.run();
+                        return null;
+                    } else {
+                        return Bukkit.getScheduler().runTask(plugin, task);
+                    }
+                } else {
+                    return Bukkit.getScheduler().runTaskLater(plugin, task, delay);
+                }
             } else {
                 // 重复执行的任务
-                return Bukkit.getScheduler().runTaskTimer(plugin, (Runnable) task, delay, period);
+                return Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period);
             }
         }
         return null;
@@ -186,10 +198,16 @@ public class SchedulerUtil {
         } else {
             if (period <= 0) {
                 // 只执行一次的任务
-                if (delay == 0)
-                    return Bukkit.getScheduler().runTask(plugin, task);
-                else
+                if (delay == 0) {
+                    if (Bukkit.isPrimaryThread()) {
+                        task.run();
+                        return null;
+                    } else {
+                        return Bukkit.getScheduler().runTask(plugin, task);
+                    }
+                } else {
                     return Bukkit.getScheduler().runTaskLater(plugin, task, delay);
+                }
             } else {
                 // 重复执行的任务
                 return Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period);

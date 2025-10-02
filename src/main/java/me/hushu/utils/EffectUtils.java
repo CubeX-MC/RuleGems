@@ -34,7 +34,7 @@ public class EffectUtils {
             if (original == null || original.trim().isEmpty()) {
                 continue;
             }
-            String cmd = original;
+            String replaced = original;
             // 依次替换占位符（同时兼容 key 与 %key% 两种写法）
             for (Map.Entry<String, String> entry : ph.entrySet()) {
                 String key = entry.getKey();
@@ -42,17 +42,18 @@ public class EffectUtils {
                 if (key == null || value == null) continue;
                 // 如果键不是包裹过的，占位符两种形式都尝试
                 if (!(key.startsWith("%") && key.endsWith("%"))) {
-                    cmd = cmd.replace("%" + key + "%", value);
+                    replaced = replaced.replace("%" + key + "%", value);
                 }
-                cmd = cmd.replace(key, value);
+                replaced = replaced.replace(key, value);
             }
             // 若仍存在未解析的 %...% 占位符，则跳过执行以避免错误
-            if (cmd.matches(".*%[A-Za-z0-9_]+%.*")) {
-                plugin.getLogger().log(Level.WARNING, "[PowerGem] 跳过执行命令，未解析占位符: {0}", cmd);
+            if (replaced.matches(".*%[A-Za-z0-9_]+%.*")) {
+                plugin.getLogger().log(Level.WARNING, "[PowerGem] 跳过执行命令，未解析占位符: {0}", replaced);
                 continue;
             }
-            // 以控制台身份执行命令
-            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+            // 以控制台身份执行命令：统一通过 SchedulerUtil 调度，内部已根据服务端类型与线程处理
+            final String cmdToRun = replaced;
+            SchedulerUtil.globalRun(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmdToRun), 0L, -1L);
         }
     }
 
@@ -64,7 +65,7 @@ public class EffectUtils {
             try {
                 Sound sound = Sound.valueOf(execCfg.getSound());
                 for (Player p : Bukkit.getOnlinePlayers()) {
-                    p.playSound(p.getLocation(), sound, volume, pitch);
+                    SchedulerUtil.entityRun(plugin, p, () -> p.playSound(p.getLocation(), sound, volume, pitch), 0L, -1L);
                 }
             } catch (Exception ex) {
                 plugin.getLogger().log(Level.WARNING, "[PowerGem] 无效的音效名称: {0}", execCfg.getSound());
@@ -79,7 +80,7 @@ public class EffectUtils {
         if (execCfg.getSound() != null) {
             try {
                 Sound sound = Sound.valueOf(execCfg.getSound());
-                location.getWorld().playSound(location, sound, volume, pitch);
+                SchedulerUtil.regionRun(plugin, location, () -> location.getWorld().playSound(location, sound, volume, pitch), 0L, -1L);
             } catch (Exception ex) {
                 plugin.getLogger().log(Level.WARNING, "[PowerGem] 无效的音效名称: {0}", execCfg.getSound());
             }
@@ -93,7 +94,7 @@ public class EffectUtils {
         if (execCfg.getParticle() != null) {
             try {
                 Particle particle = Particle.valueOf(execCfg.getParticle());
-                location.getWorld().spawnParticle(particle, location, 1);
+                SchedulerUtil.regionRun(plugin, location, () -> location.getWorld().spawnParticle(particle, location, 1), 0L, -1L);
             } catch (Exception ex) {
                 plugin.getLogger().log(Level.WARNING, "[PowerGem] 无效的粒子名称: {0}", execCfg.getParticle());
             }

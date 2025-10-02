@@ -1,5 +1,5 @@
 name: PowerGem
-version: 0.2
+version: 0.2.0
 main: me.hushu.PowerGem
 author: angushushu
 description: "一个管理 PowerGem（权力宝石）的示例插件"
@@ -13,7 +13,7 @@ commands:
     usage: /<command> <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>
     description: PowerGem plugin command
     aliases: [pg]
-    permission: powergem.admin
+    permission: 
 
 permissions:
   powergem.admin:
@@ -27,4 +27,7 @@ permissions:
     default: op
   powergem.powerplayer:
     description: Allows using /powergem powerplayer
+    default: true
+  powergem.help:
+    description: Allows using /powergem help
     default: true

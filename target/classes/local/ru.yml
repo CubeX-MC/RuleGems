@@ -3,7 +3,7 @@ prefix: "&7[&cPowerGem&7]&r"
 messages:
   command:
     no_permission: "&c%prefix% У вас нет прав для выполнения этой команды!"
-  usage: "&e%prefix% Использование: /powergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
+    usage: "&e%prefix% Использование: /powergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
     reload_success: "&a%prefix% Конфигурация перезагружена!"
     powerplayer_status: "&a%prefix% Текущий powerPlayer: &e%player%"
     no_power_player: "&c%prefix% Нет powerPlayer!"
@@ -46,11 +46,11 @@ messages:
     header: "&a====== Статус камней ======"
     total_expected: "&a%prefix% Ожидаемое количество камней: &e%count%"
     total_counts: "&a%prefix% &e%placed_count% размещено &a%held_count% в наличии"
-  gem_location: "&a%prefix% Локация: &e%x% %y% %z% %world%"
-  gem_location_named: "&a%prefix% Локация: &e%x% %y% %z% %world% &7[&e%gem_id%&7] &f%gem_name%"
+    gem_location: "&a%prefix% Локация: &e%x% %y% %z% %world%"
+    gem_location_named: "&a%prefix% Локация: &e%x% %y% %z% %world% &7[&e%gem_id%&7] &f%gem_name%"
     player_holding: "&a%prefix% Игрок: &e%player% &aдержит &e%count% &aкамней"
-  player_gem_uuid: "&a%prefix% Игрок: &e%player% &aдержит камень: &e%uuid%"
-  player_gem_named: "&a%prefix% Игрок: &e%player% &aдержит: &7[&e%gem_id%&7] &f%gem_name%"
+    player_gem_uuid: "&a%prefix% Игрок: &e%player% &aдержит камень: &e%uuid%"
+    player_gem_named: "&a%prefix% Игрок: &e%player% &aдержит: &7[&e%gem_id%&7] &f%gem_name%"
     footer: "&a======================"
 title:
   gems_recollected:

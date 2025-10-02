@@ -48,11 +48,11 @@ messages:
     header: "&a====== 宝石状态 ======"
     total_expected: "&a%prefix% 预计宝石数量: &e%count%"
     total_counts: "&a%prefix% &e%placed_count% 放置 &a%held_count% 持有"
-  gem_location: "&a%prefix% 坐标: &e%x% %y% %z% %world%"
-  gem_location_named: "&a%prefix% 坐标: &e%x% %y% %z% %world% &7[&e%gem_id%&7] &f%gem_name%"
+    gem_location: "&a%prefix% 坐标: &e%x% %y% %z% %world%"
+    gem_location_named: "&a%prefix% 坐标: &e%x% %y% %z% %world% &7[&e%gem_id%&7] &f%gem_name%"
     player_holding: "&a%prefix% 玩家: &e%player% &a持有 &e%count% &a颗宝石"
-  player_gem_uuid: "&a%prefix% 玩家: &e%player% &a持有宝石: &e%uuid%"
-  player_gem_named: "&a%prefix% 玩家: &e%player% &a持有: &7[&e%gem_id%&7] &f%gem_name%"
+    player_gem_uuid: "&a%prefix% 玩家: &e%player% &a持有宝石: &e%uuid%"
+    player_gem_named: "&a%prefix% 玩家: &e%player% &a持有: &7[&e%gem_id%&7] &f%gem_name%"
     footer: "&a======================"
 title:
   gems_recollected:

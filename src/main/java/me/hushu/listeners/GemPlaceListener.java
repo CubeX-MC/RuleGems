@@ -4,16 +4,15 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.block.BlockDamageEvent;
 
 import me.hushu.PowerGem;
 import me.hushu.manager.GemManager;
 
 public class GemPlaceListener implements Listener {
-    private final PowerGem plugin;
     private final GemManager gemManager;
 
     public GemPlaceListener(PowerGem plugin, GemManager gemManager) {
-        this.plugin = plugin;
         this.gemManager = gemManager;
     }
 
@@ -25,5 +24,10 @@ public class GemPlaceListener implements Listener {
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
         gemManager.onGemBroken(event);
+    }
+
+    @EventHandler
+    public void onBlockDamage(BlockDamageEvent event) {
+        gemManager.onGemDamage(event);
     }
 }

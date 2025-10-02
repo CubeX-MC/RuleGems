@@ -23,6 +23,19 @@ toggles:
   # 兑换后是否向全服广播标题
   broadcast_redeem_title: true
 
+# 标题与特效配置
+titles:
+  # 集齐全部宝石后（redeemall）的展示配置
+  redeem_all:
+    # 是否向全服广播标题（默认继承 toggles.broadcast_redeem_title）
+    broadcast: true
+    # 标题文本（1-2 行）
+    titles:
+      - "&a%player% 集齐了全部宝石！"
+      - "&e获得了至高权力！"
+    # 全局音效（默认 ENTITY_ENDER_DRAGON_GROWL）
+    sound: ENTITY_ENDER_DRAGON_GROWL
+
 # 每颗宝石的自定义定义（必填）。若存在，将自动设置 required_count。
 # 推荐使用“映射”形式（也兼容列表形式）
 gems:

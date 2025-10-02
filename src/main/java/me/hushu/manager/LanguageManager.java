@@ -13,6 +13,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
 import me.hushu.PowerGem;
+import me.hushu.utils.SchedulerUtil;
 
 public class LanguageManager {
     private final PowerGem plugin;
@@ -142,20 +143,20 @@ public class LanguageManager {
         if (langConfig == null) return;
         List<String> titleMessages = langConfig.getStringList("title." + path);
         // 如果没有配置标题消息，直接返回
-         if (titleMessages.size() == 1) {
-            player.sendTitle(
-                    translateColorCodes(formatText(titleMessages.get(0), placeholders)),
-                    null,
-                    10,
-                    70,
-                    20);
-         } else if (titleMessages.size() == 2) {
-            player.sendTitle(
-                    translateColorCodes(formatText(titleMessages.get(0), placeholders)),
-                    translateColorCodes(formatText(titleMessages.get(1), placeholders)),
-                    10,
-                    70,
-                    20);
-         }
+     if (titleMessages.size() == 1) {
+        SchedulerUtil.entityRun(plugin, player, () -> player.sendTitle(
+            translateColorCodes(formatText(titleMessages.get(0), placeholders)),
+            null,
+            10,
+            70,
+            20), 0L, -1L);
+     } else if (titleMessages.size() == 2) {
+        SchedulerUtil.entityRun(plugin, player, () -> player.sendTitle(
+            translateColorCodes(formatText(titleMessages.get(0), placeholders)),
+            translateColorCodes(formatText(titleMessages.get(1), placeholders)),
+            10,
+            70,
+            20), 0L, -1L);
+     }
     }
 } 

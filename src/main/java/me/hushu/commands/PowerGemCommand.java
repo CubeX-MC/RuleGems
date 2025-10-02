@@ -53,14 +53,19 @@ public class PowerGemCommand implements CommandExecutor {
                 return true;
             case "powerplayer":
                 if (require(sender, "powergem.powerplayer")) return true;
-                Map<String, String> placeholders = new HashMap<>();
-                Player pp = gemManager.getPowerPlayer();
-                if (pp == null) {
+                java.util.Map<java.util.UUID, java.util.Set<String>> holders = gemManager.getCurrentPowerHolders();
+                if (holders.isEmpty()) {
                     languageManager.sendMessage(sender, "command.no_power_player");
                     return true;
                 }
-                placeholders.put("player", gemManager.getPowerPlayer().getName());
-                languageManager.sendMessage(sender, "command.powerplayer_status", placeholders);
+                for (java.util.Map.Entry<java.util.UUID, java.util.Set<String>> e : holders.entrySet()) {
+                    Player p = Bukkit.getPlayer(e.getKey());
+                    String name = p != null ? p.getName() : e.getKey().toString();
+                    String extra = e.getValue().contains("ALL") ? "ALL" : String.join(",", e.getValue());
+                    Map<String, String> placeholders = new HashMap<>();
+                    placeholders.put("player", name + " (" + extra + ")");
+                    languageManager.sendMessage(sender, "command.powerplayer_status", placeholders);
+                }
                 return true;
             case "gems":
                 if (require(sender, "powergem.admin")) return true;

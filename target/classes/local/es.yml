@@ -3,7 +3,7 @@ prefix: "&7[&cPowerGem&7]&r"
 messages:
   command:
     no_permission: "&c%prefix% ¡No tienes permiso para ejecutar este comando!"
-  usage: "&e%prefix% Uso: /powergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
+    usage: "&e%prefix% Uso: /powergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
     reload_success: "&a%prefix% ¡Configuración recargada!"
     powerplayer_status: "&a%prefix% El powerPlayer actual es: &e%player%"
     no_power_player: "&c%prefix% ¡No hay powerPlayer!"
@@ -46,11 +46,11 @@ messages:
     header: "&a====== Estado de Gemas ======"
     total_expected: "&a%prefix% Cantidad esperada de gemas: &e%count%"
     total_counts: "&a%prefix% &e%placed_count% colocadas &a%held_count% en posesión"
-  gem_location: "&a%prefix% Ubicación: &e%x% %y% %z% %world%"
-  gem_location_named: "&a%prefix% Ubicación: &e%x% %y% %z% %world% &7[&e%gem_id%&7] &f%gem_name%"
+    gem_location: "&a%prefix% Ubicación: &e%x% %y% %z% %world%"
+    gem_location_named: "&a%prefix% Ubicación: &e%x% %y% %z% %world% &7[&e%gem_id%&7] &f%gem_name%"
     player_holding: "&a%prefix% Jugador: &e%player% &atiene &e%count% &agemas"
-  player_gem_uuid: "&a%prefix% Jugador: &e%player% &atiene gema: &e%uuid%"
-  player_gem_named: "&a%prefix% Jugador: &e%player% &atiene: &7[&e%gem_id%&7] &f%gem_name%"
+    player_gem_uuid: "&a%prefix% Jugador: &e%player% &atiene gema: &e%uuid%"
+    player_gem_named: "&a%prefix% Jugador: &e%player% &atiene: &7[&e%gem_id%&7] &f%gem_name%"
     footer: "&a======================"
 title:
   gems_recollected:
