@@ -44,6 +44,7 @@ public class PowerGemCommand implements CommandExecutor {
 
         switch (args[0].toLowerCase()) {
             case "reload":
+                if (require(sender, "powergem.admin")) return true;
                 gemManager.saveGems();
                 configManager.reloadConfigs();
                 languageManager.loadLanguage();
@@ -51,6 +52,7 @@ public class PowerGemCommand implements CommandExecutor {
                 languageManager.sendMessage(sender, "command.reload_success");
                 return true;
             case "powerplayer":
+                if (require(sender, "powergem.powerplayer")) return true;
                 Map<String, String> placeholders = new HashMap<>();
                 Player pp = gemManager.getPowerPlayer();
                 if (pp == null) {
@@ -61,16 +63,33 @@ public class PowerGemCommand implements CommandExecutor {
                 languageManager.sendMessage(sender, "command.powerplayer_status", placeholders);
                 return true;
             case "gems":
+                if (require(sender, "powergem.admin")) return true;
                 gemManager.gemStatus(sender);
                 return true;
             case "scatter":
-
+                if (require(sender, "powergem.admin")) return true;
                 gemManager.scatterGems();
                 languageManager.sendMessage(sender, "command.scatter_success");
                 return true;
+            case "redeem":
+                if (require(sender, "powergem.redeem")) return true;
+                if (!configManager.isRedeemEnabled()) {
+                    languageManager.sendMessage(sender, "command.redeem.disabled");
+                    return true;
+                }
+                return handleRedeem(sender, args);
+            case "redeemall":
+                if (require(sender, "powergem.redeemall")) return true;
+                if (!configManager.isFullSetGrantsAllEnabled()) {
+                    languageManager.sendMessage(sender, "command.redeemall.disabled");
+                    return true;
+                }
+                return handleRedeemAll(sender);
             case "place":
+                if (require(sender, "powergem.admin")) return true;
                 return handlePlaceCommand(sender, args);
             case "revoke":
+                if (require(sender, "powergem.admin")) return true;
                 return handleRevokeCommand(sender);
             case "help":
                 sendHelp(sender);
@@ -81,6 +100,14 @@ public class PowerGemCommand implements CommandExecutor {
         }
     }
 
+    private boolean require(CommandSender sender, String permission) {
+        if (!sender.hasPermission(permission)) {
+            languageManager.sendMessage(sender, "command.no_permission");
+            return true;
+        }
+        return false;
+    }
+
     private void sendHelp(CommandSender sender) {
         languageManager.sendMessage(sender, "command.help.header");
         languageManager.sendMessage(sender, "command.help.place");
@@ -89,6 +116,8 @@ public class PowerGemCommand implements CommandExecutor {
         languageManager.sendMessage(sender, "command.help.powerplayer");
         languageManager.sendMessage(sender, "command.help.gems");
         languageManager.sendMessage(sender, "command.help.scatter");
+        languageManager.sendMessage(sender, "command.help.redeem");
+        languageManager.sendMessage(sender, "command.help.redeemall");
         languageManager.sendMessage(sender, "command.help.help");
         languageManager.sendMessage(sender, "command.help.footer");
     }
@@ -141,6 +170,41 @@ public class PowerGemCommand implements CommandExecutor {
         placeholders.put("y", String.valueOf(y));
         placeholders.put("z", String.valueOf(z));
         languageManager.sendMessage(sender, "command.place.success", placeholders);
+        return true;
+    }
+
+    private boolean handleRedeem(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player)) {
+            languageManager.sendMessage(sender, "command.redeem.player_only");
+            return true;
+        }
+        if (args.length < 2) {
+            languageManager.sendMessage(sender, "command.redeem.usage");
+            return true;
+        }
+        Player player = (Player) sender;
+        String name = args[1];
+        boolean ok = gemManager.redeemGem(player, name);
+        if (!ok) {
+            languageManager.sendMessage(sender, "command.redeem.failed");
+            return true;
+        }
+        languageManager.sendMessage(sender, "command.redeem.success");
+        return true;
+    }
+
+    private boolean handleRedeemAll(CommandSender sender) {
+        if (!(sender instanceof Player)) {
+            languageManager.sendMessage(sender, "command.redeem.player_only");
+            return true;
+        }
+        Player player = (Player) sender;
+        boolean ok = gemManager.redeemAll(player);
+        if (!ok) {
+            languageManager.sendMessage(sender, "command.redeemall.failed");
+            return true;
+        }
+        languageManager.sendMessage(sender, "command.redeemall.success");
         return true;
     }
 

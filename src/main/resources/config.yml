@@ -4,23 +4,7 @@
 # 可选值: zh (中文), en (英语), ru (俄语), es (西班牙语)
 language: zh
 
-required_count: 5                # 服务器宝石总数
-gem_material: RED_STAINED_GLASS     # 宝石的材质，例如 STONE, DIAMOND_BLOCK, EMERALD_BLOCK, etc.
-gem_name: "&c权力宝石"         # 宝石的名称，可带颜色
-gem_particle: FLASH              # 宝石的粒子效果，例如 FLAME, HEART, etc.
-gem_sound: AMBIENT_UNDERWATER_LOOP_ADDITIONS_ULTRA_RARE # 宝石的音效，例如 ENTITY_ENDERMAN_TELEPORT, ENTITY_EXPERIENCE_ORB_PICKUP, etc.
-
-# 是否启用"必须在指定坐标放置"机制，如不启用则直接检查是否挨着
-use_required_locations: false
-
-# 当 use_required_locations 为 true 时，需要满足以下范围内被放置全部宝石
-required_locations:
-  world: world
-  center:
-    x: 0
-    y: 70
-    z: 0
-  radius: 5
+# (已弃用) 通过指定坐标放置开启权限的机制已移除
 
 # 随机生成的范围
 random_place_range:
@@ -34,11 +18,100 @@ random_place_range:
     y: 30
     z: 100
 
+# 全局开关
+toggles:
+  # 兑换后是否向全服广播标题
+  broadcast_redeem_title: true
+
+# 每颗宝石的自定义定义（必填）。若存在，将自动设置 required_count。
+# 推荐使用“映射”形式（也兼容列表形式）
+gems:
+  justice:                   # 正义之石：kill 和 jail 相关
+    material: RED_STAINED_GLASS
+    name: "&c正义之石"
+    lore:
+      - "essentials.kill"
+      - "essentials.jail"
+      - "essentials.jail.exempt"
+    redeem_title: ["&a%player% 兑换了正义之石", "&e获得正义之力！"]
+    particle: FLAME
+    sound: ENTITY_EXPERIENCE_ORB_PICKUP
+    permissions:
+      - "essentials.kill"
+      - "essentials.jail"
+      - "essentials.jail.exempt"
+    on_pickup:
+      commands: []
+      sound: ENTITY_EXPERIENCE_ORB_PICKUP
+      particle: FLAME
+    on_scatter:
+      commands: []
+      sound: ENTITY_ENDERMAN_TELEPORT
+      particle: FLAME
+    on_redeem:
+      commands: []
+      sound: UI_TOAST_CHALLENGE_COMPLETE
+      particle: FIREWORK
+
+  wealth:                    # 财富之石：money 相关
+    material: GOLD_BLOCK
+    name: "&6财富之石"
+    lore:
+      - "essentials.balance"
+      - "essentials.pay"
+      - "essentials.balancetop"
+    redeem_title: ["&6%player% 兑换了财富之石", "&e财源滚滚来！"]
+    particle: VILLAGER_HAPPY
+    sound: ENTITY_EXPERIENCE_ORB_PICKUP
+    permissions:
+      - "essentials.balance"
+      - "essentials.pay"
+      - "essentials.balancetop"
+    on_pickup:
+      commands: []
+      sound: ENTITY_EXPERIENCE_ORB_PICKUP
+      particle: VILLAGER_HAPPY
+    on_scatter:
+      commands: []
+      sound: ENTITY_ENDERMAN_TELEPORT
+      particle: VILLAGER_HAPPY
+    on_redeem:
+      commands: []
+      sound: UI_TOAST_CHALLENGE_COMPLETE
+      particle: FIREWORK
+
+  residence:                 # 领地之石：res 权限
+    material: EMERALD_BLOCK
+    name: "&a领地之石"
+    lore:
+      - "residence.create"
+      - "residence.tp"
+      - "residence.list"
+    redeem_title: ["&a%player% 兑换了领地之石"]
+    particle: CRIT_MAGIC
+    sound: ENTITY_EXPERIENCE_ORB_PICKUP
+    permissions:
+      - "residence.create"
+      - "residence.tp"
+      - "residence.list"
+    on_pickup:
+      commands: []
+      sound: ENTITY_EXPERIENCE_ORB_PICKUP
+      particle: CRIT_MAGIC
+    on_scatter:
+      commands: []
+      sound: ENTITY_ENDERMAN_TELEPORT
+      particle: CRIT_MAGIC
+    on_redeem:
+      commands: []
+      sound: UI_TOAST_CHALLENGE_COMPLETE
+      particle: FIREWORK
+
 # 权力强制回收（宝石位置不变)
 revoke_power:
   # 权力强制回收时执行的命令
   commands:
-    - "broadcast &c%player% 的权力宝石被强制回收！"
+    - "say §c%player% 的权力宝石被强制回收！"
     - "deop %player%"
   # 权力强制回收时执行的音效
   sound: ENTITY_ENDERMAN_TELEPORT
@@ -60,7 +133,13 @@ gem_union_execute:
 gem_scatter_execute:
   # 宝石散落时执行的命令
   commands:
-    - "broadcast 权力宝石散落了！"
+    - "say 权力宝石散落了！"
     - "deop %player%"
   # 宝石散落时执行的音效
   sound: ENTITY_ENDERMAN_TELEPORT
+
+# 授权策略
+grant_policy:
+  inventory_grants: false       # 背包即生效（true 开启）
+  redeem_enabled: true         # 是否允许 /powergem redeem*
+  full_set_grants_all: true    # 是否允许集齐后一次性生效（配合 redeemall）

@@ -15,6 +15,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import me.hushu.PowerGem;
 import me.hushu.model.ExecuteConfig;
+import me.hushu.model.GemDefinition;
 
 public class ConfigManager {
     private final PowerGem plugin;
@@ -28,10 +29,7 @@ public class ConfigManager {
     private ExecuteConfig gemUnionExecute;
     private ExecuteConfig gemScatterExecute;
     private ExecuteConfig powerRevokeExecute;
-    private Material gemMaterial;
-    private String gemName;            // 宝石名称（可带颜色）
-    private Particle gemParticle;      // 宝石粒子特效
-    private Sound gemSound;            // 宝石声音
+    // 已移除全局默认展示参数，强制使用每颗宝石定义
     private boolean useRequiredLoc;   // 是否强制要求放置在指定坐标
     private Location requiredLocCenter; // 存所有必放坐标
     private int requiredLocRadius;
@@ -39,6 +37,16 @@ public class ConfigManager {
     private Location randomPlaceCorner1; // 随机放置范围的角落1
     private Location randomPlaceCorner2; // 随机放置范围的角落2
     private String language;
+    // Global toggles
+    private boolean broadcastRedeemTitle = true;
+
+    // 每颗宝石的定义（可选）。当存在时，requiredCount 默认等于定义数量
+    private java.util.List<GemDefinition> gemDefinitions = new java.util.ArrayList<>();
+
+    // 授权策略
+    private boolean inventoryGrantsEnabled;
+    private boolean redeemEnabled;
+    private boolean fullSetGrantsAllEnabled;
 
     public ConfigManager(PowerGem plugin) {
         this.plugin = plugin;
@@ -50,28 +58,11 @@ public class ConfigManager {
         
         this.language = plugin.getConfig().getString("language", "zh");
 
-        // 1) 读取宝石总数
-        this.requiredCount = this.config.getInt("required_count", 5);
-
-        // 2) 读取宝石材质
-        String matStr = this.config.getString("gem_material", "RED_STAINED_GLASS").toUpperCase();
-        try {
-            this.gemMaterial = Material.valueOf(matStr);
-        } catch (IllegalArgumentException e) {
-            plugin.getLogger().warning("[PowerGem] 无效的 gem_material: " + matStr + "，将使用RED_STAINED_GLASS代替。");
-            this.gemMaterial = Material.RED_STAINED_GLASS;
-        }
-
-        // 3) 读取宝石名称
-        String gemNameStr = this.config.getString("gem_name", "&c权力宝石");
-        // 需要把 & 转义成 §
-        this.gemName = ChatColor.translateAlternateColorCodes('&', gemNameStr);
-        // 4) 读取宝石粒子特效
-        this.gemParticle = Particle.valueOf(this.config.getString("gem_particle", "FLAME"));
-        // 5) 读取宝石声音
-        this.gemSound = Sound.valueOf(this.config.getString("gem_sound", "ENTITY_EXPERIENCE_ORB_PICKUP"));
-        // 4) 是否强制要求放置在指定坐标
-        this.useRequiredLoc = this.config.getBoolean("use_required_location", false);
+        // 1) 不再读取全局默认，强制使用映射式 gems 定义
+        // 4) 是否强制要求放置在指定坐标（兼容两种写法）
+        boolean v1 = this.config.getBoolean("use_required_location", false);
+        boolean v2 = this.config.getBoolean("use_required_locations", v1);
+        this.useRequiredLoc = v2;
 
         // 如果启用，就读坐标列表
         if (this.useRequiredLoc) {
@@ -118,17 +109,147 @@ public class ConfigManager {
             return;
         }
 
-        // 6) 读取情景效果
+        // 6) per-gem 定义（必填：强制使用映射/列表形式提供每颗宝石）
+        loadGemDefinitions();
+
+        // 宝石总数严格等于定义数量
+        this.requiredCount = this.gemDefinitions.size();
+
+        // 7) 授权策略
+        ConfigurationSection gp = this.config.getConfigurationSection("grant_policy");
+        this.inventoryGrantsEnabled = gp != null && gp.getBoolean("inventory_grants", false);
+        this.redeemEnabled = gp == null ? true : gp.getBoolean("redeem_enabled", true);
+        this.fullSetGrantsAllEnabled = gp == null ? true : gp.getBoolean("full_set_grants_all", true);
+
+        // 7.1) global toggles
+        ConfigurationSection toggles = this.config.getConfigurationSection("toggles");
+        if (toggles != null) {
+            this.broadcastRedeemTitle = toggles.getBoolean("broadcast_redeem_title", true);
+        }
+
+        // 8) 读取情景效果
         this.gemUnionExecute       = loadExecuteConfig("gem_union_execute");
         this.gemScatterExecute     = loadExecuteConfig("gem_scatter_execute");
-        this.powerRevokeExecute    = loadExecuteConfig("power_revoke_execute");
+        // 兼容历史 key：优先 power_revoke_execute，不存在则读取 revoke_power
+        ExecuteConfig revoke = loadExecuteConfig("power_revoke_execute");
+        if ((revoke == null || (revoke.getCommands() == null && revoke.getSound() == null && revoke.getParticle() == null))
+        && this.config.getConfigurationSection("revoke_power") != null) {
+            revoke = loadExecuteConfig("revoke_power");
+        }
+        this.powerRevokeExecute = revoke;
+    }
+
+    private void loadGemDefinitions() {
+        this.gemDefinitions.clear();
+        // 优先使用映射形式（推荐）
+        ConfigurationSection sec = this.config.getConfigurationSection("gems");
+        if (sec != null) {
+            for (String key : sec.getKeys(false)) {
+                ConfigurationSection sub = sec.getConfigurationSection(key);
+                java.util.Map<String, Object> m = new java.util.HashMap<>();
+                if (sub != null) {
+                    for (String k : sub.getKeys(false)) {
+                        m.put(k, sub.get(k));
+                    }
+                }
+                GemDefinition def = buildGemDefinitionFromMap(key, m);
+                this.gemDefinitions.add(def);
+            }
+            return;
+        }
+        // 兼容列表形式
+        java.util.List<java.util.Map<?, ?>> list = this.config.getMapList("gems");
+        if (list != null && !list.isEmpty()) {
+            int index = 0;
+            for (java.util.Map<?, ?> map : list) {
+                Object keyObj = map.get("key");
+                String key = keyObj != null ? stringOf(keyObj) : String.valueOf(index);
+                GemDefinition def = buildGemDefinitionFromMap(key, map);
+                this.gemDefinitions.add(def);
+                index++;
+            }
+        }
+    }
+
+    private GemDefinition buildGemDefinitionFromMap(String gemKey, java.util.Map<?, ?> map) {
+        String matStr = stringOf(map.get("material"));
+        Material material = Material.RED_STAINED_GLASS;
+        if (matStr != null && !matStr.isEmpty()) {
+            try { material = Material.valueOf(matStr.toUpperCase()); } catch (IllegalArgumentException ignored) {}
+        }
+        String nameStr = stringOf(map.get("name"));
+        String displayName = ChatColor.translateAlternateColorCodes('&', "&c权力宝石");
+        if (nameStr != null && !nameStr.isEmpty()) {
+            displayName = org.bukkit.ChatColor.translateAlternateColorCodes('&', nameStr);
+        }
+        String particleStr = stringOf(map.get("particle"));
+        Particle particle = Particle.FLAME;
+        if (particleStr != null && !particleStr.isEmpty()) {
+            try { particle = Particle.valueOf(particleStr.toUpperCase()); } catch (IllegalArgumentException ignored) {}
+        }
+        String soundStr = stringOf(map.get("sound"));
+        Sound sound = Sound.ENTITY_EXPERIENCE_ORB_PICKUP;
+        if (soundStr != null && !soundStr.isEmpty()) {
+            try { sound = Sound.valueOf(soundStr.toUpperCase()); } catch (IllegalArgumentException ignored) {}
+        }
+        // per-gem 事件覆盖（可选）
+        ExecuteConfig onPickup = null;
+        Object pickup = map.get("on_pickup");
+        if (pickup instanceof java.util.Map) {
+            onPickup = new ExecuteConfig(
+                    toStringList(((java.util.Map<?, ?>) pickup).get("commands")),
+                    stringOf(((java.util.Map<?, ?>) pickup).get("sound")),
+                    stringOf(((java.util.Map<?, ?>) pickup).get("particle"))
+            );
+        }
+        ExecuteConfig onScatter = null;
+        Object scatter = map.get("on_scatter");
+        if (scatter instanceof java.util.Map) {
+            onScatter = new ExecuteConfig(
+                    toStringList(((java.util.Map<?, ?>) scatter).get("commands")),
+                    stringOf(((java.util.Map<?, ?>) scatter).get("sound")),
+                    stringOf(((java.util.Map<?, ?>) scatter).get("particle"))
+            );
+        }
+        ExecuteConfig onRedeem = null;
+        Object redeem = map.get("on_redeem");
+        if (redeem instanceof java.util.Map) {
+            onRedeem = new ExecuteConfig(
+                    toStringList(((java.util.Map<?, ?>) redeem).get("commands")),
+                    stringOf(((java.util.Map<?, ?>) redeem).get("sound")),
+                    stringOf(((java.util.Map<?, ?>) redeem).get("particle"))
+            );
+        }
+        java.util.List<String> perms = toStringList(map.get("permissions"));
+        String group = stringOf(map.get("vault_group"));
+        java.util.List<String> lore = toStringList(map.get("lore"));
+        // redeem_title: list(1-2 entries) or string
+        java.util.List<String> redeemTitle = toStringList(map.get("redeem_title"));
+        return new GemDefinition(gemKey, material, displayName, particle, sound, onPickup, onScatter, onRedeem, perms, group, lore, redeemTitle);
+    }
+
+    private String stringOf(Object o) {
+        return o == null ? null : String.valueOf(o);
+    }
+
+    private java.util.List<String> toStringList(Object o) {
+        if (o == null) return java.util.Collections.emptyList();
+        if (o instanceof java.util.List) {
+            java.util.List<?> raw = (java.util.List<?>) o;
+            java.util.List<String> out = new java.util.ArrayList<>();
+            for (Object e : raw) {
+                if (e != null) out.add(String.valueOf(e));
+            }
+            return out;
+        }
+        return java.util.Collections.singletonList(String.valueOf(o));
     }
 
     public void initGemFile() {
-        gemsFile = new File(this.plugin.getDataFolder(), "powergems.yml");
+        gemsFile = new File(this.plugin.getDataFolder(), "powergem.yml");
         if (!gemsFile.exists()) {
             gemsFile.getParentFile().mkdirs();
-            this.plugin.saveResource("powergems.yml", false);
+            this.plugin.saveResource("powergem.yml", false);
         }
     }
 
@@ -195,13 +316,15 @@ public class ConfigManager {
     public ExecuteConfig getPowerRevokeExecute() { return powerRevokeExecute; }
     public Location getRandomPlaceCorner1() { return randomPlaceCorner1; }
     public Location getRandomPlaceCorner2() { return randomPlaceCorner2; }
-    public Sound getGemSound() { return gemSound; }
-    public Particle getGemParticle() { return gemParticle; }
-    public Material getGemMaterial() { return gemMaterial; }
-    public String getGemName() { return gemName; }
+    // 全局展示参数已移除对应 getter
     public boolean isUseRequiredLoc() { return useRequiredLoc; }
     public Location getRequiredLocCenter() { return requiredLocCenter; }
     public int getRequiredLocRadius() { return requiredLocRadius; }
     public FileConfiguration getConfig() { return config; }
     public String getLanguage() { return language; }
+    public java.util.List<GemDefinition> getGemDefinitions() { return gemDefinitions; }
+    public boolean isInventoryGrantsEnabled() { return inventoryGrantsEnabled; }
+    public boolean isRedeemEnabled() { return redeemEnabled; }
+    public boolean isFullSetGrantsAllEnabled() { return fullSetGrantsAllEnabled; }
+    public boolean isBroadcastRedeemTitle() { return broadcastRedeemTitle; }
 }

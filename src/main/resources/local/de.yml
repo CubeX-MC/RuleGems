@@ -3,12 +3,23 @@ prefix: "&7[&cPowerGem&7]&r"
 messages:
   command:
     no_permission: "&c%prefix% Du hast keine Berechtigung, diesen Befehl auszuführen!"
-    usage: "&e%prefix% Verwendung: /powergem <place|revoke|reload|powerplayer|gems|scatter|help>"
+    usage: "&e%prefix% Verwendung: /powergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
     reload_success: "&a%prefix% Konfiguration neu geladen!"
     powerplayer_status: "&a%prefix% Aktueller powerPlayer ist: &e%player%"
     no_power_player: "&c%prefix% Kein powerPlayer!"
     scatter_success: "&a%prefix% Macht entzogen, Edelsteine wurden verstreut!"
-    unknown_subcommand: "&e%prefix% Unbekannter Unterbefehl. Verwendung: /powergem <place|revoke|reload|powerplayer|gems|scatter|help>"
+    unknown_subcommand: "&e%prefix% Unbekannter Unterbefehl. Verwendung: /powergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
+    redeem:
+      usage: "&c%prefix% Verwendung: /powergem redeem <Name oder Schlüssel>"
+      player_only: "&c%prefix% Nur Spieler können diesen Befehl ausführen!"
+      disabled: "&c%prefix% Einlösen ist deaktiviert."
+      failed: "&c%prefix% Einlösen fehlgeschlagen. Stelle sicher, dass du den erforderlichen Edelstein hast."
+      success: "&a%prefix% Erfolgreich eingelöst!"
+    redeemall:
+      player_only: "&c%prefix% Nur Spieler können diesen Befehl ausführen!"
+      disabled: "&c%prefix% Gesamteinlösen ist deaktiviert."
+      failed: "&c%prefix% Gesamteinlösen fehlgeschlagen. Stelle sicher, dass du alle erforderlichen Edelsteine besitzt."
+      success: "&a%prefix% Gesamteinlösen erfolgreich!"
     place:
       usage: "&c%prefix% Verwendung: /powergem place <x> <y> <z>"
       player_only: "&c%prefix% Nur Spieler können diesen Befehl ausführen!"
@@ -36,8 +47,10 @@ messages:
     total_expected: "&a%prefix% Erwartete Edelsteinanzahl: &e%count%"
     total_counts: "&a%prefix% &e%placed_count% platziert &a%held_count% gehalten"
     gem_location: "&a%prefix% Position: &e%x% %y% %z% %world%"
+    gem_location_named: "&a%prefix% Position: &e%x% %y% %z% %world% &7[&e%gem_id%&7] &f%gem_name%"
     player_holding: "&a%prefix% Spieler: &e%player% &ahält &e%count% &aEdelsteine"
     player_gem_uuid: "&a%prefix% Spieler: &e%player% &ahält Edelstein: &e%uuid%"
+    player_gem_named: "&a%prefix% Spieler: &e%player% &ahält: &7[&e%gem_id%&7] &f%gem_name%"
     footer: "&a======================"
 title:
   gems_recollected:

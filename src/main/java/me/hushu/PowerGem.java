@@ -1,7 +1,5 @@
 package me.hushu;
 
-import me.hushu.metrics.Metrics;
-import org.bukkit.Bukkit;
 import static org.bukkit.Bukkit.getPluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -13,7 +11,10 @@ import me.hushu.listeners.PlayerEventListener;
 import me.hushu.manager.ConfigManager;
 import me.hushu.manager.GemManager;
 import me.hushu.manager.LanguageManager;
+import me.hushu.metrics.Metrics;
 import me.hushu.utils.EffectUtils;
+import me.hushu.utils.SchedulerUtil;
+import net.milkbowl.vault.permission.Permission;
 
 /**
  * PowerGem 插件主类
@@ -25,6 +26,8 @@ public class PowerGem extends JavaPlugin {
     private GemManager gemManager;
     private EffectUtils effectUtils;
     private LanguageManager languageManager;
+    private Permission vaultPerms;
+    private Metrics metrics;
 
     @Override
     public void onEnable() {
@@ -33,37 +36,54 @@ public class PowerGem extends JavaPlugin {
         this.configManager = new ConfigManager(this);
         this.languageManager = new LanguageManager(this);
         this.effectUtils = new EffectUtils(this);
-//        this.configManager.loadConfigs();   // 读 config.yml, powergems.yml
+//        this.configManager.loadConfigs();   // 读 config.yml, powergem.yml
         this.gemManager = new GemManager(this, configManager, effectUtils, languageManager);
 
-        Metrics metrics = new Metrics(this, 24346);
+        this.metrics = new Metrics(this, 24346);
         loadPlugin();
 
         // 注册命令
         PowerGemCommand powerGemCommand = new PowerGemCommand(this, gemManager, configManager, languageManager);
-        getCommand("powergem").setExecutor(powerGemCommand);
-        getCommand("powergem").setTabCompleter(new PowerGemTabCompleter());
+        org.bukkit.command.PluginCommand cmd = getCommand("powergem");
+        if (cmd != null) {
+            cmd.setExecutor(powerGemCommand);
+            cmd.setTabCompleter(new PowerGemTabCompleter(configManager));
+        } else {
+            getLogger().warning("Command 'powergem' not found in plugin.yml");
+        }
         // 注册监听器
         getPluginManager().registerEvents(new GemPlaceListener(this, gemManager), this);
         getPluginManager().registerEvents(new GemInventoryListener(gemManager, languageManager), this);
         getPluginManager().registerEvents(new PlayerEventListener(this, gemManager), this);
+        // Setup Vault permissions (optional)
+        if (getServer().getPluginManager().getPlugin("Vault") != null) {
+            try {
+                org.bukkit.plugin.RegisteredServiceProvider<Permission> rsp = getServer().getServicesManager().getRegistration(Permission.class);
+                if (rsp != null) {
+                    this.vaultPerms = rsp.getProvider();
+                }
+            } catch (Exception ignored) {}
+        }
 
-        Bukkit.getScheduler().runTaskTimer(
+        SchedulerUtil.globalRun(
                 this,
                 () -> gemManager.checkPlayersNearPowerGems(),
-                20L,  // 1秒后第一次执行
-                20L   // 每隔1秒执行一次
+                20L,
+                20L
         );
+
+    // Start per-gem particle task (uses per-gem definitions internally)
+    gemManager.startParticleEffectTask(org.bukkit.Particle.FLAME);
 
         // store gemData per hour
-        Bukkit.getScheduler().runTaskTimer(
+        SchedulerUtil.globalRun(
                 this,
                 () -> gemManager.saveGems(),
-                20L * 60 * 60,  // 1小时后第一次执行
-                20L * 60 * 60   // 每隔1小时执行一次
+                20L * 60 * 60,
+                20L * 60 * 60
         );
 
-        gemManager.startParticleEffectTask(configManager.getGemParticle());
+        // 取消依赖全局粒子设置；如需粒子展示可在 GemManager 内按 per-gem 自行实现
 
         languageManager.logMessage("plugin_enabled");
     }
@@ -84,12 +104,14 @@ public class PowerGem extends JavaPlugin {
         configManager.loadConfigs();
         configManager.getGemsData();
         gemManager.loadGems();
-//        gemManager.setGems();
+        // 恢复已记录坐标的宝石方块材质，确保首次启动即可看到实体方块
+        gemManager.initializePlacedGemBlocks();
     }
 
     public ConfigManager getConfigManager() { return configManager; }
     public GemManager getGemManager() { return gemManager; }
     public EffectUtils getEffectUtils() { return effectUtils; }
     public LanguageManager getLanguageManager() { return languageManager; }
+    public Permission getVaultPerms() { return vaultPerms; }
 
 }

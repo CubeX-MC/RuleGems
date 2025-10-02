@@ -3,12 +3,23 @@ prefix: "&7[&cPowerGem&7]&r"
 messages:
   command:
     no_permission: "&c%prefix% ¡No tienes permiso para ejecutar este comando!"
-    usage: "&e%prefix% Uso: /powergem <place|revoke|reload|powerplayer|gems|scatter|help>"
+  usage: "&e%prefix% Uso: /powergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
     reload_success: "&a%prefix% ¡Configuración recargada!"
     powerplayer_status: "&a%prefix% El powerPlayer actual es: &e%player%"
     no_power_player: "&c%prefix% ¡No hay powerPlayer!"
     scatter_success: "&a%prefix% ¡Poder revocado, las gemas han sido esparcidas!"
-    unknown_subcommand: "&e%prefix% Subcomando desconocido. Uso: /powergem <place|revoke|reload|powerplayer|gems|scatter|help>"
+    unknown_subcommand: "&e%prefix% Subcomando desconocido. Uso: /powergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
+    redeem:
+      usage: "&c%prefix% Uso: /powergem redeem <nombre o clave>"
+      player_only: "&c%prefix% ¡Solo los jugadores pueden ejecutar este comando!"
+      disabled: "&c%prefix% La función de canje está deshabilitada."
+      failed: "&c%prefix% Falló el canje. Asegúrate de tener la gema requerida."
+      success: "&a%prefix% ¡Canje exitoso!"
+    redeemall:
+      player_only: "&c%prefix% ¡Solo los jugadores pueden ejecutar este comando!"
+      disabled: "&c%prefix% La función de canje total está deshabilitada."
+      failed: "&c%prefix% Falló el canje total. Asegúrate de tener todas las gemas requeridas."
+      success: "&a%prefix% ¡Canje total exitoso!"
     place:
       usage: "&c%prefix% Uso: /powergem place <x> <y> <z>"
       player_only: "&c%prefix% ¡Solo los jugadores pueden ejecutar este comando!"
@@ -35,9 +46,11 @@ messages:
     header: "&a====== Estado de Gemas ======"
     total_expected: "&a%prefix% Cantidad esperada de gemas: &e%count%"
     total_counts: "&a%prefix% &e%placed_count% colocadas &a%held_count% en posesión"
-    gem_location: "&a%prefix% Ubicación: &e%x% %y% %z% %world%"
+  gem_location: "&a%prefix% Ubicación: &e%x% %y% %z% %world%"
+  gem_location_named: "&a%prefix% Ubicación: &e%x% %y% %z% %world% &7[&e%gem_id%&7] &f%gem_name%"
     player_holding: "&a%prefix% Jugador: &e%player% &atiene &e%count% &agemas"
-    player_gem_uuid: "&a%prefix% Jugador: &e%player% &atiene gema: &e%uuid%"
+  player_gem_uuid: "&a%prefix% Jugador: &e%player% &atiene gema: &e%uuid%"
+  player_gem_named: "&a%prefix% Jugador: &e%player% &atiene: &7[&e%gem_id%&7] &f%gem_name%"
     footer: "&a======================"
 title:
   gems_recollected:

@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/PowerGem.iml" filepath="$PROJECT_DIR$/PowerGem.iml" />
       <module fileurl="file://$PROJECT_DIR$/power-gems.iml" filepath="$PROJECT_DIR$/power-gems.iml" />
     </modules>
   </component>

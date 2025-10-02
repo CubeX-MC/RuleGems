@@ -1,14 +1,16 @@
 name: PowerGem
-version: 0.1
+version: 0.2
 main: me.hushu.PowerGem
 author: angushushu
 description: "一个管理 PowerGem（权力宝石）的示例插件"
 
 # 如果你的插件需要在更高版本的 Spigot/Paper 运行，可以指定 api-version
 api-version: "1.16"
+folia-supported: true
+depend: [Vault]
 commands:
   powergem:
-    usage: /<command> <place|revoke|reload|powerplayer|gems|scatter|help>
+    usage: /<command> <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>
     description: PowerGem plugin command
     aliases: [pg]
     permission: powergem.admin
@@ -17,3 +19,12 @@ permissions:
   powergem.admin:
     description: Allows access to all PowerGem commands
     default: op
+  powergem.redeem:
+    description: Allows using /powergem redeem
+    default: true
+  powergem.redeemall:
+    description: Allows using /powergem redeemall
+    default: op
+  powergem.powerplayer:
+    description: Allows using /powergem powerplayer
+    default: true

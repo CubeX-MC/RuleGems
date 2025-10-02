@@ -2,7 +2,9 @@ package me.hushu.listeners;
 
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.inventory.ItemStack;
 
 import me.hushu.manager.GemManager;
@@ -27,6 +29,24 @@ public class GemInventoryListener implements Listener {
                 languageManager.sendMessage(event.getWhoClicked(), "inventory.drag_denied");
                 break;
             }
+        }
+        // 背包即生效：实时重算
+        if (gemManager.getConfigManager().isInventoryGrantsEnabled() && event.getWhoClicked() instanceof org.bukkit.entity.Player) {
+            gemManager.recalculateGrants((org.bukkit.entity.Player) event.getWhoClicked());
+        }
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (gemManager.getConfigManager().isInventoryGrantsEnabled() && event.getWhoClicked() instanceof org.bukkit.entity.Player) {
+            gemManager.recalculateGrants((org.bukkit.entity.Player) event.getWhoClicked());
+        }
+    }
+
+    @EventHandler
+    public void onItemHeld(PlayerItemHeldEvent event) {
+        if (gemManager.getConfigManager().isInventoryGrantsEnabled()) {
+            gemManager.recalculateGrants(event.getPlayer());
         }
     }
 }

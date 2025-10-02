@@ -2,7 +2,6 @@ me\hushu\metrics\Metrics.class
 me\hushu\PowerGem.class
 me\hushu\manager\GemManager.class
 me\hushu\listeners\PlayerEventListener.class
-me\hushu\manager\GemManager$1.class
 me\hushu\utils\EffectUtils.class
 me\hushu\listeners\GemPlaceListener.class
 me\hushu\manager\LanguageManager.class
@@ -10,6 +9,8 @@ me\hushu\model\ExecuteConfig.class
 me\hushu\commands\PowerGemTabCompleter.class
 me\hushu\metrics\Metrics$SimpleBarChart.class
 me\hushu\commands\PowerGemCommand.class
+me\hushu\model\GemDefinition.class
+me\hushu\utils\SchedulerUtil.class
 me\hushu\manager\ConfigManager.class
 me\hushu\metrics\Metrics$AdvancedPie.class
 me\hushu\metrics\Metrics$CustomChart.class

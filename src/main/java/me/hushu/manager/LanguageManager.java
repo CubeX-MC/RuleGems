@@ -25,15 +25,14 @@ public class LanguageManager {
     }
 
     private void copyLangFileIfNotExists(String lang) {
-        // if no /local folder, create it
-//        File localFolder = new File(plugin.getDataFolder(), "local");
-//        if (!localFolder.exists()) {
-//            localFolder.mkdirs();
-//        }
-//        File outFile = new File(localFolder, lang + ".yml");
-//        System.out.println("outFile: " + outFile);
         File outFile = new File(plugin.getDataFolder(), "local/" + lang + ".yml");
-        plugin.saveResource("local/" + lang + ".yml", false);
+        if (!outFile.exists()) {
+            File parent = outFile.getParentFile();
+            if (parent != null && !parent.exists()) {
+                parent.mkdirs();
+            }
+            plugin.saveResource("local/" + lang + ".yml", false);
+        }
     }
 
     public void loadLanguage() {
@@ -49,7 +48,8 @@ public class LanguageManager {
     }
 
     private void loadLangConfig(String lang) {
-        copyLangFileIfNotExists(language);
+        // Ensure the requested language file exists; then load it
+        copyLangFileIfNotExists(lang);
         File langFile = new File(plugin.getDataFolder(), "local/" + lang + ".yml");
         if (langFile.exists()) {
             this.langConfig = YamlConfiguration.loadConfiguration(langFile);
@@ -112,12 +112,13 @@ public class LanguageManager {
      * 发送彩色消息到控制台
      */
     public void logMessage(String path) {
-        logMessage("logger." + path, new HashMap<>());
+        logMessage(path, new HashMap<>());
     }
 
     public void logMessage(String path, Map<String, String> placeholders) {
         Logger logger = plugin.getLogger();
-        String message = formatMessage(path, placeholders);
+        String key = path.startsWith("logger.") ? path : ("logger." + path);
+        String message = formatMessage(key, placeholders);
         logger.info(translateColorCodes(message));
     }
 

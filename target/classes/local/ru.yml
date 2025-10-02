@@ -3,12 +3,23 @@ prefix: "&7[&cPowerGem&7]&r"
 messages:
   command:
     no_permission: "&c%prefix% У вас нет прав для выполнения этой команды!"
-    usage: "&e%prefix% Использование: /powergem <place|revoke|reload|powerplayer|gems|scatter|help>"
+  usage: "&e%prefix% Использование: /powergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
     reload_success: "&a%prefix% Конфигурация перезагружена!"
     powerplayer_status: "&a%prefix% Текущий powerPlayer: &e%player%"
     no_power_player: "&c%prefix% Нет powerPlayer!"
     scatter_success: "&a%prefix% Права отозваны, камни рассеяны!"
-    unknown_subcommand: "&e%prefix% Неизвестная подкоманда. Использование: /powergem <place|revoke|reload|powerplayer|gems|scatter|help>"
+    unknown_subcommand: "&e%prefix% Неизвестная подкоманда. Использование: /powergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
+    redeem:
+      usage: "&c%prefix% Использование: /powergem redeem <имя или ключ>"
+      player_only: "&c%prefix% Только игроки могут использовать эту команду!"
+      disabled: "&c%prefix% Функция обмена отключена."
+      failed: "&c%prefix% Обмен не удался. Убедитесь, что у вас есть нужный камень."
+      success: "&a%prefix% Обмен успешен!"
+    redeemall:
+      player_only: "&c%prefix% Только игроки могут использовать эту команду!"
+      disabled: "&c%prefix% Функция массового обмена отключена."
+      failed: "&c%prefix% Массовый обмен не удался. Убедитесь, что у вас есть все необходимые камни."
+      success: "&a%prefix% Массовый обмен успешен!"
     place:
       usage: "&c%prefix% Использование: /powergem place <x> <y> <z>"
       player_only: "&c%prefix% Только игроки могут использовать эту команду!"
@@ -35,9 +46,11 @@ messages:
     header: "&a====== Статус камней ======"
     total_expected: "&a%prefix% Ожидаемое количество камней: &e%count%"
     total_counts: "&a%prefix% &e%placed_count% размещено &a%held_count% в наличии"
-    gem_location: "&a%prefix% Локация: &e%x% %y% %z% %world%"
+  gem_location: "&a%prefix% Локация: &e%x% %y% %z% %world%"
+  gem_location_named: "&a%prefix% Локация: &e%x% %y% %z% %world% &7[&e%gem_id%&7] &f%gem_name%"
     player_holding: "&a%prefix% Игрок: &e%player% &aдержит &e%count% &aкамней"
-    player_gem_uuid: "&a%prefix% Игрок: &e%player% &aдержит камень: &e%uuid%"
+  player_gem_uuid: "&a%prefix% Игрок: &e%player% &aдержит камень: &e%uuid%"
+  player_gem_named: "&a%prefix% Игрок: &e%player% &aдержит: &7[&e%gem_id%&7] &f%gem_name%"
     footer: "&a======================"
 title:
   gems_recollected:
