@@ -29,6 +29,3 @@
 ## 兼容性
 - 服务器：Spigot/Paper 1.16+；Folia 兼容
 - 可选依赖：Vault（权限后端）
-
-## 许可
-MIT
