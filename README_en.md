@@ -29,6 +29,3 @@ A lightweight plugin that transfers player power through collecting "gems". Foli
 ## Compatibility
 - Server: Spigot/Paper 1.16+; Folia compatible
 - Optional: Vault (permission backend)
-
-## License
-MIT
