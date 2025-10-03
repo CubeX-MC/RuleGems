@@ -51,11 +51,11 @@ public class RulerGemCommand implements CommandExecutor {
                 plugin.loadPlugin();
                 languageManager.sendMessage(sender, "command.reload_success");
                 return true;
-            case "powerplayer":
-                if (require(sender, "rulergem.powerplayer")) return true;
+            case "rulers":
+                if (require(sender, "rulergem.rulers")) return true;
                 java.util.Map<java.util.UUID, java.util.Set<String>> holders = gemManager.getCurrentPowerHolders();
                 if (holders.isEmpty()) {
-                    languageManager.sendMessage(sender, "command.no_power_player");
+                    languageManager.sendMessage(sender, "command.no_rulers");
                     return true;
                 }
                 for (java.util.Map.Entry<java.util.UUID, java.util.Set<String>> e : holders.entrySet()) {
@@ -64,7 +64,7 @@ public class RulerGemCommand implements CommandExecutor {
                     String extra = e.getValue().contains("ALL") ? "ALL" : String.join(",", e.getValue());
                     Map<String, String> placeholders = new HashMap<>();
                     placeholders.put("player", name + " (" + extra + ")");
-                    languageManager.sendMessage(sender, "command.powerplayer_status", placeholders);
+                    languageManager.sendMessage(sender, "command.rulers_status", placeholders);
                 }
                 return true;
             case "gems":
@@ -118,7 +118,7 @@ public class RulerGemCommand implements CommandExecutor {
         languageManager.sendMessage(sender, "command.help.place");
         languageManager.sendMessage(sender, "command.help.revoke");
         languageManager.sendMessage(sender, "command.help.reload");
-        languageManager.sendMessage(sender, "command.help.powerplayer");
+    languageManager.sendMessage(sender, "command.help.rulers");
         languageManager.sendMessage(sender, "command.help.gems");
         languageManager.sendMessage(sender, "command.help.scatter");
         languageManager.sendMessage(sender, "command.help.redeem");
@@ -168,7 +168,7 @@ public class RulerGemCommand implements CommandExecutor {
 
         // 放置宝石方块
         UUID newGemId = UUID.randomUUID();
-        gemManager.placePowerGem(loc, newGemId);
+        gemManager.placeRulerGem(loc, newGemId);
 
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("x", String.valueOf(x));

@@ -3,12 +3,12 @@ prefix: "&7[&cRulerGem&7]&r"
 messages:
   command:
     no_permission: "&c%prefix% You don't have permission to execute this command!"
-    usage: "&e%prefix% Usage: /rulergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
+    usage: "&e%prefix% Usage: /rulergem <place|revoke|reload|rulers|gems|scatter|redeem|redeemall|help>"
     reload_success: "&a%prefix% Configuration reloaded!"
-    powerplayer_status: "&a%prefix% Current powerPlayer is: &e%player%"
-    no_power_player: "&c%prefix% No powerPlayer!"
+    rulers_status: "&a%prefix% Current ruler is: &e%player%"
+    no_rulers: "&c%prefix% No ruler online!"
     scatter_success: "&a%prefix% Power revoked, gems have been scattered!"
-    unknown_subcommand: "&e%prefix% Unknown subcommand. Usage: /rulergem <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>"
+    unknown_subcommand: "&e%prefix% Unknown subcommand. Usage: /rulergem <place|revoke|reload|rulers|gems|scatter|redeem|redeemall|help>"
     redeem:
       usage: "&c%prefix% Usage: /rulergem redeem <name or key>"
       player_only: "&c%prefix% Only players can execute this command!"
@@ -27,14 +27,14 @@ messages:
       success: "&a%prefix% Placed a gem at &e%x% %y% %z%&a."
       gem_limit_reached: "&c%prefix% Gem limit reached!"
     revoke:
-      no_power_player: "&c%prefix% No powerPlayer!"
+      no_ruler: "&c%prefix% No ruler to revoke!"
       success: "&a%prefix% Revoked permissions from &e%player%&a."
     help:
       header: "&a=== RulerGem Help ==="
       place: "&e/rulergem place <x> <y> <z> &f- Place a gem block at specified coordinates"
       revoke: "&e/rulergem revoke <playerName> &f- Revoke player's permissions"
       reload: "&e/rulergem reload &f- Reload configuration"
-      powerplayer: "&e/rulergem powerplayer &f- View current powerPlayer"
+      rulers: "&e/rulergem rulers &f- View current ruler"
       gems: "&e/rulergem gems &f- View all gem information"
       scatter: "&e/rulergem scatter &f- Scatter gems"
       redeem: "&e/rulergem redeem <name or key> &f- Redeem a single gem"

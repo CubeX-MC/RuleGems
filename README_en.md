@@ -14,7 +14,7 @@ A lightweight plugin that transfers player power through collecting "gems". Foli
 - `/rulergem place <x> <y> <z>` Place a gem
 - `/rulergem revoke` Revoke current power holder
 - `/rulergem reload` Reload configuration
-- `/rulergem powerplayer` Show current power holder
+- `/rulergem rulers` Show current power holder
 - `/rulergem gems` Show gem status
 - `/rulergem scatter` Scatter all gems randomly
 - `/rulergem redeem <key|name>` Redeem a single gem
@@ -24,7 +24,7 @@ A lightweight plugin that transfers player power through collecting "gems". Foli
 - `rulergem.admin` Admin commands (default OP)
 - `rulergem.redeem` Redeem single (default true)
 - `rulergem.redeemall` Redeem all (default OP)
-- `rulergem.powerplayer` View current holder (default true)
+- `rulergem.rulers` View current holder (default true)
 
 ## Compatibility
 - Server: Spigot/Paper 1.16+; Folia compatible

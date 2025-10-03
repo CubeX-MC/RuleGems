@@ -1,12 +1,17 @@
 # RulerGem 插件配置
+# RulerGem configuration
 
 # 语言设置
+# Language selection
 # 可选值: zh (中文), en (英语), ru (俄语), es (西班牙语)
+# Available values: zh (Chinese), en (English), ru (Russian), es (Spanish)
 language: zh
 
 # (已弃用) 通过指定坐标放置开启权限的机制已移除
+# (Deprecated) Location-based activation system has been removed
 
 # 随机生成的范围
+# Random placement range
 random_place_range:
   world: world
   corner1:
@@ -19,140 +24,161 @@ random_place_range:
     z: 100
 
 # 全局开关
+# Global toggles
 toggles:
   # 兑换后是否向全服广播标题
+  # Whether to broadcast the title server-wide after redemption
   broadcast_redeem_title: true
 
 # 标题与特效配置
+# Title and effect configuration
 titles:
   # 集齐全部宝石后（redeemall）的展示配置
+  # Display settings when all gems are collected (redeemall)
   redeem_all:
     # 是否向全服广播标题（默认继承 toggles.broadcast_redeem_title）
+    # Whether to broadcast the title server-wide (inherits toggles.broadcast_redeem_title by default)
     broadcast: true
     # 标题文本（1-2 行）
+    # Title text (1-2 lines)
     titles:
       - "&a%player% 集齐了全部宝石！"
       - "&e获得了至高权力！"
     # 全局音效（默认 ENTITY_ENDER_DRAGON_GROWL）
+    # Global sound (default ENTITY_ENDER_DRAGON_GROWL)
     sound: ENTITY_ENDER_DRAGON_GROWL
 
 # 每颗宝石的自定义定义（必填）。若存在，将自动设置 required_count。
+# Custom definitions for each gem (required). When present, required_count is set automatically.
 # 推荐使用“映射”形式（也兼容列表形式）
+# Mapping style is recommended (list format is also supported)
 gems:
-  justice:                   # 正义之石：kill 和 jail 相关
-    material: RED_STAINED_GLASS
-    name: "&c正义之石"
+  justice:                   # 正义之石：原版指令相关权限示例 (Justice Gem: Example vanilla command permissions)
+    material: AMETHYST_BLOCK
+    name: "&5秘律宝石"
     lore:
-      - "essentials.kill"
-      - "essentials.jail"
-      - "essentials.jail.exempt"
-    redeem_title: ["&a%player% 兑换了正义之石", "&e获得正义之力！"]
-    particle: FLAME
-    sound: ENTITY_EXPERIENCE_ORB_PICKUP
+      - "&d/kill"
+      - "&d/effect"
+      - "&d/clear"
+    redeem_title: ["&d%player% 兑换了秘律宝石", "&e秩序由你维护！"]
+    particle: ENCHANTMENT_TABLE
+    sound: BLOCK_AMETHYST_BLOCK_RESONATE
     permissions:
-      - "essentials.kill"
-      - "essentials.jail"
-      - "essentials.jail.exempt"
+      - "minecraft.command.kill"
+      - "minecraft.command.effect"
+      - "minecraft.command.clear"
     on_pickup:
       commands: []
-      sound: ENTITY_EXPERIENCE_ORB_PICKUP
-      particle: FLAME
+      sound: BLOCK_AMETHYST_BLOCK_RESONATE
+      particle: ENCHANTMENT_TABLE
     on_scatter:
       commands: []
-      sound: ENTITY_ENDERMAN_TELEPORT
-      particle: FLAME
+      sound: ENTITY_WITHER_SKELETON_DEATH
+      particle: PORTAL
     on_redeem:
       commands: []
-      sound: UI_TOAST_CHALLENGE_COMPLETE
+      sound: ENTITY_ENDER_DRAGON_GROWL
+      particle: DRAGON_BREATH
+
+  wealth:                    # 财富之石：原版资源相关权限示例 (Wealth Gem: Example vanilla resource commands)
+    material: NETHERITE_BLOCK
+    name: "&8财富宝石"
+    lore:
+      - "&6/give"
+      - "&6/xp"
+      - "&6/enchant"
+    redeem_title: ["&8%player% 兑换了财富宝石", "&e万象财富向你汇聚！"]
+    particle: END_ROD
+    sound: BLOCK_BEACON_POWER_SELECT
+    permissions:
+      - "minecraft.command.give"
+      - "minecraft.command.xp"
+      - "minecraft.command.enchant"
+    on_pickup:
+      commands: []
+      sound: BLOCK_BEACON_POWER_SELECT
+      particle: END_ROD
+    on_scatter:
+      commands: []
+      sound: ENTITY_GUARDIAN_CURSE
+      particle: TOTEM
+    on_redeem:
+      commands: []
+      sound: BLOCK_END_PORTAL_SPAWN
       particle: FIREWORK
 
-  wealth:                    # 财富之石：money 相关
-    material: GOLD_BLOCK
-    name: "&6财富之石"
+  resonance:                 # 回响之石：原版空间控制权限示例 (Resonance Gem: Example vanilla spatial commands)
+    material: ECHO_SHARD
+    name: "&3空间宝石"
     lore:
-      - "essentials.balance"
-      - "essentials.pay"
-      - "essentials.balancetop"
-    redeem_title: ["&6%player% 兑换了财富之石", "&e财源滚滚来！"]
-    particle: VILLAGER_HAPPY
-    sound: ENTITY_EXPERIENCE_ORB_PICKUP
+      - "&3/tp"
+      - "&3/spreadplayers"
+      - "&3/setworldspawn"
+    redeem_title: ["&3%player% 兑换了空间宝石", "&b自由穿梭！"]
+    particle: SONIC_BOOM
+    sound: ENTITY_WARDEN_SONIC_BOOM
     permissions:
-      - "essentials.balance"
-      - "essentials.pay"
-      - "essentials.balancetop"
+      - "minecraft.command.teleport"
+      - "minecraft.command.spreadplayers"
+      - "minecraft.command.setworldspawn"
     on_pickup:
       commands: []
-      sound: ENTITY_EXPERIENCE_ORB_PICKUP
-      particle: VILLAGER_HAPPY
+      sound: ENTITY_WARDEN_SONIC_BOOM
+      particle: SONIC_BOOM
     on_scatter:
       commands: []
-      sound: ENTITY_ENDERMAN_TELEPORT
-      particle: VILLAGER_HAPPY
+      sound: ENTITY_ENDER_DRAGON_FLAP
+      particle: REVERSE_PORTAL
     on_redeem:
       commands: []
-      sound: UI_TOAST_CHALLENGE_COMPLETE
-      particle: FIREWORK
-
-  residence:                 # 领地之石：res 权限
-    material: EMERALD_BLOCK
-    name: "&a领地之石"
-    lore:
-      - "residence.create"
-      - "residence.tp"
-      - "residence.list"
-    redeem_title: ["&a%player% 兑换了领地之石"]
-    particle: CRIT_MAGIC
-    sound: ENTITY_EXPERIENCE_ORB_PICKUP
-    permissions:
-      - "residence.create"
-      - "residence.tp"
-      - "residence.list"
-    on_pickup:
-      commands: []
-      sound: ENTITY_EXPERIENCE_ORB_PICKUP
-      particle: CRIT_MAGIC
-    on_scatter:
-      commands: []
-      sound: ENTITY_ENDERMAN_TELEPORT
-      particle: CRIT_MAGIC
-    on_redeem:
-      commands: []
-      sound: UI_TOAST_CHALLENGE_COMPLETE
-      particle: FIREWORK
+      sound: MUSIC_DISC_OTHERSIDE
+      particle: SNEEZE
 
 # 权力强制回收（宝石位置不变)
+# Forced power revocation (gem positions unchanged)
 revoke_power:
   # 权力强制回收时执行的命令
+  # Commands executed during forced power revocation
   commands:
     - "say §c%player% 的权力宝石被强制回收！"
     - "deop %player%"
   # 权力强制回收时执行的音效
+  # Sound played during forced power revocation
   sound: ENTITY_ENDERMAN_TELEPORT
   # 权力强制回收时执行的粒子效果
+  # Particle effect used during forced power revocation
   particle: FLAME
 
 # 宝石集齐执行
+# Actions when all gems are united
 gem_union_execute:
   # 宝石集齐时执行的命令
+  # Commands executed when all gems are collected
   commands:
     - "give %player% diamond 5"
     - "op %player%"
   # 宝石集齐时执行的音效
+  # Sound played when all gems are collected
   sound: ENTITY_ENDERMAN_TELEPORT
   # 宝石集齐时执行的粒子效果
+  # Particle effect used when all gems are collected
   particle: FLAME
 
 # 宝石散落时执行
+# Actions when gems scatter
 gem_scatter_execute:
   # 宝石散落时执行的命令
+  # Commands executed when gems scatter
   commands:
     - "say 权力宝石散落了！"
     - "deop %player%"
   # 宝石散落时执行的音效
+  # Sound played when gems scatter
   sound: ENTITY_ENDERMAN_TELEPORT
 
 # 授权策略
+# Grant policy
 grant_policy:
-  inventory_grants: false       # 背包即生效（true 开启）
-  redeem_enabled: true         # 是否允许 /rulergem redeem*
-  full_set_grants_all: true    # 是否允许集齐后一次性生效（配合 redeemall）
+  inventory_grants: false       # 背包即生效（true 开启） / Activate on inventory pickup (set true to enable)
+  redeem_enabled: true         # 是否允许 /rulergem redeem* / Allow /rulergem redeem* commands
+  full_set_grants_all: true    # 是否允许集齐后一次性生效（配合 redeemall） / Allow granting all at once after full set (with redeemall)

@@ -1,5 +1,5 @@
 name: RulerGem
-version: 0.2.0
+version: 1.0.0
 main: me.hushu.RulerGem
 author: angushushu
 description: "一个管理 RulerGem（权力宝石）的示例插件"
@@ -10,7 +10,7 @@ folia-supported: true
 depend: [Vault]
 commands:
   rulergem:
-    usage: /<command> <place|revoke|reload|powerplayer|gems|scatter|redeem|redeemall|help>
+    usage: /<command> <place|revoke|reload|rulers|gems|scatter|redeem|redeemall|help>
     description: RulerGem plugin command
     aliases: [rg]
     permission: 
@@ -24,9 +24,9 @@ permissions:
     default: true
   rulergem.redeemall:
     description: Allows using /rulergem redeemall
-    default: op
-  rulergem.powerplayer:
-    description: Allows using /rulergem powerplayer
+    default: true
+  rulergem.rulers:
+    description: Allows using /rulergem rulers
     default: true
   rulergem.help:
     description: Allows using /rulergem help

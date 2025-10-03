@@ -24,7 +24,7 @@ public class RulerGemTabCompleter implements TabCompleter {
             "place",
             "revoke",
             "reload",
-            "powerplayer",
+            "rulers",
             "gems",
             "scatter",
             "redeem",

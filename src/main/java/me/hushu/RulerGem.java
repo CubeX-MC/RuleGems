@@ -43,10 +43,10 @@ public class RulerGem extends JavaPlugin {
         loadPlugin();
 
         // 注册命令
-        RulerGemCommand powerGemCommand = new RulerGemCommand(this, gemManager, configManager, languageManager);
+        RulerGemCommand rulerGemCommand = new RulerGemCommand(this, gemManager, configManager, languageManager);
         org.bukkit.command.PluginCommand cmd = getCommand("rulergem");
         if (cmd != null) {
-            cmd.setExecutor(powerGemCommand);
+            cmd.setExecutor(rulerGemCommand);
             cmd.setTabCompleter(new RulerGemTabCompleter(configManager));
         } else {
             getLogger().warning("Command 'rulergem' not found in plugin.yml");
@@ -67,7 +67,7 @@ public class RulerGem extends JavaPlugin {
 
         SchedulerUtil.globalRun(
                 this,
-                () -> gemManager.checkPlayersNearPowerGems(),
+                () -> gemManager.checkPlayersNearRulerGems(),
                 20L,
                 20L
         );

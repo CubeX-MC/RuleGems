@@ -1,3 +1,4 @@
+me\hushu\RulerGem.class
 me\hushu\metrics\Metrics.class
 me\hushu\manager\GemManager.class
 me\hushu\listeners\PlayerEventListener.class
@@ -11,6 +12,7 @@ me\hushu\utils\SchedulerUtil.class
 me\hushu\manager\ConfigManager.class
 me\hushu\metrics\Metrics$AdvancedPie.class
 me\hushu\metrics\Metrics$CustomChart.class
+me\hushu\commands\RulerGemTabCompleter.class
 me\hushu\metrics\Metrics$MetricsBase.class
 me\hushu\metrics\Metrics$SimplePie.class
 me\hushu\metrics\Metrics$JsonObjectBuilder.class
@@ -18,5 +20,6 @@ me\hushu\listeners\GemInventoryListener.class
 me\hushu\metrics\Metrics$AdvancedBarChart.class
 me\hushu\metrics\Metrics$JsonObjectBuilder$JsonObject.class
 me\hushu\metrics\Metrics$MultiLineChart.class
+me\hushu\commands\RulerGemCommand.class
 me\hushu\metrics\Metrics$DrilldownPie.class
 me\hushu\metrics\Metrics$SingleLineChart.class

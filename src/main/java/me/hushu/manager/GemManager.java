@@ -47,7 +47,7 @@ public class GemManager {
     private final EffectUtils effectUtils;
     private final LanguageManager languageManager;
 
-    private final NamespacedKey powerGemKey;
+    private final NamespacedKey rulerGemKey;
     private final NamespacedKey uniqueIdKey;
     private final NamespacedKey gemKeyKey;
     private final Map<Location, UUID> locationToGemUuid = new HashMap<>();
@@ -70,7 +70,7 @@ public class GemManager {
         this.configManager = configManager;
         this.effectUtils = effectUtils;
         this.languageManager = languageManager;
-        this.powerGemKey = new NamespacedKey(plugin, "power_gem");
+        this.rulerGemKey = new NamespacedKey(plugin, "power_gem");
         this.uniqueIdKey = new NamespacedKey(plugin, "unique_id");
         this.gemKeyKey = new NamespacedKey(plugin, "gem_key");
     }
@@ -183,12 +183,12 @@ public class GemManager {
                     // remove from player's inventory
                     Inventory inv = player.getInventory();
                     for (ItemStack item : inv.getContents()) {
-                        if (isPowerGem(item) && getGemUUID(item).equals(gemId)) {
+                        if (isRulerGem(item) && getGemUUID(item).equals(gemId)) {
                             inv.remove(item);
                         }
                     }
                     gemUuidToKey.put(gemId, gemKey);
-                    placePowerGem(player.getLocation(), gemId);
+                    placeRulerGem(player.getLocation(), gemId);
                 } else {
                     gemUuidToHolder.put(gemId, player);
                     gemUuidToKey.put(gemId, gemKey);
@@ -280,7 +280,7 @@ public class GemManager {
         ItemStack inHand = event.getItemInHand();
 
         // 判断这个 block 是否是我们的"特殊方块"
-        if (!isPowerGem(inHand)) {
+        if (!isRulerGem(inHand)) {
             return;
         }
 
@@ -323,10 +323,10 @@ public class GemManager {
                 return;
             } else {
                 // 给破坏者：若开启“背包即生效”，直接入包；否则仍可入包但权限不会因背包自动授予
-                ItemStack gemItem = createPowerGem(gemId);
+                ItemStack gemItem = createRulerGem(gemId);
                 inv.addItem(gemItem);
                 gemUuidToHolder.put(gemId, player);
-                unplacePowerGem(block.getLocation(), gemId);
+                unplaceRulerGem(block.getLocation(), gemId);
                 // 每颗宝石自定义拾取效果（可选），否则用全局（此处是破坏方块后“入包”的瞬间）
                 me.hushu.model.GemDefinition def = findGemDefinition(gemUuidToKey.get(gemId));
                 if (def != null && def.getOnPickup() != null) {
@@ -344,7 +344,7 @@ public class GemManager {
         Inventory inv = player.getInventory();
 
         for (ItemStack item : inv.getContents()) {
-            if (isPowerGem(item)) {
+            if (isRulerGem(item)) {
                 // 拿到这颗宝石的UUID
                 UUID gemId = getGemUUID(item);
 
@@ -355,7 +355,7 @@ public class GemManager {
                 Location loc = player.getLocation();
                 
                 gemUuidToHolder.remove(gemId);
-                placePowerGem(loc, gemId);
+                placeRulerGem(loc, gemId);
             }
         }
     }
@@ -365,7 +365,7 @@ public class GemManager {
     public void onPlayerDropItem(PlayerDropItemEvent event) {
         ItemStack item = event.getItemDrop().getItemStack();
         UUID gemId = getGemUUID(item);
-        if (isPowerGem(item)) {
+        if (isRulerGem(item)) {
             // 确保 Gem 只能作为实体存在于地面
             // 如果有其他逻辑需求，可以在这里处理
             event.getItemDrop().remove();
@@ -382,7 +382,7 @@ public class GemManager {
                 effectUtils.playLocalSound(loc, gemScatterExecute, 1.0f, 1.0f);
                 effectUtils.playParticle(loc, gemScatterExecute);
             }
-            placePowerGem(loc, gemId);
+            placeRulerGem(loc, gemId);
         }
     }
 
@@ -395,7 +395,7 @@ public class GemManager {
         Inventory inv = player.getInventory();
 
         for (ItemStack item : inv.getContents()) {
-            if (isPowerGem(item)) {
+            if (isRulerGem(item)) {
                 UUID gemId = getGemUUID(item);
                 inv.remove(item);
                 gemUuidToHolder.remove(gemId);
@@ -415,7 +415,7 @@ public class GemManager {
                         effectUtils.playParticle(deathLocation, gemScatterExecute);
                     }
                     // 直接在死亡位置尝试放置（region-safe），内部会垂直校正并在必要时回退到随机散落
-                    placePowerGem(deathLocation, gemId);
+                    placeRulerGem(deathLocation, gemId);
                 }
             }
         }
@@ -426,7 +426,7 @@ public class GemManager {
         Player player = event.getPlayer();
         Inventory inv = player.getInventory();
         for (ItemStack item : inv.getContents()) {
-            if (isPowerGem(item)) {
+            if (isRulerGem(item)) {
                 UUID gemId = getGemUUID(item);
                 if (!gemUuidToHolder.containsKey(gemId)) {
                     inv.remove(item);
@@ -445,7 +445,7 @@ public class GemManager {
         // 1) 取消世界中的所有已放置宝石
         Set<Location> locCopy = new HashSet<>(locationToGemUuid.keySet());
         for (Location loc : locCopy) {
-            unplacePowerGem(loc, locationToGemUuid.get(loc));
+            unplaceRulerGem(loc, locationToGemUuid.get(loc));
         }
         // 清空坐标-宝石映射，确保后续重新计算
         locationToGemUuid.clear();
@@ -454,7 +454,7 @@ public class GemManager {
         for (Player player : Bukkit.getOnlinePlayers()) {
             Inventory inv = player.getInventory();
             for (ItemStack item : inv.getContents()) {
-                if (isPowerGem(item)) {
+                if (isRulerGem(item)) {
                     inv.remove(item);
                 }
             }
@@ -521,7 +521,7 @@ public class GemManager {
         for (Player p : Bukkit.getOnlinePlayers()) {
             Inventory inv = p.getInventory();
             for (ItemStack item : inv.getContents()) {
-                if (isPowerGem(item)) {
+                if (isRulerGem(item)) {
                     if (gemHolders.containsKey(p.getName())) {
                         gemHolders.put(p.getName(), gemHolders.get(p.getName()) + 1);
                     } else {
@@ -579,18 +579,18 @@ public class GemManager {
     /**
      * 判断物品是否为权力宝石
      */
-    public boolean isPowerGem(ItemStack item) {
+    public boolean isRulerGem(ItemStack item) {
         if (item == null || !item.hasItemMeta()) {
             return false;
         }
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
-        return pdc.has(powerGemKey, PersistentDataType.BYTE);
+        return pdc.has(rulerGemKey, PersistentDataType.BYTE);
     }
 
     /**
      * 判断方块是否为放置了的权力宝石
      */
-    private boolean isPowerGem(Block block) {
+    private boolean isRulerGem(Block block) {
         // 判断 block 是否是为权力宝石（使用方块坐标作为键）
         Location loc = block.getLocation();
         return locationToGemUuid.containsKey(loc);
@@ -600,18 +600,18 @@ public class GemManager {
      * 根据指定的 UUID，创建一颗"权力宝石"物品。
      * @param gemId 这颗宝石的专属 UUID
      */
-    public ItemStack createPowerGem(UUID gemId) {
+    public ItemStack createRulerGem(UUID gemId) {
         // 根据 gemKey 决定外观，若无则回退到全局默认
         String gemKey = gemUuidToKey.getOrDefault(gemId, null);
-        ItemStack powerGem = new ItemStack(Material.RED_STAINED_GLASS, 1);
+        ItemStack rulerGem = new ItemStack(Material.RED_STAINED_GLASS, 1);
         if (gemKey != null) {
             me.hushu.model.GemDefinition def = findGemDefinition(gemKey);
             if (def != null) {
-                powerGem = new ItemStack(def.getMaterial(), 1);
+                rulerGem = new ItemStack(def.getMaterial(), 1);
             }
         }
-        ItemMeta meta = powerGem.getItemMeta();
-        if (meta == null) return powerGem;
+        ItemMeta meta = rulerGem.getItemMeta();
+        if (meta == null) return rulerGem;
         
         // 名称按定义或默认
         String displayName = "§c权力宝石";
@@ -633,15 +633,15 @@ public class GemManager {
 
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         // 标记这是宝石
-        pdc.set(powerGemKey, PersistentDataType.BYTE, (byte) 1);
+        pdc.set(rulerGemKey, PersistentDataType.BYTE, (byte) 1);
         // 写入UUID & gemKey
         pdc.set(uniqueIdKey, PersistentDataType.STRING, gemId.toString());
         if (gemKey != null) {
             pdc.set(gemKeyKey, PersistentDataType.STRING, gemKey);
         }
 
-        powerGem.setItemMeta(meta);
-        return powerGem;
+        rulerGem.setItemMeta(meta);
+        return rulerGem;
     }
 
     private me.hushu.model.GemDefinition findGemDefinition(String key) {
@@ -690,7 +690,7 @@ public class GemManager {
         // 由背包持有的 gem key 决定的权限节点集合
         Inventory inv = player.getInventory();
         for (ItemStack item : inv.getContents()) {
-            if (!isPowerGem(item)) continue;
+            if (!isRulerGem(item)) continue;
             UUID id = getGemUUID(item);
             String key = gemUuidToKey.get(id);
             if (key == null) continue;
@@ -773,15 +773,15 @@ public class GemManager {
      */
 //    public void setGems() {
 //        for (Location loc : locationToGemUuid.keySet()) {
-//            placePowerGem(loc, locationToGemUuid.get(loc));
+//            placeRulerGem(loc, locationToGemUuid.get(loc));
 //        }
 //        // 检查所有在线玩家，如果背包里有宝石，设置宝石材质
 //        // 刚开机应该不会有
 //        for (Player player : Bukkit.getOnlinePlayers()) {
 //            Inventory inv = player.getInventory();
 //            for (ItemStack item : inv.getContents()) {
-//                if (isPowerGem(item)) {
-//                    placePowerGem(player.getLocation(), getGemUUID(item));
+//                if (isRulerGem(item)) {
+//                    placeRulerGem(player.getLocation(), getGemUUID(item));
 //                }
 //            }
 //        }
@@ -797,7 +797,7 @@ public class GemManager {
     /**
      * 示例：在某处注册一个方法，当玩家放置方块时，如果它是"自定义方块"，就记录坐标
      */
-    public void placePowerGem(Location loc, UUID gemId) {
+    public void placeRulerGem(Location loc, UUID gemId) {
         if (loc == null) return;
         if (getTotalGemCount() >= configManager.getRequiredCount()) {
             languageManager.logMessage("gem_limit_reached");
@@ -839,7 +839,7 @@ public class GemManager {
     /**
      * 如果方块被破坏了，也要移除坐标
      */
-    public void unplacePowerGem(Location loc, UUID gemId) {
+    public void unplaceRulerGem(Location loc, UUID gemId) {
         if (loc == null) return;
         final Location fLoc = loc.getBlock().getLocation();
         SchedulerUtil.regionRun(plugin, fLoc, () -> {
@@ -883,7 +883,7 @@ public class GemManager {
                     return;
                 }
                 // 最终放置
-                placePowerGem(place, gemId);
+                placeRulerGem(place, gemId);
             } catch (Throwable t) {
                 // 若计算失败，继续下一次尝试
                 if (attemptsLeft - 1 > 0) scheduleRandomAttempt(gemId, corner1, corner2, attemptsLeft - 1);
@@ -927,20 +927,20 @@ public class GemManager {
     /**
      * 实际的检测逻辑
      */
-    public void checkPlayersNearPowerGems() {
+    public void checkPlayersNearRulerGems() {
         if (locationToGemUuid.isEmpty()) {
             return;
         }
 
         for (Player player : Bukkit.getOnlinePlayers()) {
-            checkPlayerNearPowerGems(player);
+            checkPlayerNearRulerGems(player);
         }
     }
 
     /**
      * 检查某个玩家附近是否有宝石，并播放提示音。
      */
-    public void checkPlayerNearPowerGems(Player player) {
+    public void checkPlayerNearRulerGems(Player player) {
         if (player == null || locationToGemUuid.isEmpty()) return;
         // 统一通过 SchedulerUtil 派发，内部已处理 Folia 与主线程
         SchedulerUtil.entityRun(plugin, player, () -> doPlayerNearCheck(player), 0L, -1L);
@@ -1021,7 +1021,7 @@ public class GemManager {
      * 如果物品是宝石，则返回它的 UUID；如果不是宝石，则返回 null。
      */
     public UUID getGemUUID(ItemStack item) {
-        if (!isPowerGem(item)) {
+        if (!isRulerGem(item)) {
             return null;
         }
 
@@ -1039,7 +1039,7 @@ public class GemManager {
      * 如果方块是宝石，则返回它的 UUID；如果不是宝石，则返回 null。
      */
     public UUID getGemUUID(Block block) {
-        if (!isPowerGem(block)) {
+        if (!isRulerGem(block)) {
             return null;
         }
 
@@ -1065,7 +1065,7 @@ public class GemManager {
         // 检查玩家是否持有该类型的宝石
         UUID matchedGemId = null;
         for (ItemStack item : player.getInventory().getContents()) {
-            if (!isPowerGem(item)) continue;
+            if (!isRulerGem(item)) continue;
             UUID id = getGemUUID(item);
             String key = gemUuidToKey.get(id);
             if (key != null && key.equalsIgnoreCase(targetKey)) {
@@ -1144,7 +1144,7 @@ public class GemManager {
         if (player == null || targetId == null) return;
         org.bukkit.inventory.PlayerInventory inv = player.getInventory();
         ItemStack off = inv.getItemInOffHand();
-        if (isPowerGem(off)) {
+        if (isRulerGem(off)) {
             UUID id = getGemUUID(off);
             if (targetId.equals(id)) {
                 inv.setItemInOffHand(new ItemStack(Material.AIR));
@@ -1154,7 +1154,7 @@ public class GemManager {
         ItemStack[] contents = inv.getContents();
         for (int i = 0; i < contents.length; i++) {
             ItemStack it = contents[i];
-            if (!isPowerGem(it)) continue;
+            if (!isRulerGem(it)) continue;
             UUID id = getGemUUID(it);
             if (targetId.equals(id)) {
                 inv.setItem(i, new ItemStack(Material.AIR));
@@ -1176,7 +1176,7 @@ public class GemManager {
         // 检查每个定义是否都持有
         Map<String, UUID> keyToGemId = new HashMap<>();
         for (ItemStack item : player.getInventory().getContents()) {
-            if (!isPowerGem(item)) continue;
+            if (!isRulerGem(item)) continue;
             UUID id = getGemUUID(item);
             String key = gemUuidToKey.get(id);
             if (key != null && !keyToGemId.containsKey(key.toLowerCase())) {

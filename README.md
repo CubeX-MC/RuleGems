@@ -14,7 +14,7 @@
 - `/rulergem place <x> <y> <z>` 放置宝石
 - `/rulergem revoke` 收回当前权力持有者
 - `/rulergem reload` 重载配置
-- `/rulergem powerplayer` 查看当前权力持有者
+- `/rulergem rulers` 查看当前权力持有者
 - `/rulergem gems` 查看宝石状态
 - `/rulergem scatter` 随机散布全部宝石
 - `/rulergem redeem <键|名字>` 兑换单颗宝石
@@ -24,7 +24,7 @@
 - `rulergem.admin` 管理指令（默认 OP）
 - `rulergem.redeem` 兑换单颗（默认 true）
 - `rulergem.redeemall` 兑换全部（默认 OP）
-- `rulergem.powerplayer` 查看当前持有者（默认 true）
+- `rulergem.rulers` 查看当前持有者（默认 true）
 
 ## 兼容性
 - 服务器：Spigot/Paper 1.16+；Folia 兼容

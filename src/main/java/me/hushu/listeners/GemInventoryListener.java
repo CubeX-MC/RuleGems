@@ -23,7 +23,7 @@ public class GemInventoryListener implements Listener {
     // 禁止玩家将 Gem 放入容器
     public void onInventoryDrag(InventoryDragEvent event) {
         for (ItemStack item : event.getNewItems().values()) {
-            if (gemManager.isPowerGem(item)) {
+            if (gemManager.isRulerGem(item)) {
                 // 取消拖拽事件以防止将 Gem 放入容器
                 event.setCancelled(true);
                 languageManager.sendMessage(event.getWhoClicked(), "inventory.drag_denied");

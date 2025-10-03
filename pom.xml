@@ -6,7 +6,7 @@
 
     <groupId>hushu</groupId>
     <artifactId>RulerGem</artifactId>
-    <version>0.2.0</version>
+    <version>1.0.0</version>
     <packaging>jar</packaging>
 
     <name>RulerGems</name>
@@ -58,7 +58,7 @@
     </dependencies>
 
     <build>
-    <finalName>RulerGem</finalName>
+    <finalName>${project.artifactId}-${project.version}</finalName>
         <defaultGoal>clean package</defaultGoal>
         
         <resources>
