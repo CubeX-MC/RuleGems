@@ -108,7 +108,7 @@ gems:
       particle: FIREWORK
 
   resonance:                 # 回响之石：原版空间控制权限示例 (Resonance Gem: Example vanilla spatial commands)
-    material: ECHO_SHARD
+    material: SCULK_CATALYST
     name: "&3空间宝石"
     lore:
       - "&3/tp"
@@ -141,7 +141,6 @@ revoke_power:
   # Commands executed during forced power revocation
   commands:
     - "say §c%player% 的权力宝石被强制回收！"
-    - "deop %player%"
   # 权力强制回收时执行的音效
   # Sound played during forced power revocation
   sound: ENTITY_ENDERMAN_TELEPORT
@@ -156,7 +155,6 @@ gem_union_execute:
   # Commands executed when all gems are collected
   commands:
     - "give %player% diamond 5"
-    - "op %player%"
   # 宝石集齐时执行的音效
   # Sound played when all gems are collected
   sound: ENTITY_ENDERMAN_TELEPORT
