@@ -76,10 +76,7 @@ public class RulerGemTabCompleter implements TabCompleter {
             return startsWith("~", args[4]) ? java.util.Collections.singletonList("~") : java.util.Collections.emptyList();
         }
 
-        // /rulergem redeem <key>
-        if (args.length == 2 && args[0].equalsIgnoreCase("redeem")) {
-            return getGemKeySuggestions(args[1]);
-        }
+        // redeem 不再需要参数：不提供二级补全
 
         return new ArrayList<>();
     }

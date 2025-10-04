@@ -60,6 +60,7 @@ gems:
       - "&d/kill"
       - "&d/effect"
       - "&d/clear"
+    enchanted: true          # 是否让物品发光（隐藏附魔），用于与普通方块区分
     redeem_title: ["&d%player% 兑换了秘律宝石", "&e秩序由你维护！"]
     particle: ENCHANTMENT_TABLE
     sound: BLOCK_AMETHYST_BLOCK_RESONATE
@@ -87,6 +88,7 @@ gems:
       - "&6/give"
       - "&6/xp"
       - "&6/enchant"
+    enchanted: true
     redeem_title: ["&8%player% 兑换了财富宝石", "&e万象财富向你汇聚！"]
     particle: END_ROD
     sound: BLOCK_BEACON_POWER_SELECT
@@ -114,6 +116,7 @@ gems:
       - "&3/tp"
       - "&3/spreadplayers"
       - "&3/setworldspawn"
+    enchanted: true
     redeem_title: ["&3%player% 兑换了空间宝石", "&b自由穿梭！"]
     particle: SONIC_BOOM
     sound: ENTITY_WARDEN_SONIC_BOOM

@@ -10,9 +10,11 @@ messages:
     scatter_success: "&a%prefix% 权力被收回，宝石已散落！"
     unknown_subcommand: "&e%prefix% 未知的子命令。用法: /rulergem <place|revoke|reload|rulers|gems|scatter|redeem|redeemall|help>"
     redeem:
-      usage: "&c%prefix% 用法: /rulergem redeem <名称或key>"
+      usage: "&c%prefix% 用法: /rulergem redeem（主手持宝石）"
       player_only: "&c%prefix% 只能玩家执行此命令！"
       disabled: "&c%prefix% 兑换功能已禁用。"
+      no_item_in_hand: "&c%prefix% 请将要兑换的宝石拿在主手后再使用该指令。"
+      not_a_gem: "&c%prefix% 你手中的物品不是可兑换的宝石。"
       failed: "&c%prefix% 兑换失败，请确认你持有对应宝石。"
       success: "&a%prefix% 兑换成功！"
     redeemall:
@@ -39,7 +41,7 @@ messages:
       rulers: "&e/rulergem rulers &f- 查看当前的权力持有者"
       gems: "&e/rulergem gems &f- 查看所有宝石信息"
       scatter: "&e/rulergem scatter &f- 散落宝石"
-      redeem: "&e/rulergem redeem <名称或key> &f- 兑换单颗宝石"
+      redeem: "&e/rulergem redeem &f- 主手持宝石时兑换"
       redeemall: "&e/rulergem redeemall &f- 集齐后一次性兑换全部"
       help: "&e/rulergem help &f- 显示帮助信息"
       footer: "&a======================"

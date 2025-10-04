@@ -10,9 +10,11 @@ messages:
     scatter_success: "&a%prefix% Macht entzogen, Edelsteine wurden verstreut!"
     unknown_subcommand: "&e%prefix% Unbekannter Unterbefehl. Verwendung: /rulergem <place|revoke|reload|rulers|gems|scatter|redeem|redeemall|help>"
     redeem:
-      usage: "&c%prefix% Verwendung: /rulergem redeem <Name oder Schlüssel>"
+      usage: "&c%prefix% Verwendung: /rulergem redeem (Edelstein in der Haupt-Hand halten)"
       player_only: "&c%prefix% Nur Spieler können diesen Befehl ausführen!"
       disabled: "&c%prefix% Einlösen ist deaktiviert."
+      no_item_in_hand: "&c%prefix% Halte den Edelstein in deiner Haupt-Hand, bevor du den Befehl benutzt."
+      not_a_gem: "&c%prefix% Das Item in deiner Hand ist kein einlösbarer Edelstein."
       failed: "&c%prefix% Einlösen fehlgeschlagen. Stelle sicher, dass du die benötigte Ruler Gem hast."
       success: "&a%prefix% Erfolgreich eingelöst!"
     redeemall:
@@ -39,7 +41,7 @@ messages:
       rulers: "&e/rulergem rulers &f- Zeige den aktuellen Herrscher"
       gems: "&e/rulergem gems &f- Zeige alle Edelstein-Informationen"
       scatter: "&e/rulergem scatter &f- Verstreue Edelsteine"
-      redeem: "&e/rulergem redeem <Name oder Schlüssel> &f- Löse einen einzelnen Edelstein ein"
+      redeem: "&e/rulergem redeem &f- Einlösen mit Edelstein in der Haupt-Hand"
       redeemall: "&e/rulergem redeemall &f- Löse alle auf einmal ein"
       help: "&e/rulergem help &f- Zeige Hilfeinformationen"
       footer: "&a======================"

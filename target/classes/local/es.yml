@@ -10,9 +10,11 @@ messages:
     scatter_success: "&a%prefix% ¡Poder revocado, las gemas han sido esparcidas!"
     unknown_subcommand: "&e%prefix% Subcomando desconocido. Uso: /rulergem <place|revoke|reload|rulers|gems|scatter|redeem|redeemall|help>"
     redeem:
-      usage: "&c%prefix% Uso: /rulergem redeem <nombre o clave>"
+      usage: "&c%prefix% Uso: /rulergem redeem (sostén la gema en la mano principal)"
       player_only: "&c%prefix% ¡Solo los jugadores pueden ejecutar este comando!"
       disabled: "&c%prefix% La función de canje está deshabilitada."
+      no_item_in_hand: "&c%prefix% Sostén la gema en tu mano principal antes de usar este comando."
+      not_a_gem: "&c%prefix% El objeto en tu mano no es una gema canjeable."
       failed: "&c%prefix% Falló el canje. Asegúrate de tener la Ruler Gem requerida."
       success: "&a%prefix% ¡Canje exitoso!"
     redeemall:
@@ -39,7 +41,7 @@ messages:
     rulers: "&e/rulergem rulers &f- Ver el gobernante actual"
     gems: "&e/rulergem gems &f- Ver información de todas las gemas"
     scatter: "&e/rulergem scatter &f- Esparcir gemas"
-    redeem: "&e/rulergem redeem <nombre o clave> &f- Canjear una sola gema"
+    redeem: "&e/rulergem redeem &f- Canjear sosteniendo una gema en la mano principal"
     redeemall: "&e/rulergem redeemall &f- Canjear todas de una vez al completar"
     help: "&e/rulergem help &f- Mostrar información de ayuda"
     footer: "&a======================"
@@ -51,7 +53,7 @@ messages:
     total_expected: "&a%prefix% Cantidad esperada de gemas: &e%count%"
     total_counts: "&a%prefix% &e%placed_count% colocadas &a%held_count% en posesión"
     # Línea única: [%gem_key%] %gem_name%: %status%
-    gem_line: "&f[&e%gem_key%&f] &r%gem_name%&f: &7%status%"
+    gem_line: " &f[&e%gem_key%&f] &r%gem_name%&f: &7%status%"
     status_held: "en posesión de %player%"
     status_placed: "colocada en &e%x%&f,&e%y%&f,&e%z%&f &b%world%&f"
     status_unknown: "desconocido"

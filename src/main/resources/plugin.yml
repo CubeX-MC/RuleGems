@@ -1,5 +1,5 @@
 name: RulerGem
-version: 1.0.0
+version: 1.0.1
 main: me.hushu.RulerGem
 author: angushushu
 description: "一个管理 RulerGem（权力宝石）的示例插件"

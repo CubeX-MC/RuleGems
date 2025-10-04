@@ -23,6 +23,7 @@ public class GemDefinition {
     private final String vaultGroup;
     private final List<String> lore;
     private final List<String> redeemTitle; // 1-2 行标题文本
+    private final boolean enchanted; // 是否为物品附魔发光（仅用于区分外观）
 
     public GemDefinition(String gemKey,
                          Material material,
@@ -35,7 +36,8 @@ public class GemDefinition {
                          List<String> permissions,
                          String vaultGroup,
                          List<String> lore,
-                         List<String> redeemTitle) {
+                         List<String> redeemTitle,
+                         boolean enchanted) {
         this.gemKey = gemKey;
         this.material = material;
         this.displayName = displayName;
@@ -48,6 +50,7 @@ public class GemDefinition {
         this.vaultGroup = vaultGroup;
         this.lore = lore;
         this.redeemTitle = redeemTitle;
+        this.enchanted = enchanted;
     }
 
     public String getGemKey() {
@@ -96,6 +99,10 @@ public class GemDefinition {
 
     public List<String> getRedeemTitle() {
         return redeemTitle;
+    }
+
+    public boolean isEnchanted() {
+        return enchanted;
     }
 }
 

@@ -10,9 +10,11 @@ messages:
     scatter_success: "&a%prefix% Права отозваны, камни рассеяны!"
     unknown_subcommand: "&e%prefix% Неизвестная подкоманда. Использование: /rulergem <place|revoke|reload|rulers|gems|scatter|redeem|redeemall|help>"
     redeem:
-      usage: "&c%prefix% Использование: /rulergem redeem <имя или ключ>"
+      usage: "&c%prefix% Использование: /rulergem redeem (держите камень в основной руке)"
       player_only: "&c%prefix% Только игроки могут использовать эту команду!"
       disabled: "&c%prefix% Функция обмена отключена."
+      no_item_in_hand: "&c%prefix% Держите камень в основной руке перед использованием команды."
+      not_a_gem: "&c%prefix% Предмет в вашей руке не является обмениваемым камнем."
       failed: "&c%prefix% Обмен не удался. Убедитесь, что у вас есть нужная Ruler Gem."
       success: "&a%prefix% Обмен успешен!"
     redeemall:
@@ -39,7 +41,7 @@ messages:
       rulers: "&e/rulergem rulers &f- Посмотреть текущего правителя"
       gems: "&e/rulergem gems &f- Посмотреть информацию о всех камнях"
       scatter: "&e/rulergem scatter &f- Рассеять камни"
-      redeem: "&e/rulergem redeem <имя или ключ> &f- Обменять одиночный камень"
+      redeem: "&e/rulergem redeem &f- Обмен с камнем в основной руке"
       redeemall: "&e/rulergem redeemall &f- Обменять все сразу при сборе"
       help: "&e/rulergem help &f- Показать справку"
       footer: "&a======================"
@@ -51,7 +53,7 @@ messages:
     total_expected: "&a%prefix% Ожидаемое количество камней: &e%count%"
     total_counts: "&a%prefix% &e%placed_count% размещено &a%held_count% в наличии"
     # Однострочный вывод: [%gem_key%] %gem_name%: %status%
-    gem_line: "&f[&e%gem_key%&f] &r%gem_name%&f: &7%status%"
+    gem_line: " &f[&e%gem_key%&f] &r%gem_name%&f: &7%status%"
     status_held: "у игрока %player%"
     status_placed: "размещен в &e%x%&f,&e%y%&f,&e%z%&f &b%world%&f"
     status_unknown: "неизвестно"

@@ -122,7 +122,7 @@ public class RulerGemCommand implements CommandExecutor {
         // Optional: add help for tp if language exists
         languageManager.sendMessage(sender, "command.help.revoke");
         languageManager.sendMessage(sender, "command.help.reload");
-    languageManager.sendMessage(sender, "command.help.rulers");
+        languageManager.sendMessage(sender, "command.help.rulers");
         languageManager.sendMessage(sender, "command.help.gems");
         languageManager.sendMessage(sender, "command.help.scatter");
         languageManager.sendMessage(sender, "command.help.redeem");
@@ -228,13 +228,18 @@ public class RulerGemCommand implements CommandExecutor {
             languageManager.sendMessage(sender, "command.redeem.player_only");
             return true;
         }
-        if (args.length < 2) {
-            languageManager.sendMessage(sender, "command.redeem.usage");
+        Player player = (Player) sender;
+        // 新行为：仅支持手持兑换
+        org.bukkit.inventory.ItemStack inHand = player.getInventory().getItemInMainHand();
+        if (inHand == null || inHand.getType() == org.bukkit.Material.AIR) {
+            languageManager.sendMessage(sender, "command.redeem.no_item_in_hand");
             return true;
         }
-        Player player = (Player) sender;
-        String name = args[1];
-        boolean ok = gemManager.redeemGem(player, name);
+        if (!gemManager.isRulerGem(inHand)) {
+            languageManager.sendMessage(sender, "command.redeem.not_a_gem");
+            return true;
+        }
+        boolean ok = gemManager.redeemGemInHand(player);
         if (!ok) {
             languageManager.sendMessage(sender, "command.redeem.failed");
             return true;

@@ -36,6 +36,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.inventory.ItemFlag;
 
 import me.hushu.RulerGem;
 import me.hushu.model.ExecuteConfig;
@@ -62,6 +64,9 @@ public class GemManager {
     // Redeem ownership state
     private final Map<String, java.util.UUID> gemKeyToRedeemer = new HashMap<>();
     private java.util.UUID fullSetOwner = null;
+    // Queue revocations for offline players (persisted)
+    private final Map<java.util.UUID, java.util.Set<String>> pendingPermRevokes = new HashMap<>();
+    private final Map<java.util.UUID, java.util.Set<String>> pendingGroupRevokes = new HashMap<>();
 
     private Player powerPlayer;
 
@@ -135,6 +140,27 @@ public class GemManager {
             String u = fso.getString("uuid");
             try { fullSetOwner = java.util.UUID.fromString(u); } catch (Exception ignored) {}
         }
+        // Load pending revocations
+        ConfigurationSection pr = gemsData.getConfigurationSection("pending_revokes.permissions");
+        if (pr != null) {
+            for (String pid : pr.getKeys(false)) {
+                try {
+                    java.util.UUID id = java.util.UUID.fromString(pid);
+                    java.util.List<String> list = pr.getStringList(pid);
+                    if (list != null && !list.isEmpty()) pendingPermRevokes.put(id, new java.util.HashSet<>(list));
+                } catch (Exception ignored) {}
+            }
+        }
+        ConfigurationSection gr = gemsData.getConfigurationSection("pending_revokes.groups");
+        if (gr != null) {
+            for (String pid : gr.getKeys(false)) {
+                try {
+                    java.util.UUID id = java.util.UUID.fromString(pid);
+                    java.util.List<String> list = gr.getStringList(pid);
+                    if (list != null && !list.isEmpty()) pendingGroupRevokes.put(id, new java.util.HashSet<>(list));
+                } catch (Exception ignored) {}
+            }
+        }
         if (placedGemsSection != null) {
             for (String uuidStr : placedGemsSection.getKeys(false)) {
                 // key 类似 "gems.<uuid>"
@@ -197,6 +223,11 @@ public class GemManager {
             }
         }
 
+        // Apply pending revocations for any already online players
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            applyPendingRevokesIfAny(p);
+        }
+
         // Log loaded counts (match lang keys expecting %count%)
         Map<String, String> placeholders1 = new HashMap<>();
         placeholders1.put("count", String.valueOf(locationToGemUuid.size()));
@@ -214,6 +245,7 @@ public class GemManager {
         gemsData.set("redeemed", null);
         gemsData.set("redeem_owner", null);
         gemsData.set("full_set_owner", null);
+    gemsData.set("pending_revokes", null);
 
         for (Location loc : locationToGemUuid.keySet()) {
             String path = "placed-gems." + locationToGemUuid.get(loc).toString();
@@ -246,6 +278,13 @@ public class GemManager {
         }
         if (fullSetOwner != null) {
             gemsData.set("full_set_owner.uuid", fullSetOwner.toString());
+        }
+        // Save pending revocations
+        for (Map.Entry<java.util.UUID, java.util.Set<String>> e : pendingPermRevokes.entrySet()) {
+            gemsData.set("pending_revokes.permissions." + e.getKey(), new java.util.ArrayList<>(e.getValue()));
+        }
+        for (Map.Entry<java.util.UUID, java.util.Set<String>> e : pendingGroupRevokes.entrySet()) {
+            gemsData.set("pending_revokes.groups." + e.getKey(), new java.util.ArrayList<>(e.getValue()));
         }
         configManager.saveGemData(gemsData);
     }
@@ -415,6 +454,8 @@ public class GemManager {
                 }
             }
         }
+        // Apply any pending revocations queued while offline
+        applyPendingRevokesIfAny(player);
     }
 
     /**
@@ -611,10 +652,12 @@ public class GemManager {
         // 根据 gemKey 决定外观，若无则回退到全局默认
         String gemKey = gemUuidToKey.getOrDefault(gemId, null);
         ItemStack rulerGem = new ItemStack(Material.RED_STAINED_GLASS, 1);
+        boolean enchantedGlint = false;
         if (gemKey != null) {
             me.hushu.model.GemDefinition def = findGemDefinition(gemKey);
             if (def != null) {
                 rulerGem = new ItemStack(def.getMaterial(), 1);
+                enchantedGlint = def.isEnchanted();
             }
         }
         ItemMeta meta = rulerGem.getItemMeta();
@@ -622,21 +665,32 @@ public class GemManager {
         
         // 名称按定义或默认
         String displayName = "§c权力宝石";
+        // lore（若定义存在则带上定义）
+        java.util.List<String> lore = new java.util.ArrayList<>();
         if (gemKey != null) {
             me.hushu.model.GemDefinition def = findGemDefinition(gemKey);
             if (def != null && def.getDisplayName() != null) {
                 displayName = def.getDisplayName();
             }
-            // lore
             if (def != null && def.getLore() != null && !def.getLore().isEmpty()) {
-                java.util.List<String> lore = new java.util.ArrayList<>();
                 for (String line : def.getLore()) {
                     lore.add(org.bukkit.ChatColor.translateAlternateColorCodes('&', line));
                 }
-                meta.setLore(lore);
             }
+        } else {
+            // 无 key 信息时不再追加任何调试 Lore 行
         }
+        meta.setLore(lore);
         meta.setDisplayName(displayName);
+
+        // 仅用于外观区分：添加隐形附魔实现发光效果
+        if (enchantedGlint) {
+            try {
+                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_ATTRIBUTES);
+                // 选择一个影响最小的附魔作为“发光触发器”
+                meta.addEnchant(Enchantment.LUCK, 1, true);
+            } catch (Throwable ignored) { /* 某些服务端可能不支持 */ }
+        }
 
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         // 标记这是宝石
@@ -772,6 +826,28 @@ public class GemManager {
             for (String n : nodes) {
                 try { plugin.getVaultPerms().playerRemove(player, n); } catch (Exception ignored) {}
             }
+        }
+    }
+
+    private void applyPendingRevokesIfAny(Player player) {
+        if (player == null) return;
+        java.util.UUID uid = player.getUniqueId();
+        boolean changed = false;
+        java.util.Set<String> perms = pendingPermRevokes.remove(uid);
+        if (perms != null && !perms.isEmpty()) {
+            revokeNodes(player, perms);
+            changed = true;
+        }
+        java.util.Set<String> groups = pendingGroupRevokes.remove(uid);
+        if (groups != null && !groups.isEmpty() && plugin.getVaultPerms() != null) {
+            for (String g : groups) {
+                try { plugin.getVaultPerms().playerRemoveGroup(player, g); } catch (Exception ignored) {}
+            }
+            changed = true;
+        }
+        if (changed) {
+            try { player.recalculatePermissions(); } catch (Throwable ignored) {}
+            saveGems();
         }
     }
 
@@ -1076,41 +1152,42 @@ public class GemManager {
         return powerPlayer;
     }
 
-    // 兑换单颗宝石：要求玩家背包里持有该 gemKey 对应的宝石
-    public boolean redeemGem(Player player, String gemKeyOrName) {
+    /**
+     * 仅通过玩家主手持有的宝石进行兑换。
+     * 不需要输入 key，直接识别主手物品。
+     */
+    public boolean redeemGemInHand(Player player) {
+        if (player == null) return false;
         if (!configManager.isRedeemEnabled()) {
             languageManager.sendMessage(player, "command.redeem.disabled");
             return true;
         }
-        // 允许以 key 或显示名匹配
-        String targetKey = resolveGemKeyByNameOrKey(gemKeyOrName);
-        if (targetKey == null) {
+        org.bukkit.inventory.ItemStack inHand = player.getInventory().getItemInMainHand();
+        if (!isRulerGem(inHand)) {
             return false;
         }
-        // 检查玩家是否持有该类型的宝石
-        UUID matchedGemId = null;
-        for (ItemStack item : player.getInventory().getContents()) {
-            if (!isRulerGem(item)) continue;
-            UUID id = getGemUUID(item);
-            String key = gemUuidToKey.get(id);
-            if (key != null && key.equalsIgnoreCase(targetKey)) {
-                matchedGemId = id;
-                break;
-            }
+        java.util.UUID matchedGemId = getGemUUID(inHand);
+        if (matchedGemId == null) return false;
+        // 确定 gem key
+        String targetKey = gemUuidToKey.get(matchedGemId);
+        if (targetKey == null || targetKey.isEmpty()) {
+            // 兜底：如果缺失，尽量分配一个定义
+            ensureGemKeyAssigned(matchedGemId);
+            targetKey = gemUuidToKey.get(matchedGemId);
+            if (targetKey == null || targetKey.isEmpty()) return false;
         }
-        if (matchedGemId == null) {
-            return false;
-        }
-        // 记为已兑换（示例：记录 key，实际授权逻辑可在此处挂接）
+        // 标记已兑换并发放奖励
         markGemRedeemed(player, targetKey);
         me.hushu.model.GemDefinition def = findGemDefinition(targetKey);
         applyRedeemRewards(player, def);
-    // 兑换后：从玩家身上移除并随机散落（精确移除该UUID的宝石，避免残留导致重复）
-    removeGemItemFromInventory(player, matchedGemId);
-    gemUuidToHolder.remove(matchedGemId);
-    randomPlaceGem(matchedGemId, configManager.getRandomPlaceCorner1(), configManager.getRandomPlaceCorner2());
+
+        // 从玩家移除物品并重新散落
+        removeGemItemFromInventory(player, matchedGemId);
+        gemUuidToHolder.remove(matchedGemId);
+        randomPlaceGem(matchedGemId, configManager.getRandomPlaceCorner1(), configManager.getRandomPlaceCorner2());
+
         // 单颗竞争撤销：新兑换者成功后撤销旧兑换者的该 gem 权限
-        String normalizedKey = targetKey.toLowerCase(Locale.ROOT);
+        String normalizedKey = targetKey.toLowerCase(java.util.Locale.ROOT);
         java.util.UUID old = gemKeyToRedeemer.put(normalizedKey, player.getUniqueId());
         if (old != null && !old.equals(player.getUniqueId())) {
             Player oldP = Bukkit.getPlayer(old);
@@ -1123,8 +1200,13 @@ public class GemManager {
             } else {
                 java.util.Set<String> s = playerUuidToRedeemedKeys.get(old);
                 if (s != null) s.remove(normalizedKey);
+                // Queue offline revocations
+                queueOfflineRevokes(old,
+                        def != null ? def.getPermissions() : java.util.Collections.emptyList(),
+                        (def != null && def.getVaultGroup() != null && !def.getVaultGroup().isEmpty()) ? java.util.Collections.singleton(def.getVaultGroup()) : java.util.Collections.emptySet());
             }
         }
+
         // 广播标题（可配置开关）
         if (configManager.isBroadcastRedeemTitle()) {
             java.util.Map<String, String> ph = new java.util.HashMap<>();
@@ -1148,6 +1230,8 @@ public class GemManager {
         }
         return true;
     }
+
+    // 已弃用：旧的按名称或 key 兑换方式已移除，改为仅支持主手兑换。
 
     /**
      * 从玩家背包（含副手）精确移除一颗指定 UUID 的宝石物品。
@@ -1203,6 +1287,26 @@ public class GemManager {
                 plugin.getVaultPerms().playerAddGroup(player, definition.getVaultGroup());
             } catch (Exception ignored) {}
         }
+    }
+
+    private void queueOfflineRevokes(java.util.UUID user,
+                                     java.util.Collection<String> perms,
+                                     java.util.Collection<String> groups) {
+        if (user == null) return;
+        if (perms != null && !perms.isEmpty()) {
+            java.util.Set<String> set = pendingPermRevokes.computeIfAbsent(user, k -> new java.util.HashSet<>());
+            for (String p : perms) {
+                if (p != null && !p.trim().isEmpty()) set.add(p);
+            }
+        }
+        if (groups != null && !groups.isEmpty()) {
+            java.util.Set<String> set = pendingGroupRevokes.computeIfAbsent(user, k -> new java.util.HashSet<>());
+            for (String g : groups) {
+                if (g != null && !g.trim().isEmpty()) set.add(g);
+            }
+        }
+        // persist immediately
+        saveGems();
     }
 
     private void triggerScatterEffects(UUID gemId, Location location, String playerName) {
@@ -1295,6 +1399,15 @@ public class GemManager {
                     }
                 }
                 prev.recalculatePermissions();
+            } else {
+                // Queue all per-gem revocations for previous full owner
+                java.util.Set<String> allPerms = new java.util.HashSet<>();
+                java.util.Set<String> allGroups = new java.util.HashSet<>();
+                for (me.hushu.model.GemDefinition d : defs) {
+                    if (d.getPermissions() != null) allPerms.addAll(d.getPermissions());
+                    if (d.getVaultGroup() != null && !d.getVaultGroup().isEmpty()) allGroups.add(d.getVaultGroup());
+                }
+                queueOfflineRevokes(previousFull, allPerms, allGroups);
             }
         }
         // 广播标题（可配置开关）：优先使用 config.titles.redeem_all，否则使用语言文件的 gems_recollected

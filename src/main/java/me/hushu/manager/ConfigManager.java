@@ -252,7 +252,17 @@ public class ConfigManager {
         java.util.List<String> lore = toStringList(map.get("lore"));
         // redeem_title: list(1-2 entries) or string
         java.util.List<String> redeemTitle = toStringList(map.get("redeem_title"));
-        return new GemDefinition(gemKey, material, displayName, particle, sound, onPickup, onScatter, onRedeem, perms, group, lore, redeemTitle);
+        // optional: visual enchanted glint
+        boolean enchanted = false;
+        Object encObj = map.get("enchanted");
+        if (encObj instanceof Boolean) {
+            enchanted = (Boolean) encObj;
+        } else if (encObj != null) {
+            // accept string-like truthy
+            String s = String.valueOf(encObj).trim();
+            enchanted = s.equalsIgnoreCase("true") || s.equalsIgnoreCase("yes") || s.equalsIgnoreCase("on");
+        }
+        return new GemDefinition(gemKey, material, displayName, particle, sound, onPickup, onScatter, onRedeem, perms, group, lore, redeemTitle, enchanted);
     }
 
     private String stringOf(Object o) {
