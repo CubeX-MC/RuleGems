@@ -21,9 +21,11 @@ messages:
       failed: "&c%prefix% 兑换失败，请确认你已集齐所有宝石。"
       success: "&a%prefix% 已一次性兑换全部宝石！"
     place:
-      usage: "&c%prefix% 用法: /rulergem place <x> <y> <z>"
+      usage: "&c%prefix% 用法: /rulergem place <gemId> <x|~> <y|~> <z|~>"
       player_only: "&c%prefix% 只能玩家执行此命令！"
       invalid_coordinates: "&c%prefix% 坐标必须是数字或~！"
+      invalid_gem: "&c%prefix% 无法识别的宝石ID或Key！"
+      failed_unsupported: "&c%prefix% 此宝石需要下方有方块支撑，放置已取消。"
       success: "&a%prefix% 已在 &e%x% %y% %z% &a放置一颗宝石。"
       gem_limit_reached: "&c%prefix% 宝石数量已达到上限！"
     revoke:
@@ -31,7 +33,7 @@ messages:
       success: "&a%prefix% 已收回 &e%player% &a的权限。"
     help:
       header: "&a=== RulerGem 帮助 ==="
-      place: "&e/rulergem place <x> <y> <z> &f- 在指定坐标放置宝石方块"
+      place: "&e/rulergem place <gemId> <x|~> <y|~> <z|~> &f- 将指定宝石放到坐标"
       revoke: "&e/rulergem revoke <playerName> &f- 收回该玩家的权限"
       reload: "&e/rulergem reload &f- 重新加载配置"
       rulers: "&e/rulergem rulers &f- 查看当前的权力持有者"
@@ -48,6 +50,11 @@ messages:
     header: "&a====== 宝石状态 ======"
     total_expected: "&a%prefix% 预计宝石数量: &e%count%"
     total_counts: "&a%prefix% &e%placed_count% 放置 &a%held_count% 持有"
+    # 一行式输出： [%gem_key%] %gem_name%: %status%
+    gem_line: " &f[&e%gem_key%&f] &r%gem_name%&f: &7%status%"
+    status_held: "被%player%持有"
+    status_placed: "放置在 &e%x%&f,&e%y%&f,&e%z%&f &b%world%&f"
+    status_unknown: "状态未知"
     gem_location: "&a%prefix% 坐标: &e%x% %y% %z% %world%"
     gem_location_named: "&a%prefix% 坐标: &e%x% %y% %z% %world% &7[&e%gem_id%&7] &f%gem_name%"
     player_holding: "&a%prefix% 玩家: &e%player% &a持有 &e%count% &a颗宝石"

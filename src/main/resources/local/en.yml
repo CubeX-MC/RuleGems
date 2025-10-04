@@ -21,9 +21,11 @@ messages:
       failed: "&c%prefix% Redeem all failed. Ensure you hold all required gems."
       success: "&a%prefix% Redeem all success!"
     place:
-      usage: "&c%prefix% Usage: /rulergem place <x> <y> <z>"
+      usage: "&c%prefix% Usage: /rulergem place <gemId> <x|~> <y|~> <z|~>"
       player_only: "&c%prefix% Only players can execute this command!"
       invalid_coordinates: "&c%prefix% Coordinates must be numbers or ~!"
+      invalid_gem: "&c%prefix% Invalid gem id or key."
+      failed_unsupported: "&c%prefix% This gem requires a supporting block below; placement cancelled."
       success: "&a%prefix% Placed a gem at &e%x% %y% %z%&a."
       gem_limit_reached: "&c%prefix% Gem limit reached!"
     revoke:
@@ -31,7 +33,7 @@ messages:
       success: "&a%prefix% Revoked permissions from &e%player%&a."
     help:
       header: "&a=== RulerGem Help ==="
-      place: "&e/rulergem place <x> <y> <z> &f- Place a gem block at specified coordinates"
+      place: "&e/rulergem place <gemId> <x|~> <y|~> <z|~> &f- Place a specific gem at coordinates"
       revoke: "&e/rulergem revoke <playerName> &f- Revoke player's permissions"
       reload: "&e/rulergem reload &f- Reload configuration"
       rulers: "&e/rulergem rulers &f- View current ruler"
@@ -48,6 +50,11 @@ messages:
     header: "&a====== Gem Status ======"
     total_expected: "&a%prefix% Expected gem count: &e%count%"
     total_counts: "&a%prefix% &e%placed_count% placed &a%held_count% held"
+    # Single-line output: [%gem_key%] %gem_name%: %status%
+    gem_line: "&f[&e%gem_key%&f] &r%gem_name%&f: &7%status%"
+    status_held: "held by %player%"
+    status_placed: "placed at &e%x%&f,&e%y%&f,&e%z%&f &b%world%&f"
+    status_unknown: "unknown"
     gem_location: "&a%prefix% Location: &e%x% %y% %z% %world%"
     gem_location_named: "&a%prefix% Location: &e%x% %y% %z% %world% &7[&e%gem_id%&7] &f%gem_name%"
     player_holding: "&a%prefix% Player: &e%player% &aholding &e%count% &agems"

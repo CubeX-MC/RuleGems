@@ -248,4 +248,36 @@ public class SchedulerUtil {
             Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, task, ticks);
         }
     }
+
+    /**
+     * 兼容 Bukkit 与 Folia 的安全传送：
+     * - 若存在 Player#teleportAsync(Location)，优先通过反射调用（Folia 推荐）
+     * - 否则在合适的线程上下文调用同步 teleport
+     */
+    public static void safeTeleport(Plugin plugin, org.bukkit.entity.Player player, org.bukkit.Location dest) {
+        if (player == null || dest == null) return;
+        // Try teleportAsync via reflection (Paper/Folia >= 1.20+)
+        try {
+            java.lang.reflect.Method m = player.getClass().getMethod("teleportAsync", org.bukkit.Location.class);
+            m.invoke(player, dest);
+            return;
+        } catch (NoSuchMethodException ignored) {
+            // method not present on this API
+        } catch (Throwable t) {
+            // fall through to sync teleport fallback
+        }
+        // Fallback: schedule appropriately
+        if (isFolia()) {
+            // Execute on player's region thread; some Folia builds still allow sync teleport from scheduler
+            entityRun(plugin, player, () -> {
+                try { player.teleport(dest); } catch (Throwable ignored) {}
+            }, 0L, -1L);
+        } else {
+            if (org.bukkit.Bukkit.isPrimaryThread()) {
+                player.teleport(dest);
+            } else {
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> player.teleport(dest));
+            }
+        }
+    }
 } 

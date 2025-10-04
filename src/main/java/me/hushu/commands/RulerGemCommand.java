@@ -71,6 +71,9 @@ public class RulerGemCommand implements CommandExecutor {
                 if (require(sender, "rulergem.admin")) return true;
                 gemManager.gemStatus(sender);
                 return true;
+            case "tp":
+                if (require(sender, "rulergem.admin")) return true;
+                return handleTpCommand(sender, args);
             case "scatter":
                 if (require(sender, "rulergem.admin")) return true;
                 gemManager.scatterGems();
@@ -116,6 +119,7 @@ public class RulerGemCommand implements CommandExecutor {
     private void sendHelp(CommandSender sender) {
         languageManager.sendMessage(sender, "command.help.header");
         languageManager.sendMessage(sender, "command.help.place");
+        // Optional: add help for tp if language exists
         languageManager.sendMessage(sender, "command.help.revoke");
         languageManager.sendMessage(sender, "command.help.reload");
     languageManager.sendMessage(sender, "command.help.rulers");
@@ -127,8 +131,41 @@ public class RulerGemCommand implements CommandExecutor {
         languageManager.sendMessage(sender, "command.help.footer");
     }
 
+    private boolean handleTpCommand(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage("该指令仅限玩家使用。");
+            return true;
+        }
+        if (args.length < 2) {
+            sender.sendMessage("用法: /rulergem tp <gemId或key>");
+            return true;
+        }
+        Player p = (Player) sender;
+        UUID gemId = gemManager.resolveGemIdentifier(args[1]);
+        if (gemId == null) {
+            sender.sendMessage("未找到对应的宝石。");
+            return true;
+        }
+        // 优先传送到持有者，否则传送到放置位置
+        Player realHolder = gemManager.getGemHolder(gemId);
+        if (realHolder != null && realHolder.isOnline()) {
+            Location dest = realHolder.getLocation();
+            me.hushu.utils.SchedulerUtil.safeTeleport(plugin, p, dest);
+            return true;
+        }
+        Location loc = gemManager.getGemLocation(gemId);
+        if (loc != null) {
+            Location dest = loc.clone().add(0.5, 1.0, 0.5);
+            me.hushu.utils.SchedulerUtil.safeTeleport(plugin, p, dest);
+            return true;
+        }
+        sender.sendMessage("该宝石既未被持有也未放置。");
+        return true;
+    }
+
     private boolean handlePlaceCommand(CommandSender sender, String[] args) {
-        if (args.length < 4) {
+        // /rulergem place <gemId> <x|~> <y|~> <z|~>
+        if (args.length < 5) {
             languageManager.sendMessage(sender, "command.place.usage");
             return true;
         }
@@ -139,26 +176,29 @@ public class RulerGemCommand implements CommandExecutor {
 
         Player player = (Player) sender;
         World world = player.getWorld();
-        // 如果玩家输入了 ~，则使用玩家当前坐标
-        if (args[1].equals("~"))
-            args[1] = String.valueOf(player.getLocation().getX());
-        if (args[2].equals("~"))
-            args[2] = String.valueOf(player.getLocation().getY());
-        if (args[3].equals("~"))
-            args[3] = String.valueOf(player.getLocation().getZ());
+
+        String gemIdentifier = args[1];
+
+        // 处理 ~ 坐标（基于玩家当前位置）
+        if (args[2].equals("~")) args[2] = String.valueOf(player.getLocation().getX());
+        if (args[3].equals("~")) args[3] = String.valueOf(player.getLocation().getY());
+        if (args[4].equals("~")) args[4] = String.valueOf(player.getLocation().getZ());
+
         double x, y, z;
         try {
-            x = Double.parseDouble(args[1]);
-            y = Double.parseDouble(args[2]);
-            z = Double.parseDouble(args[3]);
+            x = Double.parseDouble(args[2]);
+            y = Double.parseDouble(args[3]);
+            z = Double.parseDouble(args[4]);
         } catch (NumberFormatException e) {
             languageManager.sendMessage(sender, "command.place.invalid_coordinates");
             return true;
         }
 
-        if (gemManager.getTotalGemCount() >= configManager.getRequiredCount()) {
-            languageManager.sendMessage(sender, "command.place.gem_limit_reached");
-            return false;
+        // 解析 gem 标识（UUID 或 gem key/name）
+        UUID gemId = gemManager.resolveGemIdentifier(gemIdentifier);
+        if (gemId == null) {
+            languageManager.sendMessage(sender, "command.place.invalid_gem");
+            return true;
         }
 
         Location loc = new Location(world, x, y, z);
@@ -166,9 +206,14 @@ public class RulerGemCommand implements CommandExecutor {
             loc.getChunk().load();
         }
 
-        // 放置宝石方块
-        UUID newGemId = UUID.randomUUID();
-        gemManager.placeRulerGem(loc, newGemId);
+        // 强制移动该宝石（若被持有则移除背包，若已放置则先清除），确保全服唯一
+        // 支撑性预检查：某些方块（如 sculk_catalyst）需要下面有方块
+        org.bukkit.Material m = gemManager.getGemMaterial(gemId);
+        if (gemManager.isSupportRequired(m) && !gemManager.hasBlockSupport(loc)) {
+            languageManager.sendMessage(sender, "command.place.failed_unsupported");
+            return true;
+        }
+        gemManager.forcePlaceGem(gemId, loc);
 
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("x", String.valueOf(x));

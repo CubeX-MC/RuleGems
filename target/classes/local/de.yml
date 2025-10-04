@@ -21,9 +21,11 @@ messages:
       failed: "&c%prefix% Gesamteinlösen fehlgeschlagen. Stelle sicher, dass du alle benötigten Ruler Gems besitzt."
       success: "&a%prefix% Gesamteinlösen erfolgreich!"
     place:
-      usage: "&c%prefix% Verwendung: /rulergem place <x> <y> <z>"
+      usage: "&c%prefix% Verwendung: /rulergem place <gemId> <x|~> <y|~> <z|~>"
       player_only: "&c%prefix% Nur Spieler können diesen Befehl ausführen!"
       invalid_coordinates: "&c%prefix% Koordinaten müssen Zahlen oder ~ sein!"
+      invalid_gem: "&c%prefix% Ungültige Edelstein-ID oder -Schlüssel."
+      failed_unsupported: "&c%prefix% Dieser Edelstein benötigt einen Block darunter; Platzierung abgebrochen."
       success: "&a%prefix% Ruler Gem platziert bei &e%x% %y% %z%&a."
       gem_limit_reached: "&c%prefix% Edelstein-Limit erreicht!"
     revoke:
@@ -31,7 +33,7 @@ messages:
       success: "&a%prefix% Berechtigungen von &e%player%&a entzogen."
     help:
       header: "&a=== RulerGem Hilfe ==="
-      place: "&e/rulergem place <x> <y> <z> &f- Platziere einen Edelstein an den angegebenen Koordinaten"
+      place: "&e/rulergem place <gemId> <x|~> <y|~> <z|~> &f- Platziere einen bestimmten Edelstein an Koordinaten"
       revoke: "&e/rulergem revoke <playerName> &f- Entziehe Spielerberechtigungen"
       reload: "&e/rulergem reload &f- Konfiguration neu laden"
       rulers: "&e/rulergem rulers &f- Zeige den aktuellen Herrscher"
@@ -48,6 +50,11 @@ messages:
     header: "&a====== Edelstein-Status ======"
     total_expected: "&a%prefix% Erwartete Edelsteinanzahl: &e%count%"
     total_counts: "&a%prefix% &e%placed_count% platziert &a%held_count% gehalten"
+    # Einzeilige Ausgabe: [%gem_key%] %gem_name%: %status%
+    gem_line: " &f[&e%gem_key%&f] &r%gem_name%&f: &7%status%"
+    status_held: "gehalten von %player%"
+    status_placed: "platziert bei &e%x%&f,&e%y%&f,&e%z%&f &b%world%&f"
+    status_unknown: "unbekannt"
     gem_location: "&a%prefix% Position: &e%x% %y% %z% %world%"
     gem_location_named: "&a%prefix% Position: &e%x% %y% %z% %world% &7[&e%gem_id%&7] &f%gem_name%"
     player_holding: "&a%prefix% Spieler: &e%player% &ahält &e%count% &aEdelsteine"

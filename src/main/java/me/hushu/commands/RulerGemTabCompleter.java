@@ -22,6 +22,7 @@ public class RulerGemTabCompleter implements TabCompleter {
     // 子命令列表
     private static final List<String> SUB_COMMANDS = Arrays.asList(
             "place",
+            "tp",
             "revoke",
             "reload",
             "rulers",
@@ -50,38 +51,58 @@ public class RulerGemTabCompleter implements TabCompleter {
             return suggestions;
         }
 
-        // /rulergem place <x>
+        // /rulergem place <gemKey>
         if (args.length == 2 && args[0].equalsIgnoreCase("place")) {
-            List<String> placeArgs = new ArrayList<>();
-            placeArgs.add("~");
-            placeArgs.add("~");
-            placeArgs.add("~");
-            List<String> suggestions = new ArrayList<>();
-            for (String s : placeArgs) {
-                if (s.toLowerCase().startsWith(args[1].toLowerCase())) {
-                    suggestions.add(s);
-                }
-            }
-            return suggestions;
+            return getGemKeySuggestions(args[1]);
+        }
+
+        // /rulergem tp <gemKey>
+        if (args.length == 2 && args[0].equalsIgnoreCase("tp")) {
+            return getGemKeySuggestions(args[1]);
+        }
+
+        // /rulergem place <gemKey> <x|~>
+        if (args.length == 3 && args[0].equalsIgnoreCase("place")) {
+            return startsWith("~", args[2]) ? java.util.Collections.singletonList("~") : java.util.Collections.emptyList();
+        }
+
+        // /rulergem place <gemKey> <x> <y|~>
+        if (args.length == 4 && args[0].equalsIgnoreCase("place")) {
+            return startsWith("~", args[3]) ? java.util.Collections.singletonList("~") : java.util.Collections.emptyList();
+        }
+
+        // /rulergem place <gemKey> <x> <y> <z|~>
+        if (args.length == 5 && args[0].equalsIgnoreCase("place")) {
+            return startsWith("~", args[4]) ? java.util.Collections.singletonList("~") : java.util.Collections.emptyList();
         }
 
         // /rulergem redeem <key>
         if (args.length == 2 && args[0].equalsIgnoreCase("redeem")) {
-            List<String> keys = new ArrayList<>();
-            if (configManager != null && configManager.getGemDefinitions() != null) {
-                for (GemDefinition d : configManager.getGemDefinitions()) {
-                    keys.add(d.getGemKey());
-                }
-            }
-            List<String> suggestions = new ArrayList<>();
-            for (String k : keys) {
-                if (k.toLowerCase().startsWith(args[1].toLowerCase())) {
-                    suggestions.add(k);
-                }
-            }
-            return suggestions;
+            return getGemKeySuggestions(args[1]);
         }
 
         return new ArrayList<>();
+    }
+
+    private boolean startsWith(String option, String typed) {
+        return option.toLowerCase().startsWith(typed == null ? "" : typed.toLowerCase());
+    }
+
+    private List<String> getGemKeySuggestions(String typed) {
+        if (configManager == null || configManager.getGemDefinitions() == null) {
+            return java.util.Collections.emptyList();
+        }
+        String prefix = typed == null ? "" : typed.toLowerCase();
+        List<String> suggestions = new ArrayList<>();
+        for (GemDefinition definition : configManager.getGemDefinitions()) {
+            if (definition == null || definition.getGemKey() == null) {
+                continue;
+            }
+            String key = definition.getGemKey();
+            if (prefix.isEmpty() || key.toLowerCase().startsWith(prefix)) {
+                suggestions.add(key);
+            }
+        }
+        return suggestions;
     }
 }

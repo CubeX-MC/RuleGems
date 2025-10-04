@@ -21,9 +21,11 @@ messages:
       failed: "&c%prefix% Массовый обмен не удался. Убедитесь, что у вас есть все необходимые Ruler Gems."
       success: "&a%prefix% Массовый обмен успешен!"
     place:
-      usage: "&c%prefix% Использование: /rulergem place <x> <y> <z>"
+      usage: "&c%prefix% Использование: /rulergem place <gemId> <x|~> <y|~> <z|~>"
       player_only: "&c%prefix% Только игроки могут использовать эту команду!"
       invalid_coordinates: "&c%prefix% Координаты должны быть числами или ~!"
+      invalid_gem: "&c%prefix% Неверный идентификатор или ключ камня."
+      failed_unsupported: "&c%prefix% Этому камню требуется опора снизу; размещение отменено."
       success: "&a%prefix% Размещена Ruler Gem на &e%x% %y% %z%&a."
       gem_limit_reached: "&c%prefix% Достигнут лимит камней!"
     revoke:
@@ -31,7 +33,7 @@ messages:
       success: "&a%prefix% Права отозваны у &e%player%&a."
     help:
       header: "&a=== Помощь RulerGem ==="
-      place: "&e/rulergem place <x> <y> <z> &f- Разместить камень по указанным координатам"
+      place: "&e/rulergem place <gemId> <x|~> <y|~> <z|~> &f- Разместить конкретный камень по координатам"
       revoke: "&e/rulergem revoke <playerName> &f- Отозвать права игрока"
       reload: "&e/rulergem reload &f- Перезагрузить конфигурацию"
       rulers: "&e/rulergem rulers &f- Посмотреть текущего правителя"
@@ -48,6 +50,11 @@ messages:
     header: "&a====== Статус камней ======"
     total_expected: "&a%prefix% Ожидаемое количество камней: &e%count%"
     total_counts: "&a%prefix% &e%placed_count% размещено &a%held_count% в наличии"
+    # Однострочный вывод: [%gem_key%] %gem_name%: %status%
+    gem_line: "&f[&e%gem_key%&f] &r%gem_name%&f: &7%status%"
+    status_held: "у игрока %player%"
+    status_placed: "размещен в &e%x%&f,&e%y%&f,&e%z%&f &b%world%&f"
+    status_unknown: "неизвестно"
     gem_location: "&a%prefix% Локация: &e%x% %y% %z% %world%"
     gem_location_named: "&a%prefix% Локация: &e%x% %y% %z% %world% &7[&e%gem_id%&7] &f%gem_name%"
     player_holding: "&a%prefix% Игрок: &e%player% &aдержит &e%count% &aкамней"

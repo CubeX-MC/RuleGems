@@ -21,9 +21,11 @@ messages:
       failed: "&c%prefix% Falló el canje total. Asegúrate de tener todas las Ruler Gems requeridas."
       success: "&a%prefix% ¡Canje total exitoso!"
     place:
-      usage: "&c%prefix% Uso: /rulergem place <x> <y> <z>"
+      usage: "&c%prefix% Uso: /rulergem place <gemId> <x|~> <y|~> <z|~>"
       player_only: "&c%prefix% ¡Solo los jugadores pueden ejecutar este comando!"
       invalid_coordinates: "&c%prefix% ¡Las coordenadas deben ser números o ~!"
+      invalid_gem: "&c%prefix% ID o clave de gema inválida."
+      failed_unsupported: "&c%prefix% Esta gema requiere un bloque de soporte debajo; colocación cancelada."
       success: "&a%prefix% Ruler Gem colocada en &e%x% %y% %z%&a."
       gem_limit_reached: "&c%prefix% ¡Límite de gemas alcanzado!"
     revoke:
@@ -31,7 +33,7 @@ messages:
       success: "&a%prefix% Permisos revocados de &e%player%&a."
   help:
     header: "&a=== Ayuda de RulerGem ==="
-    place: "&e/rulergem place <x> <y> <z> &f- Colocar una gema en las coordenadas especificadas"
+    place: "&e/rulergem place <gemId> <x|~> <y|~> <z|~> &f- Colocar una gema específica en coordenadas"
     revoke: "&e/rulergem revoke <playerName> &f- Revocar permisos del jugador"
     reload: "&e/rulergem reload &f- Recargar configuración"
     rulers: "&e/rulergem rulers &f- Ver el gobernante actual"
@@ -48,6 +50,11 @@ messages:
     header: "&a====== Estado de Gemas ======"
     total_expected: "&a%prefix% Cantidad esperada de gemas: &e%count%"
     total_counts: "&a%prefix% &e%placed_count% colocadas &a%held_count% en posesión"
+    # Línea única: [%gem_key%] %gem_name%: %status%
+    gem_line: "&f[&e%gem_key%&f] &r%gem_name%&f: &7%status%"
+    status_held: "en posesión de %player%"
+    status_placed: "colocada en &e%x%&f,&e%y%&f,&e%z%&f &b%world%&f"
+    status_unknown: "desconocido"
     gem_location: "&a%prefix% Ubicación: &e%x% %y% %z% %world%"
     gem_location_named: "&a%prefix% Ubicación: &e%x% %y% %z% %world% &7[&e%gem_id%&7] &f%gem_name%"
     player_holding: "&a%prefix% Jugador: &e%player% &atiene &e%count% &agemas"
