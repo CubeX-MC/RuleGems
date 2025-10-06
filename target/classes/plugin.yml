@@ -1,33 +1,33 @@
-name: RulerGem
-version: 1.0.1
-main: me.hushu.RulerGem
+name: RuleGems
+version: 1.0.2
+main: org.cubexmc.RuleGems
 author: angushushu
-description: "一个管理 RulerGem（权力宝石）的示例插件"
+description: "一个管理 RuleGems（统治宝石）的插件"
 
 # 如果你的插件需要在更高版本的 Spigot/Paper 运行，可以指定 api-version
 api-version: "1.16"
 folia-supported: true
 depend: [Vault]
 commands:
-  rulergem:
+  rulegems:
     usage: /<command> <place|revoke|reload|rulers|gems|scatter|redeem|redeemall|help>
-    description: RulerGem plugin command
+    description: RuleGems plugin command
     aliases: [rg]
     permission: 
 
 permissions:
-  rulergem.admin:
-    description: Allows access to all RulerGem commands
+  rulegems.admin:
+    description: Allows access to all RuleGems commands
     default: op
-  rulergem.redeem:
-    description: Allows using /rulergem redeem
+  rulegems.redeem:
+    description: Allows using /rulegems redeem
     default: true
-  rulergem.redeemall:
-    description: Allows using /rulergem redeemall
+  rulegems.redeemall:
+    description: Allows using /rulegems redeemall
     default: true
-  rulergem.rulers:
-    description: Allows using /rulergem rulers
+  rulegems.rulers:
+    description: Allows using /rulegems rulers
     default: true
-  rulergem.help:
-    description: Allows using /rulergem help
+  rulegems.help:
+    description: Allows using /rulegems help
     default: true

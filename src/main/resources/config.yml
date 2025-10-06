@@ -1,5 +1,5 @@
-# RulerGem 插件配置
-# RulerGem configuration
+# RuleGems 插件配置
+# RuleGems configuration
 
 # 语言设置
 # Language selection
@@ -181,5 +181,5 @@ gem_scatter_execute:
 # Grant policy
 grant_policy:
   inventory_grants: false       # 背包即生效（true 开启） / Activate on inventory pickup (set true to enable)
-  redeem_enabled: true         # 是否允许 /rulergem redeem* / Allow /rulergem redeem* commands
+  redeem_enabled: true         # 是否允许 /rulegems redeem* / Allow /rulegems redeem* commands
   full_set_grants_all: true    # 是否允许集齐后一次性生效（配合 redeemall） / Allow granting all at once after full set (with redeemall)
