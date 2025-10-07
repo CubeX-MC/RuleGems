@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="power-gems">
-    <CLASSES>
-      <root url="jar://$PROJECT_DIR$/out/artifacts/power_gems_jar/power-gems.jar!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>
