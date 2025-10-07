@@ -1,6 +1,7 @@
 # RuleGems
 
-[中文](README.md)
+[中文](README.md) | English<br>
+[Discord](https://discord.com/invite/7tJeSZPZgv) | [QQ频道](https://pd.qq.com/s/1n3hpe4e7?b=9)
 
 A lightweight plugin that transfers player power through collecting "gems". Folia-friendly and multi-version support.
 
