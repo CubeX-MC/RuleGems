@@ -57,19 +57,29 @@ public class GemManager {
     private final Map<Location, UUID> locationToGemUuid = new HashMap<>();
     private final Map<UUID, Player> gemUuidToHolder = new HashMap<>();
     private final Map<UUID, String> gemUuidToKey = new HashMap<>();
-    private final Set<String> redeemedGemKeys = new HashSet<>();
+    // 归属：按 gemId 记录当前兑换归属玩家
+    private final Map<java.util.UUID, java.util.UUID> gemIdToRedeemer = new HashMap<>();
+    // 玩家已兑换的 gemKey 集合（派生自 gemIdToRedeemer，用于快速判断）
     private final Map<java.util.UUID, java.util.Set<String>> playerUuidToRedeemedKeys = new HashMap<>();
+    // 玩家对每个 gemKey 的归属计数，用于"最后一件才撤"
+    private final Map<java.util.UUID, java.util.Map<String, Integer>> ownerKeyCount = new HashMap<>();
+    // 当前 inventory_grants 生效的 key（互斥筛选后选中的集合），用于保持“先生效者优先”与 held 限次判定
+    private final Map<java.util.UUID, java.util.Set<String>> playerActiveHeldKeys = new HashMap<>();
     // Separate attachments: inventory-based vs redeem-based
     private final Map<java.util.UUID, org.bukkit.permissions.PermissionAttachment> invAttachments = new HashMap<>();
     private final Map<java.util.UUID, org.bukkit.permissions.PermissionAttachment> redeemAttachments = new HashMap<>();
-    // Redeem ownership state
-    private final Map<String, java.util.UUID> gemKeyToRedeemer = new HashMap<>();
+    // Redeem ownership state (per-gemId now); key-level summary via ownerKeyCount
     private java.util.UUID fullSetOwner = null;
     // Queue revocations for offline players (persisted)
     private final Map<java.util.UUID, java.util.Set<String>> pendingPermRevokes = new HashMap<>();
     private final Map<java.util.UUID, java.util.Set<String>> pendingGroupRevokes = new HashMap<>();
 
-    private Player powerPlayer;
+    // Per-player per-gem-instance command allowances (held): player -> gemId -> label -> remaining uses
+    private final Map<java.util.UUID, java.util.Map<java.util.UUID, java.util.Map<String, Integer>>> playerGemHeldUses = new HashMap<>();
+    // Per-player per-gem-instance command allowances (redeemed): player -> gemId -> label -> remaining uses
+    private final Map<java.util.UUID, java.util.Map<java.util.UUID, java.util.Map<String, Integer>>> playerGemRedeemUses = new HashMap<>();
+    // Global allowances (e.g., redeem_all extras): player -> label -> remaining uses
+    private final Map<java.util.UUID, java.util.Map<String, Integer>> playerGlobalAllowedUses = new HashMap<>();
 
     public GemManager(RuleGems plugin, ConfigManager configManager, EffectUtils effectUtils,
                       LanguageManager languageManager) {
@@ -100,16 +110,21 @@ public class GemManager {
             plugin.getLogger().warning("无法加载 gemsData 配置！请检查文件是否存在。");
             return;
         }
-//        locationToGemUuid.clear();
-        // 读取powerPlayer数据
-        ConfigurationSection powerPlayerSection = gemsData.getConfigurationSection("power_player");
-        if (powerPlayerSection != null) {
-            String uuidStr = powerPlayerSection.getString("uuid");
-            if (uuidStr != null) {
-                UUID powerPlayerUUID = UUID.fromString(uuidStr);
-                this.powerPlayer = Bukkit.getPlayer(powerPlayerUUID);
-            }
-        }
+        
+        // 清空所有缓存，避免 reload 时累积重复数据
+        locationToGemUuid.clear();
+        gemUuidToHolder.clear();
+        gemUuidToKey.clear();
+        gemIdToRedeemer.clear();
+        playerUuidToRedeemedKeys.clear();
+        ownerKeyCount.clear();
+        playerActiveHeldKeys.clear();
+        pendingPermRevokes.clear();
+        pendingGroupRevokes.clear();
+        playerGemHeldUses.clear();
+        playerGemRedeemUses.clear();
+        playerGlobalAllowedUses.clear();
+        fullSetOwner = null;
         // 读取宝石数据
         // 放置的宝石
         // 兼容旧键名 "placed-gams" 的笔误
@@ -129,11 +144,31 @@ public class GemManager {
                 }
             }
         }
-        ConfigurationSection ownerSec = gemsData.getConfigurationSection("redeem_owner");
-        if (ownerSec != null) {
-            for (String gemKey : ownerSec.getKeys(false)) {
-                String uuidStr = ownerSec.getString(gemKey);
-                try { gemKeyToRedeemer.put(gemKey.toLowerCase(), java.util.UUID.fromString(uuidStr)); } catch (Exception ignored) {}
+        // 兼容旧结构：redeem_owner 按 key；新结构：redeem_owner_by_id 按 gemId
+        ConfigurationSection ownerById = gemsData.getConfigurationSection("redeem_owner_by_id");
+        if (ownerById != null) {
+            for (String gid : ownerById.getKeys(false)) {
+                try {
+                    java.util.UUID gem = java.util.UUID.fromString(gid);
+                    java.util.UUID player = java.util.UUID.fromString(ownerById.getString(gid));
+                    gemIdToRedeemer.put(gem, player);
+                } catch (Exception ignored) {}
+            }
+        } else {
+            ConfigurationSection ownerSec = gemsData.getConfigurationSection("redeem_owner");
+            if (ownerSec != null) {
+                for (String gemKey : ownerSec.getKeys(false)) {
+                    String uuidStr = ownerSec.getString(gemKey);
+                    try {
+                        java.util.UUID player = java.util.UUID.fromString(uuidStr);
+                        // 将所有当前已知的该 key 的 gemId 归属迁移给该玩家
+                        for (java.util.Map.Entry<java.util.UUID, String> e : gemUuidToKey.entrySet()) {
+                            if (e.getValue() != null && e.getValue().equalsIgnoreCase(gemKey)) {
+                                gemIdToRedeemer.put(e.getKey(), player);
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
             }
         }
         ConfigurationSection fso = gemsData.getConfigurationSection("full_set_owner");
@@ -159,6 +194,84 @@ public class GemManager {
                     java.util.UUID id = java.util.UUID.fromString(pid);
                     java.util.List<String> list = gr.getStringList(pid);
                     if (list != null && !list.isEmpty()) pendingGroupRevokes.put(id, new java.util.HashSet<>(list));
+                } catch (Exception ignored) {}
+            }
+        }
+        // 读取指令可用次数
+        // 读取指令可用次数：实例级(held/redeemed) + 全局
+        ConfigurationSection au = gemsData.getConfigurationSection("allowed_uses");
+        if (au != null) {
+            for (String playerId : au.getKeys(false)) {
+                try {
+                    java.util.UUID uid = java.util.UUID.fromString(playerId);
+                    ConfigurationSection playerSec = au.getConfigurationSection(playerId);
+                    if (playerSec == null) continue;
+                    // held instances
+                    ConfigurationSection heldSec = playerSec.getConfigurationSection("held_instances");
+                    if (heldSec != null) {
+                        java.util.Map<java.util.UUID, java.util.Map<String, Integer>> perHeld = new java.util.HashMap<>();
+                        for (String gid : heldSec.getKeys(false)) {
+                            try {
+                                java.util.UUID gem = java.util.UUID.fromString(gid);
+                                ConfigurationSection labels = heldSec.getConfigurationSection(gid);
+                                java.util.Map<String, Integer> map = new java.util.HashMap<>();
+                                if (labels != null) {
+                                    for (String l : labels.getKeys(false)) {
+                                        map.put(l.toLowerCase(java.util.Locale.ROOT), labels.getInt(l, 0));
+                                    }
+                                }
+                                perHeld.put(gem, map);
+                            } catch (Exception ignored2) {}
+                        }
+                        if (!perHeld.isEmpty()) playerGemHeldUses.put(uid, perHeld);
+                    }
+                    // redeemed instances
+                    ConfigurationSection redSec = playerSec.getConfigurationSection("redeemed_instances");
+                    if (redSec != null) {
+                        java.util.Map<java.util.UUID, java.util.Map<String, Integer>> perRed = new java.util.HashMap<>();
+                        for (String gid : redSec.getKeys(false)) {
+                            try {
+                                java.util.UUID gem = java.util.UUID.fromString(gid);
+                                ConfigurationSection labels = redSec.getConfigurationSection(gid);
+                                java.util.Map<String, Integer> map = new java.util.HashMap<>();
+                                if (labels != null) {
+                                    for (String l : labels.getKeys(false)) {
+                                        map.put(l.toLowerCase(java.util.Locale.ROOT), labels.getInt(l, 0));
+                                    }
+                                }
+                                perRed.put(gem, map);
+                            } catch (Exception ignored2) {}
+                        }
+                        if (!perRed.isEmpty()) playerGemRedeemUses.put(uid, perRed);
+                    }
+                    // backward compatibility: legacy "instances" -> treat as redeemed_instances
+                    ConfigurationSection legacy = playerSec.getConfigurationSection("instances");
+                    if (legacy != null && !legacy.getKeys(false).isEmpty() && !playerGemRedeemUses.containsKey(uid)) {
+                        java.util.Map<java.util.UUID, java.util.Map<String, Integer>> perRed = new java.util.HashMap<>();
+                        for (String gid : legacy.getKeys(false)) {
+                            try {
+                                java.util.UUID gem = java.util.UUID.fromString(gid);
+                                ConfigurationSection labels = legacy.getConfigurationSection(gid);
+                                java.util.Map<String, Integer> map = new java.util.HashMap<>();
+                                if (labels != null) {
+                                    for (String l : labels.getKeys(false)) {
+                                        map.put(l.toLowerCase(java.util.Locale.ROOT), labels.getInt(l, 0));
+                                    }
+                                }
+                                perRed.put(gem, map);
+                            } catch (Exception ignored2) {}
+                        }
+                        if (!perRed.isEmpty()) playerGemRedeemUses.put(uid, perRed);
+                    }
+                    // global
+                    ConfigurationSection globSec = playerSec.getConfigurationSection("global");
+                    if (globSec != null) {
+                        java.util.Map<String, Integer> map = new java.util.HashMap<>();
+                        for (String l : globSec.getKeys(false)) {
+                            map.put(l.toLowerCase(java.util.Locale.ROOT), globSec.getInt(l, 0));
+                        }
+                        if (!map.isEmpty()) playerGlobalAllowedUses.put(uid, map);
+                    }
                 } catch (Exception ignored) {}
             }
         }
@@ -201,25 +314,24 @@ public class GemManager {
                     continue;
                 }
                 UUID playerUUID;
-                try { playerUUID = UUID.fromString(playerUUIDStr); } catch (Exception ignored) { continue; }
-                UUID gemId = UUID.fromString(uuidStr);
-                Player player = Bukkit.getPlayer(playerUUID);
-                if (player == null) {
-                    continue;
+                UUID gemId;
+                try { 
+                    playerUUID = UUID.fromString(playerUUIDStr);
+                    gemId = UUID.fromString(uuidStr);
+                } catch (Exception ignored) { 
+                    continue; 
                 }
-                if (!player.isOnline()) {
-                    // remove from player's inventory
-                    Inventory inv = player.getInventory();
-                    for (ItemStack item : inv.getContents()) {
-                        if (isRulerGem(item) && getGemUUID(item).equals(gemId)) {
-                            inv.remove(item);
-                        }
-                    }
-                    gemUuidToKey.put(gemId, gemKey);
-                    placeRulerGem(player.getLocation(), gemId);
-                } else {
+                
+                // 将 gemKey 先登记，无论玩家是否在线
+                gemUuidToKey.put(gemId, gemKey);
+                
+                Player player = Bukkit.getPlayer(playerUUID);
+                if (player != null && player.isOnline()) {
+                    // 玩家在线：恢复到背包
                     gemUuidToHolder.put(gemId, player);
-                    gemUuidToKey.put(gemId, gemKey);
+                } else {
+                    // 玩家离线或不存在：放置到世界随机位置
+                    randomPlaceGem(gemId, configManager.getRandomPlaceCorner1(), configManager.getRandomPlaceCorner2());
                 }
             }
         }
@@ -242,11 +354,12 @@ public class GemManager {
         FileConfiguration gemsData = configManager.getGemsData();
         gemsData.set("placed-gems", null);
         gemsData.set("held-gems", null);
-        gemsData.set("power_player", null);
         gemsData.set("redeemed", null);
         gemsData.set("redeem_owner", null);
+        gemsData.set("redeem_owner_by_id", null);
         gemsData.set("full_set_owner", null);
-    gemsData.set("pending_revokes", null);
+        gemsData.set("pending_revokes", null);
+        gemsData.set("allowed_uses", null);
 
         for (Location loc : locationToGemUuid.keySet()) {
             String path = "placed-gems." + locationToGemUuid.get(loc).toString();
@@ -255,7 +368,6 @@ public class GemManager {
             gemsData.set(path + ".y", loc.getY());
             gemsData.set(path + ".z", loc.getZ());
             gemsData.set(path + ".gem_key", gemUuidToKey.get(locationToGemUuid.get(loc)));
-//            gemsData.set(path + ".uuid", locationToGemUuid.get(loc).toString());
         }
         for (UUID gemId : gemUuidToHolder.keySet()) {
             Player player = gemUuidToHolder.get(gemId);
@@ -263,19 +375,14 @@ public class GemManager {
             gemsData.set(path + ".player", player.getName());
             gemsData.set(path + ".player_uuid", player.getUniqueId().toString());
             gemsData.set(path + ".gem_key", gemUuidToKey.get(gemId));
-//            gemsData.set(path + ".uuid", gemId.toString());
-        }
-        // 保存powerPlayer数据
-        if (this.powerPlayer != null) {
-            gemsData.set("power_player.uuid", this.powerPlayer.getUniqueId().toString());
         }
         // 保存每位玩家已兑换的 gem key
         for (Map.Entry<java.util.UUID, java.util.Set<String>> e : playerUuidToRedeemedKeys.entrySet()) {
             String base = "redeemed." + e.getKey().toString();
             gemsData.set(base, new java.util.ArrayList<>(e.getValue()));
         }
-        for (Map.Entry<String, java.util.UUID> e : gemKeyToRedeemer.entrySet()) {
-            gemsData.set("redeem_owner." + e.getKey(), e.getValue().toString());
+        for (Map.Entry<java.util.UUID, java.util.UUID> e : gemIdToRedeemer.entrySet()) {
+            gemsData.set("redeem_owner_by_id." + e.getKey().toString(), e.getValue().toString());
         }
         if (fullSetOwner != null) {
             gemsData.set("full_set_owner.uuid", fullSetOwner.toString());
@@ -287,6 +394,29 @@ public class GemManager {
         for (Map.Entry<java.util.UUID, java.util.Set<String>> e : pendingGroupRevokes.entrySet()) {
             gemsData.set("pending_revokes.groups." + e.getKey(), new java.util.ArrayList<>(e.getValue()));
         }
+        // 保存指令可用次数
+        for (Map.Entry<java.util.UUID, java.util.Map<java.util.UUID, java.util.Map<String, Integer>>> e : playerGemHeldUses.entrySet()) {
+            String base = "allowed_uses." + e.getKey().toString();
+            for (Map.Entry<java.util.UUID, java.util.Map<String, Integer>> inst : e.getValue().entrySet()) {
+                for (Map.Entry<String, Integer> l : inst.getValue().entrySet()) {
+                    gemsData.set(base + ".held_instances." + inst.getKey().toString() + "." + l.getKey(), l.getValue());
+                }
+            }
+        }
+        for (Map.Entry<java.util.UUID, java.util.Map<java.util.UUID, java.util.Map<String, Integer>>> e : playerGemRedeemUses.entrySet()) {
+            String base = "allowed_uses." + e.getKey().toString();
+            for (Map.Entry<java.util.UUID, java.util.Map<String, Integer>> inst : e.getValue().entrySet()) {
+                for (Map.Entry<String, Integer> l : inst.getValue().entrySet()) {
+                    gemsData.set(base + ".redeemed_instances." + inst.getKey().toString() + "." + l.getKey(), l.getValue());
+                }
+            }
+        }
+        for (Map.Entry<java.util.UUID, java.util.Map<String, Integer>> e : playerGlobalAllowedUses.entrySet()) {
+            String base = "allowed_uses." + e.getKey().toString();
+            for (Map.Entry<String, Integer> l : e.getValue().entrySet()) {
+                gemsData.set(base + ".global." + l.getKey(), l.getValue());
+            }
+        }
         configManager.saveGemData(gemsData);
     }
 
@@ -297,17 +427,21 @@ public class GemManager {
     public void ensureConfiguredGemsPresent() {
         List<org.cubexmc.model.GemDefinition> defs = configManager.getGemDefinitions();
         if (defs == null || defs.isEmpty()) return;
-        // 已存在的 gemKey 集合（来自放置与持有）
-        java.util.Set<String> presentKeys = new java.util.HashSet<>();
-        for (java.util.UUID id : gemUuidToKey.keySet()) {
-            String k = gemUuidToKey.get(id);
-            if (k != null) presentKeys.add(k.toLowerCase());
+        // 统计现有每个 key 的实例数
+        java.util.Map<String, Integer> counts = new java.util.HashMap<>();
+        for (java.util.Map.Entry<java.util.UUID, String> e : gemUuidToKey.entrySet()) {
+            String k = e.getValue();
+            if (k == null) continue;
+            String lk = k.toLowerCase();
+            counts.put(lk, counts.getOrDefault(lk, 0) + 1);
         }
-        // 如果有遗漏，则补齐
         for (org.cubexmc.model.GemDefinition d : defs) {
             String k = d.getGemKey();
             if (k == null) continue;
-            if (!presentKeys.contains(k.toLowerCase())) {
+            String lk = k.toLowerCase();
+            int have = counts.getOrDefault(lk, 0);
+            int need = Math.max(1, d.getCount());
+            for (int i = have; i < need; i++) {
                 java.util.UUID newId = java.util.UUID.randomUUID();
                 gemUuidToKey.put(newId, k);
                 randomPlaceGem(newId, configManager.getRandomPlaceCorner1(), configManager.getRandomPlaceCorner2());
@@ -384,12 +518,14 @@ public class GemManager {
                 event.setCancelled(true);
                 return;
             } else {
-                // 给破坏者：若开启“背包即生效”，直接入包；否则仍可入包但权限不会因背包自动授予
+                // 给破坏者：若开启"背包即生效"，直接入包；否则仍可入包但权限不会因背包自动授予
                 ItemStack gemItem = createRulerGem(gemId);
                 inv.addItem(gemItem);
                 gemUuidToHolder.put(gemId, player);
                 unplaceRulerGem(block.getLocation(), gemId);
-                // 每颗宝石自定义拾取效果（可选），否则用全局（此处是破坏方块后“入包”的瞬间）
+                // inventory_grants: 处理持有者与限次指令的归属与发放
+                handleInventoryOwnershipOnPickup(player, gemId);
+                // 每颗宝石自定义拾取效果（可选），否则用全局（此处是破坏方块后"入包"的瞬间）
                 org.cubexmc.model.GemDefinition def = findGemDefinition(gemUuidToKey.get(gemId));
                 if (def != null && def.getOnPickup() != null) {
                     effectUtils.executeCommands(def.getOnPickup(), Collections.singletonMap("%player%", player.getName()));
@@ -511,16 +647,25 @@ public class GemManager {
         languageManager.logMessage("gems_recollected");
         List<org.cubexmc.model.GemDefinition> defs = configManager.getGemDefinitions();
         if (defs != null && !defs.isEmpty()) {
-            scatteredCount = defs.size();
-            // 每个定义生成一颗对应类型的宝石
+            scatteredCount = 0;
             for (org.cubexmc.model.GemDefinition def : defs) {
-                UUID gemId = UUID.randomUUID();
-                gemUuidToKey.put(gemId, def.getGemKey());
-                randomPlaceGem(gemId, configManager.getRandomPlaceCorner1(), configManager.getRandomPlaceCorner2());
-                // 若定义了散落效果，尽量在放置地点播放
+                int cnt = Math.max(1, def.getCount());
+                for (int i = 0; i < cnt; i++) {
+                    UUID gemId = UUID.randomUUID();
+                    gemUuidToKey.put(gemId, def.getGemKey());
+                    randomPlaceGem(gemId, configManager.getRandomPlaceCorner1(), configManager.getRandomPlaceCorner2());
+                    scatteredCount++;
+                }
                 if (def.getOnScatter() != null) {
-                    Location placedLoc = findLocationByGemId(gemId);
-                    triggerScatterEffects(gemId, placedLoc, null, false);
+                    // 播放一次代表性的散落效果（选该 key 的任一实例位置）
+                    UUID sample = null;
+                    for (java.util.Map.Entry<java.util.UUID, String> e : gemUuidToKey.entrySet()) {
+                        if (def.getGemKey().equalsIgnoreCase(e.getValue())) { sample = e.getKey(); break; }
+                    }
+                    if (sample != null) {
+                        Location placedLoc = findLocationByGemId(sample);
+                        triggerScatterEffects(sample, placedLoc, null, false);
+                    }
                 }
             }
         } else {
@@ -538,10 +683,6 @@ public class GemManager {
         placeholders.put("count", String.valueOf(scatteredCount));
         languageManager.logMessage("gems_scattered", placeholders);
 
-        if (this.powerPlayer != null) {
-            placeholders.put("player", powerPlayer.getName());
-            this.powerPlayer = null;
-        }
         ExecuteConfig gemScatterExecute = configManager.getGemScatterExecute();
         effectUtils.executeCommands(gemScatterExecute, placeholders);
         effectUtils.playGlobalSound(gemScatterExecute, 1.0f, 1.0f);
@@ -632,7 +773,7 @@ public class GemManager {
             text
         ));
 
-                // Click 行为：/rulegems tp <uuid>
+        // Click 行为：/rulegems tp <uuid>
                 String clickCmd = "/rulegems tp " + gemId.toString();
                 comp.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
                         net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND,
@@ -709,7 +850,7 @@ public class GemManager {
         if (enchantedGlint) {
             try {
                 meta.addItemFlags(ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_ATTRIBUTES);
-                // 选择一个影响最小的附魔作为“发光触发器”
+                // 选择一个影响最小的附魔作为"发光触发器"
                 meta.addEnchant(Enchantment.LUCK, 1, true);
             } catch (Throwable ignored) { /* 某些服务端可能不支持 */ }
         }
@@ -765,6 +906,73 @@ public class GemManager {
         }
     }
 
+    private void incrementOwnerKeyCount(java.util.UUID owner, String key, org.cubexmc.model.GemDefinition def) {
+        if (owner == null || key == null) return;
+        java.util.Map<String, Integer> map = ownerKeyCount.computeIfAbsent(owner, k -> new java.util.HashMap<>());
+        int before = map.getOrDefault(key, 0);
+        int after = before + 1;
+        map.put(key, after);
+        if (before == 0 && def != null) {
+            // 0->1：发放权限与（若 inventory_grants 关闭或兑换场景）初始化额度；这里复用现有发放逻辑
+            Player p = org.bukkit.Bukkit.getPlayer(owner);
+            if (p != null && p.isOnline()) {
+                if (def.getPermissions() != null && !def.getPermissions().isEmpty()) {
+                    grantRedeemPermissions(p, def.getPermissions());
+                }
+                if (def.getVaultGroup() != null && !def.getVaultGroup().isEmpty() && plugin.getVaultPerms() != null) {
+                    try { plugin.getVaultPerms().playerAddGroup(p, def.getVaultGroup()); } catch (Exception ignored) {}
+                }
+                try { p.recalculatePermissions(); } catch (Throwable ignored) {}
+            }
+        }
+    }
+
+    private void decrementOwnerKeyCount(java.util.UUID owner, String key, org.cubexmc.model.GemDefinition def) {
+        if (owner == null || key == null) return;
+        java.util.Map<String, Integer> map = ownerKeyCount.computeIfAbsent(owner, k -> new java.util.HashMap<>());
+        int before = map.getOrDefault(key, 0);
+        int after = Math.max(0, before - 1);
+        map.put(key, after);
+        if (after == 0 && def != null) {
+            // 1->0：撤回权限与额度
+            Player p = org.bukkit.Bukkit.getPlayer(owner);
+            if (p != null && p.isOnline()) {
+                if (def.getPermissions() != null) revokeNodes(p, def.getPermissions());
+                if (def.getVaultGroup() != null && !def.getVaultGroup().isEmpty() && plugin.getVaultPerms() != null) {
+                    try { plugin.getVaultPerms().playerRemoveGroup(p, def.getVaultGroup()); } catch (Exception ignored) {}
+                }
+                try { p.recalculatePermissions(); } catch (Throwable ignored) {}
+                if (historyLogger != null) {
+                    historyLogger.logPermissionRevoke(
+                        owner.toString(),
+                        p.getName(),
+                        key,
+                        def.getDisplayName(),
+                        def.getPermissions(),
+                        def.getVaultGroup(),
+                        "归属切换：失去最后一件该类型宝石"
+                    );
+                }
+            } else {
+                // 离线撤销：队列权限与组；额度直接移除
+                queueOfflineRevokes(owner,
+                        def.getPermissions() != null ? def.getPermissions() : java.util.Collections.emptyList(),
+                        (def.getVaultGroup() != null && !def.getVaultGroup().isEmpty()) ? java.util.Collections.singleton(def.getVaultGroup()) : java.util.Collections.emptySet());
+                if (historyLogger != null) {
+                    historyLogger.logPermissionRevoke(
+                        owner.toString(),
+                        "未知(离线)",
+                        key,
+                        def.getDisplayName(),
+                        def.getPermissions(),
+                        def.getVaultGroup(),
+                        "归属切换：失去最后一件该类型宝石（离线撤销）"
+                    );
+                }
+            }
+        }
+    }
+
     public ConfigManager getConfigManager() { return configManager; }
 
     public void setHistoryLogger(HistoryLogger historyLogger) {
@@ -773,15 +981,32 @@ public class GemManager {
 
     public void recalculateGrants(Player player) {
         if (!configManager.isInventoryGrantsEnabled()) return;
-        java.util.Set<String> shouldHave = new java.util.HashSet<>();
-        // 由背包持有的 gem key 决定的权限节点集合
+        // 先收集当前背包中的 key（保持扫描顺序，去重）
+        java.util.List<String> presentKeysOrdered = new java.util.ArrayList<>();
         Inventory inv = player.getInventory();
         for (ItemStack item : inv.getContents()) {
             if (!isRulerGem(item)) continue;
             UUID id = getGemUUID(item);
             String key = gemUuidToKey.get(id);
             if (key == null) continue;
-            org.cubexmc.model.GemDefinition def = findGemDefinition(key);
+            String k = key.toLowerCase(java.util.Locale.ROOT);
+            if (!presentKeysOrdered.contains(k)) presentKeysOrdered.add(k);
+        }
+        // 基于上次选中的 active 集合优先保留，新增时再做互斥筛选
+        java.util.Set<String> previouslyActive = playerActiveHeldKeys.getOrDefault(player.getUniqueId(), java.util.Collections.emptySet());
+        java.util.Set<String> selectedKeys = new java.util.LinkedHashSet<>();
+        for (String k : presentKeysOrdered) {
+            if (previouslyActive.contains(k)) selectedKeys.add(k);
+        }
+        for (String k : presentKeysOrdered) {
+            if (selectedKeys.contains(k)) continue;
+            if (!conflictsWithSelected(k, selectedKeys)) selectedKeys.add(k);
+        }
+        playerActiveHeldKeys.put(player.getUniqueId(), selectedKeys);
+        // 聚合权限
+        java.util.Set<String> shouldHave = new java.util.HashSet<>();
+        for (String k : selectedKeys) {
+            org.cubexmc.model.GemDefinition def = findGemDefinition(k);
             if (def == null) continue;
             if (def.getPermissions() != null) {
                 for (String node : def.getPermissions()) {
@@ -801,6 +1026,24 @@ public class GemManager {
             if (!shouldHave.contains(node)) attachment.unsetPermission(node);
         }
         player.recalculatePermissions();
+    }
+
+    private boolean conflictsWithSelected(String candidateKey, java.util.Set<String> selectedKeys) {
+        org.cubexmc.model.GemDefinition c = findGemDefinition(candidateKey);
+        java.util.Set<String> cm = new java.util.HashSet<>();
+        if (c != null && c.getMutualExclusive() != null) {
+            for (String x : c.getMutualExclusive()) if (x != null) cm.add(x.toLowerCase(java.util.Locale.ROOT));
+        }
+        for (String s : selectedKeys) {
+            if (cm.contains(s)) return true;
+            org.cubexmc.model.GemDefinition sd = findGemDefinition(s);
+            if (sd != null && sd.getMutualExclusive() != null) {
+                for (String x : sd.getMutualExclusive()) {
+                    if (x != null && x.equalsIgnoreCase(candidateKey)) return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -1127,21 +1370,92 @@ public class GemManager {
      */
     // 玩法调整后不再需要该方法
 
-    /** 收回权限 */
-    public void revokePermission(CommandSender sender) {
-        if (this.powerPlayer == null) {
-            languageManager.sendMessage(sender, "command.revoke.no_power_player");
-            return;
+    /**
+     * 强制撤销指定玩家的所有宝石权限、组和限次指令
+     * 用于管理员干预玩家滥用权限的情况
+     * 
+     * @param player 目标玩家
+     * @return 是否成功撤销（true=该玩家有权限被撤销，false=该玩家没有任何宝石权限）
+     */
+    public boolean revokeAllPlayerPermissions(Player player) {
+        if (player == null) return false;
+        java.util.UUID uid = player.getUniqueId();
+        boolean hadAny = false;
+        
+        // 1. 收集该玩家拥有的所有宝石类型
+        java.util.Map<String, Integer> counts = ownerKeyCount.get(uid);
+        if (counts != null && !counts.isEmpty()) {
+            hadAny = true;
+            
+            // 撤销每个类型的权限与组
+            for (Map.Entry<String, Integer> e : new java.util.HashMap<>(counts).entrySet()) {
+                String key = e.getKey();
+                org.cubexmc.model.GemDefinition def = findGemDefinition(key);
+                if (def != null) {
+                    if (def.getPermissions() != null) {
+                        revokeNodes(player, def.getPermissions());
+                    }
+                    if (def.getVaultGroup() != null && !def.getVaultGroup().isEmpty() && plugin.getVaultPerms() != null) {
+                        try { plugin.getVaultPerms().playerRemoveGroup(player, def.getVaultGroup()); } catch (Exception ignored) {}
+                    }
+                }
+            }
+            // 清空该玩家的归属计数
+            counts.clear();
         }
-        ExecuteConfig revokeExecute = configManager.getPowerRevokeExecute();
-        effectUtils.executeCommands(revokeExecute, Collections.singletonMap("%player%", this.powerPlayer.getName()));
-        effectUtils.playGlobalSound(revokeExecute, 1.0f, 1.0f);
-        if (this.powerPlayer.isOnline()) {
-            effectUtils.playParticle(this.powerPlayer.getLocation(), revokeExecute);
-            languageManager.sendMessage(this.powerPlayer, "command.revoke.success", Collections.singletonMap("player", this.powerPlayer.getName()));
+        
+        // 2. 如果该玩家是 full set owner，撤销额外权限
+        if (uid.equals(fullSetOwner)) {
+            hadAny = true;
+            java.util.List<String> extraPerms = configManager.getRedeemAllPermissions();
+            if (extraPerms != null && !extraPerms.isEmpty()) {
+                revokeNodes(player, extraPerms);
+            }
+            fullSetOwner = null;
         }
-        this.powerPlayer = null;
+        
+        // 3. 清空该玩家的所有限次指令额度
+        playerGemHeldUses.remove(uid);
+        playerGemRedeemUses.remove(uid);
+        playerGlobalAllowedUses.remove(uid);
+        
+        // 4. 清空该玩家的兑换记录
+        playerUuidToRedeemedKeys.remove(uid);
+        playerActiveHeldKeys.remove(uid);
+        
+        // 清空 gemIdToRedeemer 中该玩家的所有兑换记录（这是 rulers 命令读取的数据源）
+        gemIdToRedeemer.entrySet().removeIf(entry -> uid.equals(entry.getValue()));
+        
+        // 5. 清空该玩家的权限附件
+        org.bukkit.permissions.PermissionAttachment invAtt = invAttachments.remove(uid);
+        if (invAtt != null) {
+            try { player.removeAttachment(invAtt); } catch (Throwable ignored) {}
+        }
+        org.bukkit.permissions.PermissionAttachment redAtt = redeemAttachments.remove(uid);
+        if (redAtt != null) {
+            try { player.removeAttachment(redAtt); } catch (Throwable ignored) {}
+        }
+        
+        // 6. 重算权限
+        try { player.recalculatePermissions(); } catch (Throwable ignored) {}
+        
+        // 7. 记录日志
+        if (hadAny && historyLogger != null) {
+            historyLogger.logPermissionRevoke(
+                uid.toString(),
+                player.getName(),
+                "ALL",
+                "全部宝石权限",
+                java.util.Collections.emptyList(),
+                null,
+                "管理员强制撤销"
+            );
+        }
+        
+        // 8. 持久化
         saveGems();
+        
+        return hadAny;
     }
 
     /**
@@ -1172,10 +1486,6 @@ public class GemManager {
 
         Location loc = block.getLocation();
         return locationToGemUuid.get(loc);
-    }
-
-    public Player getPowerPlayer() {
-        return powerPlayer;
     }
 
     /**
@@ -1212,52 +1522,22 @@ public class GemManager {
         gemUuidToHolder.remove(matchedGemId);
         randomPlaceGem(matchedGemId, configManager.getRandomPlaceCorner1(), configManager.getRandomPlaceCorner2());
 
-        // 单颗竞争撤销：新兑换者成功后撤销旧兑换者的该 gem 权限
+        // 单颗竞争撤销（按 gemId）：新兑换者成功后切换此 gemId 的归属，并基于计数决定是否撤销旧持有者的该类型权限与额度
         String normalizedKey = targetKey.toLowerCase(java.util.Locale.ROOT);
-        java.util.UUID old = gemKeyToRedeemer.put(normalizedKey, player.getUniqueId());
+        java.util.UUID old = gemIdToRedeemer.put(matchedGemId, player.getUniqueId());
         String previousOwnerName = null;
         if (old != null && !old.equals(player.getUniqueId())) {
+            // 旧持有者该 key 计数 -1
+            decrementOwnerKeyCount(old, normalizedKey, def);
             Player oldP = Bukkit.getPlayer(old);
             if (oldP != null && oldP.isOnline()) {
                 previousOwnerName = oldP.getName();
-                if (def != null && def.getPermissions() != null) revokeNodes(oldP, def.getPermissions());
-                if (def != null && def.getVaultGroup() != null && !def.getVaultGroup().isEmpty() && plugin.getVaultPerms() != null) {
-                    try { plugin.getVaultPerms().playerRemoveGroup(oldP, def.getVaultGroup()); } catch (Exception ignored) {}
-                }
-                oldP.recalculatePermissions();
-                // 记录权限撤销
-                if (historyLogger != null) {
-                    historyLogger.logPermissionRevoke(
-                        old.toString(),
-                        oldP.getName(),
-                        targetKey,
-                        def != null ? def.getDisplayName() : null,
-                        def != null ? def.getPermissions() : null,
-                        def != null ? def.getVaultGroup() : null,
-                        "被 " + player.getName() + " 重新兑换"
-                    );
-                }
-            } else {
-                java.util.Set<String> s = playerUuidToRedeemedKeys.get(old);
-                if (s != null) s.remove(normalizedKey);
-                // Queue offline revocations
-                queueOfflineRevokes(old,
-                        def != null ? def.getPermissions() : java.util.Collections.emptyList(),
-                        (def != null && def.getVaultGroup() != null && !def.getVaultGroup().isEmpty()) ? java.util.Collections.singleton(def.getVaultGroup()) : java.util.Collections.emptySet());
-                // 记录离线玩家权限撤销
-                if (historyLogger != null) {
-                    historyLogger.logPermissionRevoke(
-                        old.toString(),
-                        "未知(离线)",
-                        targetKey,
-                        def != null ? def.getDisplayName() : null,
-                        def != null ? def.getPermissions() : null,
-                        def != null ? def.getVaultGroup() : null,
-                        "被 " + player.getName() + " 重新兑换（离线撤销）"
-                    );
-                }
             }
         }
+        // 新持有者该 key 计数 +1，并在 0->1 时发放权限与额度
+        incrementOwnerKeyCount(player.getUniqueId(), normalizedKey, def);
+        // 实例级额度：兑换后 gemId 的实例额度归属切到兑换者；同一人重复兑换要求重置该 gemId 的额度
+        reassignRedeemInstanceAllowance(matchedGemId, player.getUniqueId(), def, /*resetEvenIfSameOwner*/ true);
 
         // 记录宝石兑换事件
         if (historyLogger != null) {
@@ -1328,7 +1608,6 @@ public class GemManager {
             return;
         }
         String normalizedKey = gemKey.toLowerCase(Locale.ROOT);
-        redeemedGemKeys.add(normalizedKey);
         playerUuidToRedeemedKeys.computeIfAbsent(player.getUniqueId(), u -> new HashSet<>()).add(normalizedKey);
     }
 
@@ -1343,14 +1622,283 @@ public class GemManager {
             effectUtils.playLocalSound(player.getLocation(), onRedeem, 1.0f, 1.0f);
             effectUtils.playParticle(player.getLocation(), onRedeem);
         }
-        if (definition.getPermissions() != null && !definition.getPermissions().isEmpty()) {
-            grantRedeemPermissions(player, definition.getPermissions());
-        }
+        // 权限与限次额度的发放改由归属计数 0->1 时处理
         if (definition.getVaultGroup() != null && !definition.getVaultGroup().isEmpty() && plugin.getVaultPerms() != null) {
             try {
                 plugin.getVaultPerms().playerAddGroup(player, definition.getVaultGroup());
             } catch (Exception ignored) {}
         }
+    }
+
+    private void grantAllowedCommands(Player player, org.cubexmc.model.GemDefinition def) {
+        if (player == null || def == null) return;
+        java.util.List<org.cubexmc.model.AllowedCommand> allows = def.getAllowedCommands();
+        if (allows == null || allows.isEmpty()) return;
+        // 写入全局额度（例如 redeem_all 额外额度）
+        java.util.UUID uid = player.getUniqueId();
+        java.util.Map<String, Integer> global = playerGlobalAllowedUses.computeIfAbsent(uid, k -> new java.util.HashMap<>());
+        for (org.cubexmc.model.AllowedCommand ac : allows) {
+            if (ac == null || ac.getLabel() == null) continue;
+            global.put(ac.getLabel().toLowerCase(java.util.Locale.ROOT), ac.getUses());
+        }
+        saveGems();
+    }
+
+    // removed: per-instance 初始化在具体 gemId 切换归属/持有时进行
+
+    private void revokeAllowedCommands(java.util.UUID oldOwner, org.cubexmc.model.GemDefinition def) {
+        if (oldOwner == null || def == null) return;
+        // 已由 per-instance 存储管理（见上）
+        saveGems();
+    }
+
+    public boolean hasAnyAllowed(java.util.UUID uid, String label) {
+        if (uid == null || label == null) return false;
+        String l = label.toLowerCase(java.util.Locale.ROOT);
+        // Global allowances (e.g., redeem_all)
+        java.util.Map<String, Integer> glob = playerGlobalAllowedUses.get(uid);
+        if (glob != null) {
+            Integer v = glob.get(l);
+            if (v != null && (v > 0 || v < 0)) return true;
+        }
+        // Per-instance allowances (held + redeemed)
+        java.util.Map<java.util.UUID, java.util.Map<String, Integer>> perHeld = playerGemHeldUses.get(uid);
+        if (perHeld != null) {
+            for (java.util.Map<String, Integer> byLabel : perHeld.values()) {
+                Integer v = byLabel.get(l);
+                if (v != null && (v > 0 || v < 0)) return true;
+            }
+        }
+        java.util.Map<java.util.UUID, java.util.Map<String, Integer>> perRed = playerGemRedeemUses.get(uid);
+        if (perRed != null) {
+            for (java.util.Map<String, Integer> byLabel : perRed.values()) {
+                Integer v = byLabel.get(l);
+                if (v != null && (v > 0 || v < 0)) return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean tryConsumeAllowed(java.util.UUID uid, String label) {
+        if (uid == null || label == null) return false;
+        String l = label.toLowerCase(java.util.Locale.ROOT);
+        // 先尝试持有实例（稳定顺序）
+        java.util.Map<java.util.UUID, java.util.Map<String, Integer>> perHeld = playerGemHeldUses.get(uid);
+        if (perHeld != null && !perHeld.isEmpty()) {
+            java.util.List<java.util.UUID> ids = new java.util.ArrayList<>(perHeld.keySet());
+            ids.sort(java.util.UUID::compareTo);
+            for (java.util.UUID gid : ids) {
+                java.util.Map<String, Integer> byLabel = perHeld.get(gid);
+                if (byLabel == null) continue;
+                Integer v = byLabel.get(l);
+                if (v == null) v = 0;
+                if (v < 0) { saveGems(); return true; }
+                if (v > 0) { byLabel.put(l, v - 1); saveGems(); return true; }
+            }
+        }
+        // 再尝试已兑换实例
+        java.util.Map<java.util.UUID, java.util.Map<String, Integer>> perRed = playerGemRedeemUses.get(uid);
+        if (perRed != null && !perRed.isEmpty()) {
+            java.util.List<java.util.UUID> ids = new java.util.ArrayList<>(perRed.keySet());
+            ids.sort(java.util.UUID::compareTo);
+            for (java.util.UUID gid : ids) {
+                java.util.Map<String, Integer> byLabel = perRed.get(gid);
+                if (byLabel == null) continue;
+                Integer v = byLabel.get(l);
+                if (v == null) v = 0;
+                if (v < 0) { saveGems(); return true; }
+                if (v > 0) { byLabel.put(l, v - 1); saveGems(); return true; }
+            }
+        }
+        // 最后尝试全局
+        java.util.Map<String, Integer> glob = playerGlobalAllowedUses.get(uid);
+        if (glob != null) {
+            Integer v = glob.get(l);
+            if (v == null) v = 0;
+            if (v < 0) { saveGems(); return true; }
+            if (v > 0) { glob.put(l, v - 1); saveGems(); return true; }
+        }
+        return false;
+    }
+
+    // removed old helper: clearAllowedForGemKeyExcept
+
+    private void handleInventoryOwnershipOnPickup(Player player, java.util.UUID gemId) {
+        if (player == null || gemId == null) return;
+        if (!configManager.isInventoryGrantsEnabled()) return;
+        String gemKey = gemUuidToKey.get(gemId);
+        if (gemKey == null) return;
+        org.cubexmc.model.GemDefinition def = findGemDefinition(gemKey);
+        if (def == null) return;
+        // 实例级额度：将该 gemId 的"最近持有者额度"转交给当前玩家；同人反复持有不重置
+        reassignHeldInstanceAllowance(gemId, player.getUniqueId(), def);
+        // 维护类型计数（权限与组按 0->1 / 1->0 管理）
+        java.util.UUID old = gemIdToRedeemer.put(gemId, player.getUniqueId());
+        String key = gemKey.toLowerCase(java.util.Locale.ROOT);
+        if (old != null && !old.equals(player.getUniqueId())) {
+            decrementOwnerKeyCount(old, key, def);
+        }
+        incrementOwnerKeyCount(player.getUniqueId(), key, def);
+    }
+
+    private void reassignHeldInstanceAllowance(java.util.UUID gemId,
+                                                java.util.UUID newOwner,
+                                                org.cubexmc.model.GemDefinition def) {
+        if (gemId == null || newOwner == null || def == null) return;
+        // Find old owner in held map
+        java.util.UUID oldOwner = null;
+        for (java.util.Map.Entry<java.util.UUID, java.util.Map<java.util.UUID, java.util.Map<String, Integer>>> e : playerGemHeldUses.entrySet()) {
+            if (e.getValue() != null && e.getValue().containsKey(gemId)) { oldOwner = e.getKey(); break; }
+        }
+        if (newOwner.equals(oldOwner)) {
+            // same owner: do not reset
+            return;
+        }
+        java.util.Map<String, Integer> payload = null;
+        if (oldOwner != null) {
+            java.util.Map<java.util.UUID, java.util.Map<String, Integer>> map = playerGemHeldUses.get(oldOwner);
+            if (map != null) payload = map.remove(gemId);
+            if (map != null && map.isEmpty()) playerGemHeldUses.remove(oldOwner);
+        }
+        java.util.Map<java.util.UUID, java.util.Map<String, Integer>> dest = playerGemHeldUses.computeIfAbsent(newOwner, k -> new java.util.HashMap<>());
+        if (payload == null) {
+            // initialize only if new owner doesn't already have this gemId mapping
+            if (!dest.containsKey(gemId)) dest.put(gemId, buildAllowedMap(def));
+        } else {
+            dest.put(gemId, payload);
+        }
+        saveGems();
+    }
+
+    private void reassignRedeemInstanceAllowance(java.util.UUID gemId,
+                                                 java.util.UUID newOwner,
+                                                 org.cubexmc.model.GemDefinition def,
+                                                 boolean resetEvenIfSameOwner) {
+        if (gemId == null || newOwner == null || def == null) return;
+        // Find old owner in redeemed map
+        java.util.UUID oldOwner = null;
+        for (java.util.Map.Entry<java.util.UUID, java.util.Map<java.util.UUID, java.util.Map<String, Integer>>> e : playerGemRedeemUses.entrySet()) {
+            if (e.getValue() != null && e.getValue().containsKey(gemId)) { oldOwner = e.getKey(); break; }
+        }
+        if (newOwner.equals(oldOwner)) {
+            if (resetEvenIfSameOwner) {
+                playerGemRedeemUses.computeIfAbsent(newOwner, k -> new java.util.HashMap<>())
+                    .put(gemId, buildAllowedMap(def));
+                saveGems();
+            }
+            return;
+        }
+        java.util.Map<String, Integer> payload = null;
+        if (oldOwner != null) {
+            java.util.Map<java.util.UUID, java.util.Map<String, Integer>> map = playerGemRedeemUses.get(oldOwner);
+            if (map != null) payload = map.remove(gemId);
+            if (map != null && map.isEmpty()) playerGemRedeemUses.remove(oldOwner);
+        }
+        java.util.Map<java.util.UUID, java.util.Map<String, Integer>> dest = playerGemRedeemUses.computeIfAbsent(newOwner, k -> new java.util.HashMap<>());
+        if (payload == null || resetEvenIfSameOwner) {
+            dest.put(gemId, buildAllowedMap(def));
+        } else {
+            dest.put(gemId, payload);
+        }
+        saveGems();
+    }
+
+    private java.util.Map<String, Integer> buildAllowedMap(org.cubexmc.model.GemDefinition def) {
+        java.util.Map<String, Integer> map = new java.util.HashMap<>();
+        java.util.List<org.cubexmc.model.AllowedCommand> allows = def.getAllowedCommands();
+        if (allows != null) {
+            for (org.cubexmc.model.AllowedCommand ac : allows) {
+                if (ac == null || ac.getLabel() == null) continue;
+                map.put(ac.getLabel().toLowerCase(java.util.Locale.ROOT), ac.getUses());
+            }
+        }
+        return map;
+    }
+
+    public void refundAllowed(java.util.UUID uid, String label) {
+        if (uid == null || label == null) return;
+        String l = label.toLowerCase(java.util.Locale.ROOT);
+        // per-instance first: held then redeemed
+        java.util.Map<java.util.UUID, java.util.Map<String, Integer>> perHeld = playerGemHeldUses.get(uid);
+        if (perHeld != null) {
+            for (java.util.Map<String, Integer> byLabel : perHeld.values()) {
+                if (byLabel.containsKey(l)) { int v = byLabel.getOrDefault(l, 0); byLabel.put(l, v + 1); saveGems(); return; }
+            }
+        }
+        java.util.Map<java.util.UUID, java.util.Map<String, Integer>> perRed = playerGemRedeemUses.get(uid);
+        if (perRed != null) {
+            for (java.util.Map<String, Integer> byLabel : perRed.values()) {
+                if (byLabel.containsKey(l)) { int v = byLabel.getOrDefault(l, 0); byLabel.put(l, v + 1); saveGems(); return; }
+            }
+        }
+        // global
+        java.util.Map<String, Integer> glob = playerGlobalAllowedUses.computeIfAbsent(uid, k -> new java.util.HashMap<>());
+        int v = glob.getOrDefault(l, 0);
+        glob.put(l, v + 1);
+        saveGems();
+    }
+
+    /**
+     * 获取玩家的 AllowedCommand 对象（用于获取冷却时间等信息）
+     */
+    public org.cubexmc.model.AllowedCommand getAllowedCommand(java.util.UUID uid, String label) {
+        if (uid == null || label == null) return null;
+        String l = label.toLowerCase(java.util.Locale.ROOT);
+        
+        // 从各个宝石定义中查找
+        for (org.cubexmc.model.GemDefinition def : configManager.getGemDefinitions()) {
+            for (org.cubexmc.model.AllowedCommand cmd : def.getAllowedCommands()) {
+                if (cmd.getLabel().equals(l)) {
+                    return cmd;
+                }
+            }
+        }
+        
+        // 从 redeemAll 中查找
+        for (org.cubexmc.model.AllowedCommand cmd : configManager.getRedeemAllAllowedCommands()) {
+            if (cmd.getLabel().equals(l)) {
+                return cmd;
+            }
+        }
+        
+        return null;
+    }
+    
+    public int getRemainingAllowed(java.util.UUID uid, String label) {
+        if (uid == null || label == null) return 0;
+        String l = label.toLowerCase(java.util.Locale.ROOT);
+        int sum = 0;
+        // per-instance: held + redeemed
+        java.util.Map<java.util.UUID, java.util.Map<String, Integer>> perHeld = playerGemHeldUses.get(uid);
+        if (perHeld != null) {
+            for (java.util.Map<String, Integer> byLabel : perHeld.values()) {
+                Integer v2 = byLabel.get(l);
+                if (v2 != null) {
+                    if (v2 < 0) return -1; // 无限
+                    sum += v2;
+                }
+            }
+        }
+        java.util.Map<java.util.UUID, java.util.Map<String, Integer>> perRed = playerGemRedeemUses.get(uid);
+        if (perRed != null) {
+            for (java.util.Map<String, Integer> byLabel : perRed.values()) {
+                Integer v2 = byLabel.get(l);
+                if (v2 != null) {
+                    if (v2 < 0) return -1;
+                    sum += v2;
+                }
+            }
+        }
+        // global
+        java.util.Map<String, Integer> glob = playerGlobalAllowedUses.get(uid);
+        if (glob != null) {
+            Integer vg = glob.get(l);
+            if (vg != null) {
+                if (vg < 0) return -1;
+                sum += vg;
+            }
+        }
+        return sum;
     }
 
     private void queueOfflineRevokes(java.util.UUID user,
@@ -1423,47 +1971,43 @@ public class GemManager {
                 return false;
             }
         }
-        // 所有都持有：依次触发 per-gem 兑换，再统一散落，并将所有 gem 的“当前拥有者”切换为本玩家
+        // 所有都持有：依次触发 per-gem 兑换，再统一散落，并将所有 gem 的"当前拥有者"切换为本玩家
         java.util.UUID previousFull = this.fullSetOwner;
         this.fullSetOwner = player.getUniqueId();
         for (org.cubexmc.model.GemDefinition d : defs) {
             String normalizedKey = d.getGemKey().toLowerCase(Locale.ROOT);
             markGemRedeemed(player, d.getGemKey());
-            // 切换该 gem 的当前拥有者，撤销旧拥有者该 gem 的权限/组
-            java.util.UUID old = gemKeyToRedeemer.put(normalizedKey, player.getUniqueId());
-            if (old != null && !old.equals(player.getUniqueId())) {
-                Player oldP = Bukkit.getPlayer(old);
-                if (oldP != null && oldP.isOnline()) {
-                    if (d.getPermissions() != null) revokeNodes(oldP, d.getPermissions());
-                    if (d.getVaultGroup() != null && !d.getVaultGroup().isEmpty() && plugin.getVaultPerms() != null) {
-                        try { plugin.getVaultPerms().playerRemoveGroup(oldP, d.getVaultGroup()); } catch (Exception ignored) {}
-                    }
-                    oldP.recalculatePermissions();
-                } else {
-                    java.util.Set<String> s = playerUuidToRedeemedKeys.get(old);
-                    if (s != null) s.remove(normalizedKey);
-                }
-            }
-            applyRedeemRewards(player, d);
+            // 切换该 gem 的当前拥有者（按 gemId），并做计数增减
             UUID gid = keyToGemId.get(normalizedKey);
+            if (gid != null) {
+                java.util.UUID old = gemIdToRedeemer.put(gid, player.getUniqueId());
+                if (old != null && !old.equals(player.getUniqueId())) {
+                    decrementOwnerKeyCount(old, normalizedKey, d);
+                }
+                incrementOwnerKeyCount(player.getUniqueId(), normalizedKey, d);
+                applyRedeemRewards(player, d);
+                // 兑换实例额度归属切换（同人重复兑换重置）
+                reassignRedeemInstanceAllowance(gid, player.getUniqueId(), d, /*resetEvenIfSameOwner*/ true);
+            }
             if (gid != null) {
                 removeGemItemFromInventory(player, gid);
                 gemUuidToHolder.remove(gid);
                 randomPlaceGem(gid, configManager.getRandomPlaceCorner1(), configManager.getRandomPlaceCorner2());
             }
         }
-        // 切换全权力持有者：撤销上一任的全部权限与组
+            // 切换全权力持有者：撤销上一任的全部权限与组（按计数判断：全套切换视为所有 key 归属从旧->新，直接撤销旧持有者权限与额度）
         String previousFullOwnerName = null;
         if (previousFull != null && !previousFull.equals(this.fullSetOwner)) {
             Player prev = Bukkit.getPlayer(previousFull);
             if (prev != null && prev.isOnline()) {
                 previousFullOwnerName = prev.getName();
-                for (org.cubexmc.model.GemDefinition d : defs) {
-                    if (d.getPermissions() != null) revokeNodes(prev, d.getPermissions());
-                    if (d.getVaultGroup() != null && !d.getVaultGroup().isEmpty() && plugin.getVaultPerms() != null) {
-                        try { plugin.getVaultPerms().playerRemoveGroup(prev, d.getVaultGroup()); } catch (Exception ignored) {}
+                    for (org.cubexmc.model.GemDefinition d : defs) {
+                        if (d.getPermissions() != null) revokeNodes(prev, d.getPermissions());
+                        if (d.getVaultGroup() != null && !d.getVaultGroup().isEmpty() && plugin.getVaultPerms() != null) {
+                            try { plugin.getVaultPerms().playerRemoveGroup(prev, d.getVaultGroup()); } catch (Exception ignored) {}
+                        }
+                        revokeAllowedCommands(previousFull, d);
                     }
-                }
                 prev.recalculatePermissions();
             } else {
                 // Queue all per-gem revocations for previous full owner
@@ -1474,6 +2018,7 @@ public class GemManager {
                     if (d.getVaultGroup() != null && !d.getVaultGroup().isEmpty()) allGroups.add(d.getVaultGroup());
                 }
                 queueOfflineRevokes(previousFull, allPerms, allGroups);
+                    for (org.cubexmc.model.GemDefinition d : defs) revokeAllowedCommands(previousFull, d);
             }
         }
 
@@ -1485,7 +2030,7 @@ public class GemManager {
             }
             historyLogger.logFullSetRedeem(player, defs.size(), allPermissions, previousFullOwnerName);
         }
-        // 广播标题（可配置开关）：优先使用 config.titles.redeem_all，否则使用语言文件的 gems_recollected
+        // 广播标题（可配置开关）：优先使用 config.redeem_all，否则使用语言文件的 gems_recollected
         boolean broadcast = configManager.getRedeemAllBroadcastOverride() != null ? configManager.getRedeemAllBroadcastOverride() : configManager.isBroadcastRedeemTitle();
         if (broadcast) {
             java.util.List<String> title = configManager.getRedeemAllTitle();
@@ -1505,6 +2050,32 @@ public class GemManager {
                 }
             }
         }
+        // 额外发放：redeem_all 权限与限次指令
+        java.util.List<String> extraPerms = configManager.getRedeemAllPermissions();
+        if (extraPerms != null && !extraPerms.isEmpty()) {
+            grantRedeemPermissions(player, extraPerms);
+        }
+        java.util.List<org.cubexmc.model.AllowedCommand> extraAllows = configManager.getRedeemAllAllowedCommands();
+        if (extraAllows != null && !extraAllows.isEmpty()) {
+            // 将这些额外次数计入玩家，使用专用 gemKey "ALL" 进行隔离
+            org.cubexmc.model.GemDefinition pseudo = new org.cubexmc.model.GemDefinition(
+                    "ALL",
+                    org.bukkit.Material.BEDROCK,
+                    "ALL",
+                    org.bukkit.Particle.FLAME,
+                    org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP,
+                    null, null, null,
+                    java.util.Collections.emptyList(),
+                    null,
+                    java.util.Collections.emptyList(),
+                    java.util.Collections.emptyList(),
+                    false,
+                    extraAllows,
+                    java.util.Collections.emptyList(),
+                    1
+            );
+            grantAllowedCommands(player, pseudo);
+        }
         // 播放全局音效（支持覆盖，默认龙吼）
         try {
             org.bukkit.Sound s = org.bukkit.Sound.valueOf(configManager.getRedeemAllSound());
@@ -1516,17 +2087,19 @@ public class GemManager {
     /**
      * 返回当前拥有权力的玩家列表：
      * - fullSetOwner（若存在）
-     * - gemKeyToRedeemer 中的各个当前持有者
+     * - 由 gemIdToRedeemer/ownerKeyCount 汇总的当前持有者
      */
     public java.util.Map<java.util.UUID, java.util.Set<String>> getCurrentPowerHolders() {
         java.util.Map<java.util.UUID, java.util.Set<String>> map = new java.util.HashMap<>();
         if (this.fullSetOwner != null) {
             map.put(this.fullSetOwner, new java.util.HashSet<>(java.util.Collections.singleton("ALL")));
         }
-        for (java.util.Map.Entry<String, java.util.UUID> e : gemKeyToRedeemer.entrySet()) {
+        for (java.util.Map.Entry<java.util.UUID, java.util.UUID> e : gemIdToRedeemer.entrySet()) {
             java.util.UUID u = e.getValue();
             if (u == null) continue;
-            map.computeIfAbsent(u, k -> new java.util.HashSet<>()).add(e.getKey());
+            String k = gemUuidToKey.get(e.getKey());
+            if (k == null) continue;
+            map.computeIfAbsent(u, kk -> new java.util.HashSet<>()).add(k.toLowerCase(java.util.Locale.ROOT));
         }
         return map;
     }
@@ -1629,7 +2202,7 @@ public class GemManager {
         if (gemId == null || target == null) return;
         final Location oldLoc = findLocationByGemId(gemId);
         final org.bukkit.entity.Player holder = gemUuidToHolder.get(gemId);
-        final String key = gemUuidToKey.get(gemId);
+        // key no longer used here
         // 在目标区进行安全检查并放置；只有成功放置后才清理旧位置/持有/重复
         final Location base = target.clone();
         SchedulerUtil.regionRun(plugin, base, () -> {
@@ -1661,30 +2234,7 @@ public class GemManager {
                 removeGemItemFromInventory(holder, gemId);
                 recalculateGrants(holder);
             }
-            // 成功后：清理同 key 的重复
-            if (key != null) {
-                java.util.List<java.util.UUID> dups = new java.util.ArrayList<>();
-                for (Map.Entry<java.util.UUID, String> e : gemUuidToKey.entrySet()) {
-                    java.util.UUID otherId = e.getKey();
-                    if (otherId.equals(gemId)) continue;
-                    String k = e.getValue();
-                    if (k != null && k.equalsIgnoreCase(key)) {
-                        dups.add(otherId);
-                    }
-                }
-                for (java.util.UUID dup : dups) {
-                    org.bukkit.entity.Player h = gemUuidToHolder.remove(dup);
-                    if (h != null) {
-                        removeGemItemFromInventory(h, dup);
-                        recalculateGrants(h);
-                    }
-                    Location loc = findLocationByGemId(dup);
-                    if (loc != null) {
-                        unplaceRulerGem(loc, dup);
-                    }
-                    gemUuidToKey.remove(dup);
-                }
-            }
+            // 不再清理同 key 的重复：允许同类多实例存在
         }, 0L, -1L);
     }
 }

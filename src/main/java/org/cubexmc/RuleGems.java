@@ -8,6 +8,7 @@ import org.cubexmc.commands.RuleGemsCommand;
 import org.cubexmc.listeners.GemInventoryListener;
 import org.cubexmc.listeners.GemPlaceListener;
 import org.cubexmc.listeners.PlayerEventListener;
+import org.cubexmc.listeners.CommandAllowanceListener;
 import org.cubexmc.manager.ConfigManager;
 import org.cubexmc.manager.GemManager;
 import org.cubexmc.manager.HistoryLogger;
@@ -28,6 +29,7 @@ public class RuleGems extends JavaPlugin {
     private EffectUtils effectUtils;
     private LanguageManager languageManager;
     private HistoryLogger historyLogger;
+    private org.cubexmc.manager.CustomCommandExecutor customCommandExecutor;
     private Permission vaultPerms;
     private Metrics metrics;
 
@@ -39,6 +41,7 @@ public class RuleGems extends JavaPlugin {
         this.languageManager = new LanguageManager(this);
         this.effectUtils = new EffectUtils(this);
         this.historyLogger = new HistoryLogger(this);
+        this.customCommandExecutor = new org.cubexmc.manager.CustomCommandExecutor(this);
 //        this.configManager.loadConfigs();   // 读 config.yml, rulergem.yml
         this.gemManager = new GemManager(this, configManager, effectUtils, languageManager);
         this.gemManager.setHistoryLogger(historyLogger);
@@ -59,6 +62,7 @@ public class RuleGems extends JavaPlugin {
         getPluginManager().registerEvents(new GemPlaceListener(this, gemManager), this);
         getPluginManager().registerEvents(new GemInventoryListener(gemManager, languageManager), this);
         getPluginManager().registerEvents(new PlayerEventListener(this, gemManager), this);
+        getPluginManager().registerEvents(new CommandAllowanceListener(gemManager, languageManager, configManager, customCommandExecutor), this);
         // Setup Vault permissions (optional)
         if (getServer().getPluginManager().getPlugin("Vault") != null) {
             try {
@@ -119,6 +123,7 @@ public class RuleGems extends JavaPlugin {
     public EffectUtils getEffectUtils() { return effectUtils; }
     public LanguageManager getLanguageManager() { return languageManager; }
     public HistoryLogger getHistoryLogger() { return historyLogger; }
+    public org.cubexmc.manager.CustomCommandExecutor getCustomCommandExecutor() { return customCommandExecutor; }
     public Permission getVaultPerms() { return vaultPerms; }
 
 }

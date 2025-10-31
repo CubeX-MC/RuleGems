@@ -30,6 +30,7 @@ public class RuleGemsTabCompleter implements TabCompleter {
             "scatter",
             "redeem",
             "redeemall",
+            "history",
             "help"
     );
 
@@ -59,6 +60,11 @@ public class RuleGemsTabCompleter implements TabCompleter {
     // /rulegems tp <gemKey>
         if (args.length == 2 && args[0].equalsIgnoreCase("tp")) {
             return getGemKeySuggestions(args[1]);
+        }
+
+    // /rulegems revoke <player>
+        if (args.length == 2 && args[0].equalsIgnoreCase("revoke")) {
+            return getOnlinePlayerNames(args[1]);
         }
 
     // /rulegems redeem 不再需要 key，阻止玩家名或其它补全
@@ -103,6 +109,18 @@ public class RuleGemsTabCompleter implements TabCompleter {
             String key = definition.getGemKey();
             if (prefix.isEmpty() || key.toLowerCase().startsWith(prefix)) {
                 suggestions.add(key);
+            }
+        }
+        return suggestions;
+    }
+
+    private List<String> getOnlinePlayerNames(String typed) {
+        String prefix = typed == null ? "" : typed.toLowerCase();
+        List<String> suggestions = new ArrayList<>();
+        for (org.bukkit.entity.Player player : org.bukkit.Bukkit.getOnlinePlayers()) {
+            String name = player.getName();
+            if (prefix.isEmpty() || name.toLowerCase().startsWith(prefix)) {
+                suggestions.add(name);
             }
         }
         return suggestions;

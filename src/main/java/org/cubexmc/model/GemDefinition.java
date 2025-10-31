@@ -24,6 +24,9 @@ public class GemDefinition {
     private final List<String> lore;
     private final List<String> redeemTitle; // 1-2 行标题文本
     private final boolean enchanted; // 是否为物品附魔发光（仅用于区分外观）
+    private final java.util.List<AllowedCommand> allowedCommands; // 兑换后可用的受限指令
+    private final java.util.List<String> mutualExclusive; // 互斥的 gemKey 列表
+    private final int count; // 该类别宝石实例数量（默认 1）
 
     public GemDefinition(String gemKey,
                          Material material,
@@ -37,7 +40,10 @@ public class GemDefinition {
                          String vaultGroup,
                          List<String> lore,
                          List<String> redeemTitle,
-                         boolean enchanted) {
+                         boolean enchanted,
+                         java.util.List<AllowedCommand> allowedCommands,
+                         java.util.List<String> mutualExclusive,
+                         int count) {
         this.gemKey = gemKey;
         this.material = material;
         this.displayName = displayName;
@@ -51,6 +57,9 @@ public class GemDefinition {
         this.lore = lore;
         this.redeemTitle = redeemTitle;
         this.enchanted = enchanted;
+        this.allowedCommands = allowedCommands == null ? java.util.Collections.emptyList() : allowedCommands;
+        this.mutualExclusive = mutualExclusive == null ? java.util.Collections.emptyList() : mutualExclusive;
+        this.count = Math.max(1, count);
     }
 
     public String getGemKey() {
@@ -103,6 +112,18 @@ public class GemDefinition {
 
     public boolean isEnchanted() {
         return enchanted;
+    }
+
+    public java.util.List<AllowedCommand> getAllowedCommands() {
+        return allowedCommands;
+    }
+
+    public java.util.List<String> getMutualExclusive() {
+        return mutualExclusive;
+    }
+
+    public int getCount() {
+        return count;
     }
 }
 

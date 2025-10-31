@@ -26,13 +26,8 @@ public class ConfigManager {
 
     // 从 config 里读取的值
     private int requiredCount;
-    private ExecuteConfig gemUnionExecute;
     private ExecuteConfig gemScatterExecute;
-    private ExecuteConfig powerRevokeExecute;
     // 已移除全局默认展示参数，强制使用每颗宝石定义
-    private boolean useRequiredLoc;   // 是否强制要求放置在指定坐标
-    private Location requiredLocCenter; // 存所有必放坐标
-    private int requiredLocRadius;
 
     private Location randomPlaceCorner1; // 随机放置范围的角落1
     private Location randomPlaceCorner2; // 随机放置范围的角落2
@@ -43,6 +38,9 @@ public class ConfigManager {
     private java.util.List<String> redeemAllTitle = java.util.Collections.emptyList();
     private Boolean redeemAllBroadcast = null; // null => inherit global
     private String redeemAllSound = "ENTITY_ENDER_DRAGON_GROWL";
+    // Redeem all extra grants
+    private java.util.List<String> redeemAllPermissions = java.util.Collections.emptyList();
+    private java.util.List<org.cubexmc.model.AllowedCommand> redeemAllAllowed = java.util.Collections.emptyList();
 
     // 每颗宝石的定义（可选）。当存在时，requiredCount 默认等于定义数量
     private java.util.List<GemDefinition> gemDefinitions = new java.util.ArrayList<>();
@@ -62,30 +60,7 @@ public class ConfigManager {
         
         this.language = plugin.getConfig().getString("language", "zh");
 
-        // 1) 不再读取全局默认，强制使用映射式 gems 定义
-        // 4) 是否强制要求放置在指定坐标（兼容两种写法）
-        boolean v1 = this.config.getBoolean("use_required_location", false);
-        boolean v2 = this.config.getBoolean("use_required_locations", v1);
-        this.useRequiredLoc = v2;
-
-        // 如果启用，就读坐标列表
-        if (this.useRequiredLoc) {
-            ConfigurationSection locsSection = this.config.getConfigurationSection("required_locations");
-            String worldName = locsSection.getString("world");
-            this.requiredLocRadius = locsSection.getInt("radius");
-            World w = Bukkit.getWorld(worldName);
-            if (w != null) {
-                this.requiredLocCenter = getLocationFromConfig(locsSection, "center", w);
-            } else {
-                plugin.getLogger().warning("读取到无效世界: " + worldName);
-            }
-            plugin.getLogger().info(String.format("启用指定放置坐标: %.2f %.2f %.2f",
-                    this.requiredLocCenter.getX(), this.requiredLocCenter.getY(), this.requiredLocCenter.getZ()));
-        } else {
-            plugin.getLogger().info("未启用指定坐标放置模式。");
-        }
-
-        // 5) 读取随机放置范围
+        // 读取随机放置范围
         ConfigurationSection randomPlaceRange = getConfig().getConfigurationSection("random_place_range");
         if (randomPlaceRange == null) {
             plugin.getLogger().severe("配置文件中缺少 random_place_range 部分。");
@@ -116,8 +91,10 @@ public class ConfigManager {
         // 6) per-gem 定义（必填：强制使用映射/列表形式提供每颗宝石）
         loadGemDefinitions();
 
-        // 宝石总数严格等于定义数量
-        this.requiredCount = this.gemDefinitions.size();
+        // 宝石总数严格等于 sum(count)
+        int total = 0;
+        for (GemDefinition d : this.gemDefinitions) total += (d != null ? d.getCount() : 0);
+        this.requiredCount = Math.max(0, total);
 
         // 7) 授权策略
         ConfigurationSection gp = this.config.getConfigurationSection("grant_policy");
@@ -131,39 +108,30 @@ public class ConfigManager {
             this.broadcastRedeemTitle = toggles.getBoolean("broadcast_redeem_title", true);
         }
 
-        // 7.2) titles
-        ConfigurationSection titles = this.config.getConfigurationSection("titles");
-        if (titles != null) {
-            ConfigurationSection ra = titles.getConfigurationSection("redeem_all");
-            if (ra != null) {
-                Object titlesObj = ra.get("titles");
-                this.redeemAllTitle = toStringList(titlesObj);
-                if (ra.isSet("broadcast")) {
-                    this.redeemAllBroadcast = ra.getBoolean("broadcast");
-                } else {
-                    this.redeemAllBroadcast = null;
-                }
-                String s = stringOf(ra.get("sound"));
-                if (s != null && !s.isEmpty()) this.redeemAllSound = s;
+        // 7.2) redeem_all at root (replaces previous titles.redeem_all)
+        ConfigurationSection ra = this.config.getConfigurationSection("redeem_all");
+        if (ra != null) {
+            Object titlesObj = ra.get("titles");
+            this.redeemAllTitle = toStringList(titlesObj);
+            if (ra.isSet("broadcast")) {
+                this.redeemAllBroadcast = ra.getBoolean("broadcast");
             } else {
-                this.redeemAllTitle = java.util.Collections.emptyList();
                 this.redeemAllBroadcast = null;
             }
+            String s = stringOf(ra.get("sound"));
+            if (s != null && !s.isEmpty()) this.redeemAllSound = s;
+            // extras for redeem_all
+            this.redeemAllPermissions = toStringList(ra.get("permissions"));
+            this.redeemAllAllowed = parseAllowedCommands(ra.get("command_allows"));
         } else {
             this.redeemAllTitle = java.util.Collections.emptyList();
             this.redeemAllBroadcast = null;
+            this.redeemAllPermissions = java.util.Collections.emptyList();
+            this.redeemAllAllowed = java.util.Collections.emptyList();
         }
 
         // 8) 读取情景效果
-        this.gemUnionExecute       = loadExecuteConfig("gem_union_execute");
         this.gemScatterExecute     = loadExecuteConfig("gem_scatter_execute");
-        // 兼容历史 key：优先 power_revoke_execute，不存在则读取 revoke_power
-        ExecuteConfig revoke = loadExecuteConfig("power_revoke_execute");
-        if ((revoke == null || (revoke.getCommands() == null && revoke.getSound() == null && revoke.getParticle() == null))
-        && this.config.getConfigurationSection("revoke_power") != null) {
-            revoke = loadExecuteConfig("revoke_power");
-        }
-        this.powerRevokeExecute = revoke;
     }
 
     private void loadGemDefinitions() {
@@ -262,9 +230,57 @@ public class ConfigManager {
             String s = String.valueOf(encObj).trim();
             enchanted = s.equalsIgnoreCase("true") || s.equalsIgnoreCase("yes") || s.equalsIgnoreCase("on");
         }
-        return new GemDefinition(gemKey, material, displayName, particle, sound, onPickup, onScatter, onRedeem, perms, group, lore, redeemTitle, enchanted);
+        // 解析 command_allows（列表或映射）
+        java.util.List<org.cubexmc.model.AllowedCommand> allowed = parseAllowedCommands(map.get("command_allows"));
+        java.util.List<String> mutex = toStringList(map.get("mutual_exclusive"));
+        int count = 1;
+        Object cObj = map.get("count");
+        if (cObj != null) {
+            try { count = Integer.parseInt(String.valueOf(cObj)); } catch (Exception ignored) {}
+        }
+
+        return new GemDefinition(gemKey, material, displayName, particle, sound, onPickup, onScatter, onRedeem, perms, group, lore, redeemTitle, enchanted, allowed, mutex, count);
     }
 
+    private java.util.List<org.cubexmc.model.AllowedCommand> parseAllowedCommands(Object allowsObj) {
+        java.util.List<org.cubexmc.model.AllowedCommand> allowed = new java.util.ArrayList<>();
+        if (allowsObj instanceof java.util.List) {
+            java.util.List<?> raw = (java.util.List<?>) allowsObj;
+            for (Object e : raw) {
+                if (e instanceof java.util.Map) {
+                    java.util.Map<?, ?> map = (java.util.Map<?, ?>) e;
+                    
+                    // 唯一格式：command（玩家输入）+ execute（实际执行）
+                    Object commandObj = map.get("command");
+                    Object executeObj = map.get("execute");
+                    Object uses = map.get("time_limit");
+                    Object cooldownObj = map.get("cooldown");
+                    
+                    if (commandObj == null || executeObj == null) {
+                        plugin.getLogger().warning("command_allows 配置错误：必须包含 'command' 和 'execute' 字段");
+                        continue;
+                    }
+                    
+                    int u = -1;  // 默认无限
+                    int cooldown = 0;
+                    try { u = Integer.parseInt(String.valueOf(uses)); } catch (Exception ignored) {}
+                    try { cooldown = Integer.parseInt(String.valueOf(cooldownObj)); } catch (Exception ignored) {}
+                    
+                    // 解析命令标签（移除斜杠）
+                    String cmd = String.valueOf(commandObj).trim();
+                    if (cmd.startsWith("/")) cmd = cmd.substring(1);
+                    
+                    // 提取第一个单词作为label（不包含参数）
+                    String label = cmd.split("\\s+")[0].toLowerCase();
+                    
+                    // 解析执行命令列表
+                    java.util.List<String> executeCmds = toStringList(executeObj);
+                    allowed.add(new org.cubexmc.model.AllowedCommand(label, u, executeCmds, cooldown));
+                }
+            }
+        }
+        return allowed;
+    }
     private String stringOf(Object o) {
         return o == null ? null : String.valueOf(o);
     }
@@ -348,15 +364,9 @@ public class ConfigManager {
 
     // 读取/写入某些具体数据
     public int getRequiredCount() { return requiredCount; }
-    public ExecuteConfig getGemUnionExecute() { return gemUnionExecute; }
     public ExecuteConfig getGemScatterExecute() { return gemScatterExecute; }
-    public ExecuteConfig getPowerRevokeExecute() { return powerRevokeExecute; }
     public Location getRandomPlaceCorner1() { return randomPlaceCorner1; }
     public Location getRandomPlaceCorner2() { return randomPlaceCorner2; }
-    // 全局展示参数已移除对应 getter
-    public boolean isUseRequiredLoc() { return useRequiredLoc; }
-    public Location getRequiredLocCenter() { return requiredLocCenter; }
-    public int getRequiredLocRadius() { return requiredLocRadius; }
     public FileConfiguration getConfig() { return config; }
     public String getLanguage() { return language; }
     public java.util.List<GemDefinition> getGemDefinitions() { return gemDefinitions; }
@@ -367,4 +377,6 @@ public class ConfigManager {
     public java.util.List<String> getRedeemAllTitle() { return redeemAllTitle; }
     public Boolean getRedeemAllBroadcastOverride() { return redeemAllBroadcast; }
     public String getRedeemAllSound() { return redeemAllSound; }
+    public java.util.List<String> getRedeemAllPermissions() { return redeemAllPermissions; }
+    public java.util.List<org.cubexmc.model.AllowedCommand> getRedeemAllAllowedCommands() { return redeemAllAllowed; }
 }

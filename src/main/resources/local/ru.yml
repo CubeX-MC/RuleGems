@@ -59,6 +59,10 @@ messages:
       recent_header: "&6========== Последние &e%count% &6записей истории =========="
       line: "&7%line%"
       separator: "&6=================================================="
+  allowance:
+    used: "%prefix% &aИспользовано &e/%command%&a, осталось &e%remain%&a раз."
+    none_left: "%prefix% &cЭта команда больше не может быть использована."
+    execute_failed: "%prefix% &cКоманда не выполнена, возвращены оставшиеся попытки."
   inventory:
     drag_denied: "&c%prefix% Нельзя перетащить Ruler Gem сюда!"
     inventory_full: "&7%prefix% Инвентарь полон, камень размещен."

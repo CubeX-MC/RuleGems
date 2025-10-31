@@ -12,14 +12,16 @@ A lightweight plugin that transfers player power through collecting "gems". Foli
 
 ## Commands
 - All `/rulegems ...` commands can be used with the alias `/rg ...` (see `aliases: [rg]` in plugin.yml)
-- `/rulegems place <x> <y> <z>` Place a gem
-- `/rulegems revoke` Revoke current power holder
+- `/rulegems place <gemId> <x|~> <y|~> <z|~>` Place a gem instance at coordinates
+- `/rulegems tp <gemId>` Teleport to specified gem location
+- `/rulegems revoke <player>` Force revoke all gem permissions from a player (admin intervention)
 - `/rulegems reload` Reload configuration
-- `/rulegems rulers` Show current power holder
+- `/rulegems rulers` Show current power holders
 - `/rulegems gems` Show gem status
 - `/rulegems scatter` Scatter all gems randomly
-- `/rulegems redeem <key|name>` Redeem a single gem
+- `/rulegems redeem` Redeem single gem while holding it in main hand
 - `/rulegems redeemall` Redeem all at once when complete
+- `/rulegems history [lines] [player]` View gem history records
 
 ## Permissions
 - `rulegems.admin` Admin commands (default OP)

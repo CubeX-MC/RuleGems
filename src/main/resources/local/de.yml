@@ -48,7 +48,7 @@ messages:
       scatter: "&e/rulegems scatter &f- Verstreue Edelsteine"
       redeem: "&e/rulegems redeem &f- Einlösen mit Edelstein in der Haupt-Hand"
       redeemall: "&e/rulegems redeemall &f- Löse alle auf einmal ein"
-  history: "&e/rulegems history [Zeilen] [Spieler] &f- Zeige den Verlauf der Machtübertragungen"
+      history: "&e/rulegems history [Zeilen] [Spieler] &f- Zeige den Verlauf der Machtübertragungen"
       help: "&e/rulegems help &f- Zeige Hilfeinformationen"
       footer: "&a======================"
     history:
@@ -59,6 +59,10 @@ messages:
       recent_header: "&6========== Letzte &e%count% &6Verlaufs-Einträge =========="
       line: "&7%line%"
       separator: "&6=================================================="
+  allowance:
+    used: "%prefix% &aVerwendet &e/%command%&a, verbleibend &e%remain%&a mal."
+    none_left: "%prefix% &cDiese Befehl hat keine verbleibenden Versuche mehr."
+    execute_failed: "%prefix% &cBefehl fehlgeschlagen, verbleibende Versuche wurden zurückgegeben."
   inventory:
     drag_denied: "&c%prefix% Ruler Gem kann hier nicht abgelegt werden!"
     inventory_full: "&7%prefix% Inventar voll, Edelstein wurde platziert."

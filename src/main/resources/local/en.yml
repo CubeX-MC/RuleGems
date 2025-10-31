@@ -59,6 +59,10 @@ messages:
       recent_header: "&6========== Recent &e%count% &6power history entries =========="
       line: "&7%line%"
       separator: "&6=================================================="
+  allowance:
+    used: "%prefix% &aUsed &e/%command%&a, remaining &e%remain%&a times."
+    none_left: "%prefix% &cThis command has no remaining attempts."
+    execute_failed: "%prefix% &cCommand execution failed, attempts have been refunded."
   inventory:
     drag_denied: "&c%prefix% Cannot drag Power Gem here!"
     inventory_full: "&7%prefix% Inventory full, gem has been placed."

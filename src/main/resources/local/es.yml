@@ -59,6 +59,10 @@ messages:
       recent_header: "&6========== Últimas &e%count% &6entradas de historial =========="
       line: "&7%line%"
       separator: "&6=================================================="
+  allowance:
+    used: "%prefix% &aUsado &e/%command%&a, queda &e%remain%&a veces."
+    none_left: "%prefix% &cEsta comando no tiene más intentos."
+    execute_failed: "%prefix% &cEl comando no se ejecutó, se devolvieron los intentos restantes."
   inventory:
     drag_denied: "&c%prefix% ¡No puedes arrastrar una Ruler Gem aquí!"
     inventory_full: "&7%prefix% Inventario lleno, la gema ha sido colocada."

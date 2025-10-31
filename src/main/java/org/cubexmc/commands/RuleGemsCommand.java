@@ -98,7 +98,7 @@ public class RuleGemsCommand implements CommandExecutor {
                 return handlePlaceCommand(sender, args);
             case "revoke":
                 if (require(sender, "rulegems.admin")) return true;
-                return handleRevokeCommand(sender);
+                return handleRevokeCommand(sender, args);
             case "history":
                 if (require(sender, "rulegems.admin")) return true;
                 return handleHistoryCommand(sender, args);
@@ -122,7 +122,6 @@ public class RuleGemsCommand implements CommandExecutor {
     private void sendHelp(CommandSender sender) {
         languageManager.sendMessage(sender, "command.help.header");
         languageManager.sendMessage(sender, "command.help.place");
-        // Optional: add help for tp if language exists
         languageManager.sendMessage(sender, "command.help.revoke");
         languageManager.sendMessage(sender, "command.help.reload");
         languageManager.sendMessage(sender, "command.help.rulers");
@@ -269,20 +268,47 @@ public class RuleGemsCommand implements CommandExecutor {
         return true;
     }
 
-    private boolean handleRevokeCommand(CommandSender sender) {
-        if (gemManager.getPowerPlayer() == null) {
-            languageManager.sendMessage(sender, "command.revoke.no_power_player");
+    private boolean handleRevokeCommand(CommandSender sender, String[] args) {
+        // /rulegems revoke <player> - 强制撤销指定玩家的所有宝石权限
+        if (args.length < 2) {
+            languageManager.sendMessage(sender, "command.revoke.usage");
             return true;
         }
-        gemManager.revokePermission(sender);
+        
+        String targetName = args[1];
+        Player targetPlayer = Bukkit.getPlayer(targetName);
+        
+        if (targetPlayer == null) {
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("player", targetName);
+            languageManager.sendMessage(sender, "command.revoke.player_not_found", placeholders);
+            return true;
+        }
+        
+        // 调用 GemManager 撤销该玩家的所有权限
+        boolean revoked = gemManager.revokeAllPlayerPermissions(targetPlayer);
+        
+        if (!revoked) {
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("player", targetPlayer.getName());
+            languageManager.sendMessage(sender, "command.revoke.no_permissions", placeholders);
+            return true;
+        }
+        
         Map<String, String> placeholders = new HashMap<>();
-        placeholders.put("player", gemManager.getPowerPlayer().getName());
+        placeholders.put("player", targetPlayer.getName());
         languageManager.sendMessage(sender, "command.revoke.success", placeholders);
         
-        // 显示权限收回的标题
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            languageManager.showTitle(player, "power_revoked", placeholders);
+        // 向目标玩家发送通知
+        languageManager.sendMessage(targetPlayer, "command.revoke.revoked_notice");
+        
+        // 全服广播（可选）
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            if (online.hasPermission("rulegems.admin")) {
+                languageManager.sendMessage(online, "command.revoke.broadcast", placeholders);
+            }
         }
+        
         return true;
     }
 

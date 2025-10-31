@@ -1,73 +1,63 @@
+# ==========================================
 # RuleGems 插件配置
-# RuleGems configuration
+# ==========================================
 
-# 语言设置
-# Language selection
-# 可选值: zh (中文), en (英语), ru (俄语), es (西班牙语)
-# Available values: zh (Chinese), en (English), ru (Russian), es (Spanish)
+# 语言设置 (zh/en/ru/es/de)
 language: zh
 
-# (已弃用) 通过指定坐标放置开启权限的机制已移除
-# (Deprecated) Location-based activation system has been removed
-
-# 随机生成的范围
-# Random placement range
+# 宝石随机生成范围
 random_place_range:
   world: world
-  corner1:
-    x: -100
-    y: 160
-    z: -100
-  corner2:
-    x: 100
-    y: 30
-    z: 100
+  corner1: { x: -100, y: 160, z: -100 }
+  corner2: { x: 100, y: 30, z: 100 }
 
-# 全局开关
-# Global toggles
+# 全局设置
 toggles:
-  # 兑换后是否向全服广播标题
-  # Whether to broadcast the title server-wide after redemption
-  broadcast_redeem_title: true
+  broadcast_redeem_title: true  # 兑换后是否向全服广播
 
-# 标题与特效配置
-# Title and effect configuration
-titles:
-  # 集齐全部宝石后（redeemall）的展示配置
-  # Display settings when all gems are collected (redeemall)
-  redeem_all:
-    # 是否向全服广播标题（默认继承 toggles.broadcast_redeem_title）
-    # Whether to broadcast the title server-wide (inherits toggles.broadcast_redeem_title by default)
-    broadcast: true
-    # 标题文本（1-2 行）
-    # Title text (1-2 lines)
-    titles:
-      - "&a%player% 集齐了全部宝石！"
-      - "&e获得了至高权力！"
-    # 全局音效（默认 ENTITY_ENDER_DRAGON_GROWL）
-    # Global sound (default ENTITY_ENDER_DRAGON_GROWL)
-    sound: ENTITY_ENDER_DRAGON_GROWL
+# 集齐全部宝石后的奖励配置
+redeem_all:
+  broadcast: true
+  titles:
+    - "&a%player% 集齐了全部宝石！"
+    - "&e获得了至高权力！"
+  sound: ENTITY_ENDER_DRAGON_GROWL
+  permissions: []  # 额外授予的永久权限
+  # 集齐后额外授予的限次自定义指令
+  # command_allows 格式说明：
+  #   - command: 玩家输入的命令
+  #     execute: 实际执行的命令列表（支持 console: 或 player-op: 前缀）
+  #     time_limit: 可用次数（-1=无限）
+  #     cooldown: 冷却时间（秒）
+  # 占位符：%player%=玩家名, %arg1%=第1个参数, %arg2|默认%=第2个参数或默认值
+  command_allows: []
 
-# 每颗宝石的自定义定义（必填）。若存在，将自动设置 required_count。
-# Custom definitions for each gem (required). When present, required_count is set automatically.
-# 推荐使用“映射”形式（也兼容列表形式）
-# Mapping style is recommended (list format is also supported)
+# ==========================================
+# 宝石定义
+# ==========================================
 gems:
-  justice:                   # 正义之石：原版指令相关权限示例 (Justice Gem: Example vanilla command permissions)
+  # 正义宝石 - 限制5次的jail指令
+  justice:
     material: AMETHYST_BLOCK
-    name: "&5秘律宝石"
+    name: "&d正义宝石"
+    count: 1
+    mutual_exclusive: []
     lore:
-      - "&d/kill"
-      - "&d/effect"
-      - "&d/clear"
-    enchanted: true          # 是否让物品发光（隐藏附魔），用于与普通方块区分
-    redeem_title: ["&d%player% 兑换了秘律宝石", "&e秩序由你维护！"]
+      - "&e可用指令:"
+      - "&a/rgjail <玩家> [监狱] [时长]"
+      - "&7使用次数: &c5次"
+      - "&7冷却时间: &660秒"
+    enchanted: true
+    redeem_title: ["&d%player% 兑换了正义宝石", "&e正义由你守护！"]
     particle: ENCHANTMENT_TABLE
     sound: BLOCK_AMETHYST_BLOCK_RESONATE
-    permissions:
-      - "minecraft.command.kill"
-      - "minecraft.command.effect"
-      - "minecraft.command.clear"
+    permissions: []
+    command_allows:
+      - command: "/rgjail"
+        execute:
+          - "console:cmi jail %arg1% %arg2|jailed% %arg3|5m%"
+        time_limit: 5
+        cooldown: 60
     on_pickup:
       commands: []
       sound: BLOCK_AMETHYST_BLOCK_RESONATE
@@ -81,105 +71,131 @@ gems:
       sound: ENTITY_ENDER_DRAGON_GROWL
       particle: DRAGON_BREATH
 
-  wealth:                    # 财富之石：原版资源相关权限示例 (Wealth Gem: Example vanilla resource commands)
-    material: NETHERITE_BLOCK
-    name: "&8财富宝石"
+  # 真相宝石 - CoreProtect检查权限
+  truth:
+    material: DIAMOND_BLOCK
+    name: "&b真相宝石"
+    count: 1
+    mutual_exclusive: []
     lore:
-      - "&6/give"
-      - "&6/xp"
-      - "&6/enchant"
+      - "&e授予权限:"
+      - "&a/co inspect &7- 检查模式"
+      - "&a/co lookup &7- 查询记录"
+      - "&7使用次数: &a无限"
     enchanted: true
-    redeem_title: ["&8%player% 兑换了财富宝石", "&e万象财富向你汇聚！"]
-    particle: END_ROD
+    redeem_title: ["&b%player% 兑换了真相宝石", "&e真相将为你揭晓！"]
+    particle: GLOW
+    sound: BLOCK_SCULK_SENSOR_CLICKING
+    permissions:
+      - "coreprotect.inspect"
+      - "coreprotect.lookup"
+    command_allows: []
+    on_pickup:
+      commands: []
+      sound: BLOCK_SCULK_SENSOR_CLICKING
+      particle: GLOW
+    on_scatter:
+      commands: []
+      sound: ENTITY_ALLAY_DEATH
+      particle: SOUL
+    on_redeem:
+      commands: []
+      sound: BLOCK_BEACON_ACTIVATE
+      particle: END_ROD
+
+  # 飞行宝石 - 限次Console执行的限时飞行
+  flight:
+    material: QUARTZ_BLOCK
+    name: "&e飞行宝石"
+    count: 1
+    mutual_exclusive: []
+    lore:
+      - "&e可用指令:"
+      - "&a/tempfly &7- 60秒飞行"
+      - "&7使用次数: &c3次"
+      - "&7冷却时间: &6300秒"
+    enchanted: true
+    redeem_title: ["&e%player% 兑换了飞行宝石", "&b展翅翱翔！"]
+    particle: CLOUD
+    sound: ENTITY_ENDER_DRAGON_FLAP
+    permissions: []
+    command_allows:
+      - command: "/tempfly"
+        execute:
+          - "console:cmi tfly %player% 60"
+          - "console:tellraw %player% {\"text\":\"✈ 你获得了60秒飞行时间！\",\"color\":\"green\"}"
+        time_limit: 3
+        cooldown: 300
+    on_pickup:
+      commands: []
+      sound: ENTITY_ENDER_DRAGON_FLAP
+      particle: CLOUD
+    on_scatter:
+      commands: []
+      sound: ENTITY_PHANTOM_DEATH
+      particle: POOF
+    on_redeem:
+      commands: []
+      sound: ENTITY_BAT_TAKEOFF
+      particle: FIREWORK
+
+  # 生命宝石 - Heal权限
+  life:
+    material: REDSTONE_BLOCK
+    name: "&c生命宝石"
+    count: 1
+    mutual_exclusive: []
+    lore:
+      - "&e授予权限:"
+      - "&a/heal &7- 恢复生命值"
+      - "&7使用次数: &a无限"
+    enchanted: true
+    redeem_title: ["&c%player% 兑换了生命宝石", "&e生命之力流淌全身！"]
+    particle: HEART
     sound: BLOCK_BEACON_POWER_SELECT
     permissions:
-      - "minecraft.command.give"
-      - "minecraft.command.xp"
-      - "minecraft.command.enchant"
+      - "cmi.command.heal"
+    command_allows: []
     on_pickup:
       commands: []
       sound: BLOCK_BEACON_POWER_SELECT
-      particle: END_ROD
+      particle: HEART
     on_scatter:
       commands: []
-      sound: ENTITY_GUARDIAN_CURSE
+      sound: ENTITY_ZOMBIE_VILLAGER_DEATH
+      particle: DAMAGE_INDICATOR
+    on_redeem:
+      commands: []
+      sound: ENTITY_PLAYER_LEVELUP
       particle: TOTEM
-    on_redeem:
-      commands: []
-      sound: BLOCK_END_PORTAL_SPAWN
-      particle: FIREWORK
 
-  resonance:                 # 回响之石：原版空间控制权限示例 (Resonance Gem: Example vanilla spatial commands)
-    material: SCULK_CATALYST
-    name: "&3空间宝石"
-    lore:
-      - "&3/tp"
-      - "&3/spreadplayers"
-      - "&3/setworldspawn"
-    enchanted: true
-    redeem_title: ["&3%player% 兑换了空间宝石", "&b自由穿梭！"]
-    particle: SONIC_BOOM
-    sound: ENTITY_WARDEN_SONIC_BOOM
-    permissions:
-      - "minecraft.command.teleport"
-      - "minecraft.command.spreadplayers"
-      - "minecraft.command.setworldspawn"
-    on_pickup:
-      commands: []
-      sound: ENTITY_WARDEN_SONIC_BOOM
-      particle: SONIC_BOOM
-    on_scatter:
-      commands: []
-      sound: ENTITY_ENDER_DRAGON_FLAP
-      particle: REVERSE_PORTAL
-    on_redeem:
-      commands: []
-      sound: MUSIC_DISC_OTHERSIDE
-      particle: SNEEZE
+# ==========================================
+# 全局事件配置
+# ==========================================
 
-# 权力强制回收（宝石位置不变)
-# Forced power revocation (gem positions unchanged)
+# 权力强制回收
 revoke_power:
-  # 权力强制回收时执行的命令
-  # Commands executed during forced power revocation
   commands:
-    - "say §c%player% 的权力宝石被强制回收！"
-  # 权力强制回收时执行的音效
-  # Sound played during forced power revocation
+    - "say §c%player% 的权力被强制回收！"
   sound: ENTITY_ENDERMAN_TELEPORT
-  # 权力强制回收时执行的粒子效果
-  # Particle effect used during forced power revocation
   particle: FLAME
 
-# 宝石集齐执行
-# Actions when all gems are united
+# 宝石集齐时触发
 gem_union_execute:
-  # 宝石集齐时执行的命令
-  # Commands executed when all gems are collected
   commands:
-    - "give %player% diamond 5"
-  # 宝石集齐时执行的音效
-  # Sound played when all gems are collected
-  sound: ENTITY_ENDERMAN_TELEPORT
-  # 宝石集齐时执行的粒子效果
-  # Particle effect used when all gems are collected
-  particle: FLAME
+    - "say §a%player% 集齐了所有宝石！"
+  sound: ENTITY_PLAYER_LEVELUP
+  particle: TOTEM
 
-# 宝石散落时执行
-# Actions when gems scatter
+# 宝石散落时触发
 gem_scatter_execute:
-  # 宝石散落时执行的命令
-  # Commands executed when gems scatter
   commands:
-    - "say 权力宝石散落了！"
-    - "deop %player%"
-  # 宝石散落时执行的音效
-  # Sound played when gems scatter
-  sound: ENTITY_ENDERMAN_TELEPORT
+    - "say §c权力宝石散落了！"
+  sound: ENTITY_WITHER_SPAWN
+  particle: EXPLOSION
 
 # 授权策略
-# Grant policy
 grant_policy:
-  inventory_grants: false       # 背包即生效（true 开启） / Activate on inventory pickup (set true to enable)
-  redeem_enabled: true         # 是否允许 /rulegems redeem* / Allow /rulegems redeem* commands
-  full_set_grants_all: true    # 是否允许集齐后一次性生效（配合 redeemall） / Allow granting all at once after full set (with redeemall)
+  inventory_grants: false      # 拾取后立即生效
+  redeem_enabled: true         # 允许使用 /rulegems redeem 兑换
+  full_set_grants_all: true    # 允许使用 /rulegems redeemall 一次性兑换全部

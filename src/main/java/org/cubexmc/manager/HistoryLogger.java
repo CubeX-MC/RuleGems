@@ -281,10 +281,4 @@ public class HistoryLogger {
         return history;
     }
     
-    /**
-     * 获取日志目录路径
-     */
-    public File getLogsDirectory() {
-        return logsDirectory;
-    }
 }

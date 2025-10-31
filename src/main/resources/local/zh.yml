@@ -59,6 +59,10 @@ messages:
       recent_header: "&6========== 最近 &e%count% &6条权限更迭记录 =========="
       line: "&7%line%"
       separator: "&6=================================================="
+  allowance:
+    used: "%prefix% &a已使用 &e/%command%&a，剩余 &e%remain%&a 次。"
+    none_left: "%prefix% &c该指令已无剩余次数。"
+    execute_failed: "%prefix% &c指令执行失败，已为你退回次数。"
   inventory:
     drag_denied: "&c%prefix% 不能将 Ruler Gem 拖拽到此处！"
     inventory_full: "&7%prefix% 检查背包已满, 宝石被放置。"
