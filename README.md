@@ -14,14 +14,14 @@
 - 所有 `/rulegems ...` 命令均可用别名 `/rg ...`（见 plugin.yml 的 `aliases: [rg]`）
 - `/rulegems place <gemId> <x|~> <y|~> <z|~>` 将指定宝石实例放置到坐标
 - `/rulegems tp <gemId>` 传送到指定宝石位置
-- `/rulegems revoke <玩家>` 强制撤销指定玩家的所有宝石权限（管理员干预）
+- `/rulegems revoke <玩家>` 强制清理指定玩家的宝石权限与限次额度（管理员干预）。若启用了 `inventory_grants` 且玩家仍持有宝石，下一次背包重算时权限会再次授予。
 - `/rulegems reload` 重载配置
 - `/rulegems rulers` 查看当前权力持有者
 - `/rulegems gems` 查看宝石状态
-- `/rulegems scatter` 随机散布全部宝石
+- `/rulegems scatter` 收回所有宝石并随机散布
 - `/rulegems redeem` 主手持宝石时兑换单颗
-- `/rulegems redeemall` 集齐后一次性兑换
-- `/rulegems history [行数] [玩家名]` 查看宝石历史记录
+- `/rulegems redeemall` 集齐所有种类后一次性兑换
+- `/rulegems history [行数] [玩家名]` 查看宝石历史记录，可选过滤玩家
 
 ## 权限
 - `rulegems.admin` 管理指令（默认 OP）
@@ -30,7 +30,7 @@
 - `rulegems.rulers` 查看当前持有者（默认 true）
 
 ## 兼容性
-- 服务器：Spigot/Paper 1.16+；Folia 兼容
+- 服务器：Spigot / Paper 1.16+；兼容 Folia
 - 可选依赖：Vault（权限后端）
 
 ## 逻辑
@@ -63,18 +63,19 @@
 - 每颗宝石唯一：每件宝石有独立 UUID（实例级归属），可通过 `/rulegems place <gemId> ...` 精确放置。
 - 每类宝石数量：`gems.<key>.count: <int>`，散落与补齐按 count 生成；“集齐种类”判定为每个 key 至少 1 件。
 - 互斥：`gems.<key>.mutual_exclusive: [otherKey, ...]`；仅在 inventory_grants 与 redeem 生效，redeem_all 忽略互斥。
-- 限次指令：`gems.<key>.command_allows` 支持两种写法：
+- 限次指令：`gems.<key>.command_allows` 支持映射与列表两种写法：
   - 映射：`command_allows.<label>: <uses>`（如 `fly: 3`）
   - 列表：`- { commands: "/fly"|[...], time_limit: <uses> }`
-  - 特殊值：`time_limit: -1` 表示无限次（使用不扣减）。
+  - 特殊值：`time_limit: -1` 表示无限次（使用不扣减）；`redeem_all.command_allows` 采用相同语法，额度记录在虚拟 key `ALL` 下。
 - 持有与扣减：
-  - 开启 inventory_grants 时：执行限次指令要求当前持有对应类型宝石，并从该类型额度中扣减；
-  - redeem_all 的额外限次归入特殊 key `ALL`，不要求持有即可使用。
+  - 开启 inventory_grants 时：执行限次指令要求当前持有对应类型宝石，并按该类型额度扣减；
+  - `redeem_all` 额外限次不要求持有，对应 key 始终为 `ALL`。
 - 发放与撤回（按类型计数）：
   - 某玩家对某类型从 0→1 件时：发放该类型权限/组，并初始化限次额度（若已存在额度记录则延续剩余，不重置）。
   - 从 1→0 件时：撤回该类型权限/组，并删除该类型限次额度记录。
 - redeem_all 额外特权：根级 `redeem_all` 节支持：
   - `broadcast/titles/sound`（已从旧 `titles.redeem_all` 扁平化）
-  - `permissions`: 仅在 `redeemall` 成功时授予的额外权限
-  - `command_allows`: 仅在 `redeemall` 成功时授予的额外限次指令（语法同上）
+  - `permissions`: `redeemall` 成功时的额外权限
+  - `command_allows`: `redeemall` 成功时的额外限次指令（语法同上）
+- 与 Vault 配合时，权限组的授予 / 撤销通过当前权限后端执行。
 
