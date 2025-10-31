@@ -1,6 +1,6 @@
 # RuleGems
 
-[English](README_en.md)|中文<br>
+[English](README_en.md) | 中文<br>
 [Discord](https://discord.com/invite/7tJeSZPZgv) | [QQ频道](https://pd.qq.com/s/1n3hpe4e7?b=9)
 
 一个用"宝石收集"来流转玩家权限的轻量插件，支持 Folia 与多版本。
