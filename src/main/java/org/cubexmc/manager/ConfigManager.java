@@ -16,6 +16,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.cubexmc.RuleGems;
 import org.cubexmc.model.ExecuteConfig;
 import org.cubexmc.model.GemDefinition;
+import org.cubexmc.update.ConfigUpdater;
 
 public class ConfigManager {
     private final RuleGems plugin;
@@ -56,7 +57,12 @@ public class ConfigManager {
 
     public void loadConfigs() {
         plugin.saveDefaultConfig();
+        ConfigUpdater.merge(plugin);
+        plugin.reloadConfig();
         this.config = plugin.getConfig();
+        
+        // 确保 gems 文件夹存在并复制默认配置
+        initGemsFolder();
         
         this.language = plugin.getConfig().getString("language", "zh");
 
@@ -136,9 +142,21 @@ public class ConfigManager {
 
     private void loadGemDefinitions() {
         this.gemDefinitions.clear();
-        // 优先使用映射形式（推荐）
+        
+        // 优先从 gems 文件夹加载
+        File gemsFolder = new File(plugin.getDataFolder(), "gems");
+        if (gemsFolder.exists() && gemsFolder.isDirectory()) {
+            loadGemsFromFolder(gemsFolder);
+            if (!this.gemDefinitions.isEmpty()) {
+                plugin.getLogger().info("从 gems 文件夹加载了 " + this.gemDefinitions.size() + " 个宝石配置");
+                return;
+            }
+        }
+        
+        // 兼容旧配置：从 config.yml 读取
         ConfigurationSection sec = this.config.getConfigurationSection("gems");
         if (sec != null) {
+            plugin.getLogger().warning("检测到旧版配置格式！建议将宝石配置迁移到 gems 文件夹");
             for (String key : sec.getKeys(false)) {
                 ConfigurationSection sub = sec.getConfigurationSection(key);
                 java.util.Map<String, Object> m = new java.util.HashMap<>();
@@ -152,9 +170,11 @@ public class ConfigManager {
             }
             return;
         }
+        
         // 兼容列表形式
         java.util.List<java.util.Map<?, ?>> list = this.config.getMapList("gems");
         if (list != null && !list.isEmpty()) {
+            plugin.getLogger().warning("检测到旧版列表配置格式！建议将宝石配置迁移到 gems 文件夹");
             int index = 0;
             for (java.util.Map<?, ?> map : list) {
                 Object keyObj = map.get("key");
@@ -163,6 +183,54 @@ public class ConfigManager {
                 this.gemDefinitions.add(def);
                 index++;
             }
+        }
+    }
+    
+    /**
+     * 递归加载 gems 文件夹中的所有 .yml 文件
+     */
+    private void loadGemsFromFolder(File folder) {
+        File[] files = folder.listFiles();
+        if (files == null) return;
+        
+        for (File file : files) {
+            if (file.isDirectory()) {
+                // 递归加载子文件夹
+                loadGemsFromFolder(file);
+            } else if (file.isFile() && file.getName().toLowerCase().endsWith(".yml")) {
+                // 加载 yml 文件
+                loadGemsFromFile(file);
+            }
+        }
+    }
+    
+    /**
+     * 从单个 yml 文件加载宝石配置
+     */
+    private void loadGemsFromFile(File file) {
+        try {
+            YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+            
+            // 遍历文件中的所有顶级键
+            for (String gemKey : yaml.getKeys(false)) {
+                ConfigurationSection gemSection = yaml.getConfigurationSection(gemKey);
+                if (gemSection == null) continue;
+                
+                // 转换为 Map
+                java.util.Map<String, Object> gemMap = new java.util.HashMap<>();
+                for (String key : gemSection.getKeys(false)) {
+                    gemMap.put(key, gemSection.get(key));
+                }
+                
+                // 构建宝石定义
+                GemDefinition def = buildGemDefinitionFromMap(gemKey, gemMap);
+                this.gemDefinitions.add(def);
+                
+                plugin.getLogger().info("从文件 " + file.getName() + " 加载宝石: " + gemKey);
+            }
+        } catch (Exception e) {
+            plugin.getLogger().severe("加载宝石配置文件 " + file.getName() + " 失败: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -238,8 +306,49 @@ public class ConfigManager {
         if (cObj != null) {
             try { count = Integer.parseInt(String.valueOf(cObj)); } catch (Exception ignored) {}
         }
+        
+        // 解析宝石特定的随机生成范围（可选）
+        Location corner1 = null;
+        Location corner2 = null;
+        Object rangeObj = map.get("random_place_range");
+        if (rangeObj instanceof java.util.Map) {
+            java.util.Map<?, ?> rangeMap = (java.util.Map<?, ?>) rangeObj;
+            String worldName = stringOf(rangeMap.get("world"));
+            if (worldName != null && !worldName.isEmpty()) {
+                World world = Bukkit.getWorld(worldName);
+                if (world != null) {
+                    Object c1Obj = rangeMap.get("corner1");
+                    Object c2Obj = rangeMap.get("corner2");
+                    if (c1Obj instanceof java.util.Map && c2Obj instanceof java.util.Map) {
+                        corner1 = parseLocationFromMap((java.util.Map<?, ?>) c1Obj, world);
+                        corner2 = parseLocationFromMap((java.util.Map<?, ?>) c2Obj, world);
+                    }
+                } else {
+                    plugin.getLogger().warning("宝石 " + gemKey + " 的生成范围配置中找不到世界: " + worldName);
+                }
+            }
+        }
 
-        return new GemDefinition(gemKey, material, displayName, particle, sound, onPickup, onScatter, onRedeem, perms, group, lore, redeemTitle, enchanted, allowed, mutex, count);
+        return new GemDefinition(gemKey, material, displayName, particle, sound, onPickup, onScatter, onRedeem, perms, group, lore, redeemTitle, enchanted, allowed, mutex, count, corner1, corner2);
+    }
+    
+    /**
+     * 从 Map 解析 Location（仅坐标，世界已知）
+     */
+    private Location parseLocationFromMap(java.util.Map<?, ?> map, World world) {
+        try {
+            double x = 0, y = 0, z = 0;
+            Object xObj = map.get("x");
+            Object yObj = map.get("y");
+            Object zObj = map.get("z");
+            if (xObj != null) x = Double.parseDouble(String.valueOf(xObj));
+            if (yObj != null) y = Double.parseDouble(String.valueOf(yObj));
+            if (zObj != null) z = Double.parseDouble(String.valueOf(zObj));
+            return new Location(world, x, y, z);
+        } catch (Exception e) {
+            plugin.getLogger().warning("解析 Location 失败: " + e.getMessage());
+            return null;
+        }
     }
 
     private java.util.List<org.cubexmc.model.AllowedCommand> parseAllowedCommands(Object allowsObj) {
@@ -298,11 +407,33 @@ public class ConfigManager {
         return java.util.Collections.singletonList(String.valueOf(o));
     }
 
+    /**
+     * 初始化 gems 文件夹并复制默认配置
+     */
+    private void initGemsFolder() {
+        File gemsFolder = new File(plugin.getDataFolder(), "gems");
+        if (!gemsFolder.exists()) {
+            gemsFolder.mkdirs();
+            plugin.getLogger().info("创建 gems 文件夹");
+        }
+        
+        // 复制默认的 gems.yml 文件
+        File defaultGemsFile = new File(gemsFolder, "gems.yml");
+        if (!defaultGemsFile.exists()) {
+            try {
+                plugin.saveResource("gems/gems.yml", false);
+                plugin.getLogger().info("创建默认宝石配置文件: gems/gems.yml");
+            } catch (Exception e) {
+                plugin.getLogger().warning("无法复制默认 gems.yml 文件: " + e.getMessage());
+            }
+        }
+    }
+    
     public void initGemFile() {
-        gemsFile = new File(this.plugin.getDataFolder(), "rulegems.yml");
+        gemsFile = new File(this.plugin.getDataFolder(), "data.yml");
         if (!gemsFile.exists()) {
             gemsFile.getParentFile().mkdirs();
-            this.plugin.saveResource("rulegems.yml", false);
+            this.plugin.saveResource("data.yml", false);
         }
     }
 
@@ -329,7 +460,6 @@ public class ConfigManager {
     }
 
     public void reloadConfigs() {
-        plugin.reloadConfig();
         loadConfigs();
     }
 
@@ -379,4 +509,41 @@ public class ConfigManager {
     public String getRedeemAllSound() { return redeemAllSound; }
     public java.util.List<String> getRedeemAllPermissions() { return redeemAllPermissions; }
     public java.util.List<org.cubexmc.model.AllowedCommand> getRedeemAllAllowedCommands() { return redeemAllAllowed; }
+
+    /**
+     * Collect every configured allowed-command label for proxy registration.
+     */
+    public java.util.Set<String> collectAllowedCommandLabels() {
+        java.util.Set<String> labels = new java.util.LinkedHashSet<>();
+        if (gemDefinitions != null) {
+            for (GemDefinition def : gemDefinitions) {
+                if (def == null || def.getAllowedCommands() == null) {
+                    continue;
+                }
+                for (org.cubexmc.model.AllowedCommand cmd : def.getAllowedCommands()) {
+                    if (cmd == null) {
+                        continue;
+                    }
+                    String label = cmd.getLabel();
+                    if (label == null || label.isEmpty()) {
+                        continue;
+                    }
+                    labels.add(label.toLowerCase(java.util.Locale.ROOT));
+                }
+            }
+        }
+        if (redeemAllAllowed != null) {
+            for (org.cubexmc.model.AllowedCommand cmd : redeemAllAllowed) {
+                if (cmd == null) {
+                    continue;
+                }
+                String label = cmd.getLabel();
+                if (label == null || label.isEmpty()) {
+                    continue;
+                }
+                labels.add(label.toLowerCase(java.util.Locale.ROOT));
+            }
+        }
+        return labels;
+    }
 }

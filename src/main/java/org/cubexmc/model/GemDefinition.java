@@ -2,6 +2,7 @@ package org.cubexmc.model;
 
 import java.util.List;
 
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -27,6 +28,8 @@ public class GemDefinition {
     private final java.util.List<AllowedCommand> allowedCommands; // 兑换后可用的受限指令
     private final java.util.List<String> mutualExclusive; // 互斥的 gemKey 列表
     private final int count; // 该类别宝石实例数量（默认 1）
+    private final Location randomPlaceCorner1; // 随机生成范围角落1（可选，null则使用全局默认）
+    private final Location randomPlaceCorner2; // 随机生成范围角落2（可选，null则使用全局默认）
 
     public GemDefinition(String gemKey,
                          Material material,
@@ -43,7 +46,9 @@ public class GemDefinition {
                          boolean enchanted,
                          java.util.List<AllowedCommand> allowedCommands,
                          java.util.List<String> mutualExclusive,
-                         int count) {
+                         int count,
+                         Location randomPlaceCorner1,
+                         Location randomPlaceCorner2) {
         this.gemKey = gemKey;
         this.material = material;
         this.displayName = displayName;
@@ -60,6 +65,8 @@ public class GemDefinition {
         this.allowedCommands = allowedCommands == null ? java.util.Collections.emptyList() : allowedCommands;
         this.mutualExclusive = mutualExclusive == null ? java.util.Collections.emptyList() : mutualExclusive;
         this.count = Math.max(1, count);
+        this.randomPlaceCorner1 = randomPlaceCorner1;
+        this.randomPlaceCorner2 = randomPlaceCorner2;
     }
 
     public String getGemKey() {
@@ -125,6 +132,16 @@ public class GemDefinition {
     public int getCount() {
         return count;
     }
+
+    public Location getRandomPlaceCorner1() {
+        return randomPlaceCorner1;
+    }
+
+    public Location getRandomPlaceCorner2() {
+        return randomPlaceCorner2;
+    }
 }
+
+
 
 

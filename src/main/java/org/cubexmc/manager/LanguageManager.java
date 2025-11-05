@@ -13,6 +13,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
 import org.cubexmc.RuleGems;
+import org.cubexmc.update.LanguageUpdater;
 import org.cubexmc.utils.SchedulerUtil;
 
 public class LanguageManager {
@@ -21,37 +22,68 @@ public class LanguageManager {
     private FileConfiguration langConfig;
     private String prefix;
 
+    private static final String[] BUNDLED_LANGUAGES = {"en_US", "zh_CN"};
+
     public LanguageManager(RuleGems plugin) {
         this.plugin = plugin;
     }
 
-    private void copyLangFileIfNotExists(String lang) {
-        File outFile = new File(plugin.getDataFolder(), "local/" + lang + ".yml");
+    private boolean copyLangFileIfNotExists(String lang) {
+        File outFile = new File(plugin.getDataFolder(), "lang/" + lang + ".yml");
         if (!outFile.exists()) {
             File parent = outFile.getParentFile();
             if (parent != null && !parent.exists()) {
                 parent.mkdirs();
             }
-            plugin.saveResource("local/" + lang + ".yml", false);
+            try (java.io.InputStream resource = plugin.getResource("lang/" + lang + ".yml")) {
+                if (resource != null) {
+                    // Close the probe stream before copying the resource again
+                } else {
+                    plugin.getLogger().warning("Bundled language file missing from jar: lang/" + lang + ".yml");
+                    return false;
+                }
+            } catch (java.io.IOException ignored) {
+            }
+            plugin.saveResource("lang/" + lang + ".yml", false);
+        }
+        return true;
+    }
+
+    private void ensureLanguageUpdated(String lang) {
+        if (!copyLangFileIfNotExists(lang)) {
+            return;
+        }
+    File langFile = new File(plugin.getDataFolder(), "lang/" + lang + ".yml");
+    LanguageUpdater.merge(plugin, langFile, "lang/" + lang + ".yml");
+    }
+
+    public void updateBundledLanguages() {
+        for (String lang : BUNDLED_LANGUAGES) {
+            ensureLanguageUpdated(lang);
         }
     }
 
     public void loadLanguage() {
         // reread language from config.yml
-        this.language = plugin.getConfig().getString("language", "zh");
+    this.language = plugin.getConfig().getString("language", "zh_CN");
+        ensureLanguageUpdated(language);
         loadLangConfig(language);
         if (langConfig == null) {
-            this.language = "zh";
-            copyLangFileIfNotExists("zh");
-            loadLangConfig("zh");
+            this.language = "zh_CN";
+            if (copyLangFileIfNotExists("zh_CN")) {
+                ensureLanguageUpdated("zh_CN");
+                loadLangConfig("zh_CN");
+            }
         }
-    this.prefix = langConfig.getString("prefix", "&7[&6RuleGems&7] ");
+        this.prefix = langConfig != null ? langConfig.getString("prefix", "&7[&6RuleGems&7] ") : "&7[&6RuleGems&7] ";
     }
 
     private void loadLangConfig(String lang) {
         // Ensure the requested language file exists; then load it
-        copyLangFileIfNotExists(lang);
-        File langFile = new File(plugin.getDataFolder(), "local/" + lang + ".yml");
+        if (!copyLangFileIfNotExists(lang)) {
+            return;
+        }
+    File langFile = new File(plugin.getDataFolder(), "lang/" + lang + ".yml");
         if (langFile.exists()) {
             this.langConfig = YamlConfiguration.loadConfiguration(langFile);
         }
@@ -83,15 +115,19 @@ public class LanguageManager {
         String message = getMessage(path, lang);
         message = formatText(message, placeholders);
         // 替换前缀
-        if (message != null)
+        if (message != null && prefix != null)
             message = message.replace("%prefix%", prefix);
         return message;
     }
 
     public String formatText(String message, Map<String, String> placeholders) {
-        if (placeholders != null) {
+        if (placeholders != null && message != null) {
             for (String key : placeholders.keySet()) {
-                message = message.replace("%" + key + "%", placeholders.get(key));
+                String value = placeholders.get(key);
+                if (value == null) {
+                    continue;
+                }
+                message = message.replace("%" + key + "%", value);
             }
         }
         return message;
@@ -117,10 +153,17 @@ public class LanguageManager {
     }
 
     public void logMessage(String path, Map<String, String> placeholders) {
-        Logger logger = plugin.getLogger();
         String key = path.startsWith("logger.") ? path : ("logger." + path);
         String message = formatMessage(key, placeholders);
-        logger.info(translateColorCodes(message));
+        if (message == null) {
+            return;
+        }
+        if (plugin.getServer() != null && plugin.getServer().getConsoleSender() != null) {
+            plugin.getServer().getConsoleSender().sendMessage(translateColorCodes(message));
+            return;
+        }
+        Logger logger = plugin.getLogger();
+        logger.info(ChatColor.stripColor(translateColorCodes(message)));
     }
 
     /**

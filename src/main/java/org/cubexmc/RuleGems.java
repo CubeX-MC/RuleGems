@@ -1,6 +1,9 @@
 package org.cubexmc;
 
 import static org.bukkit.Bukkit.getPluginManager;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandMap;
+import org.bukkit.command.SimpleCommandMap;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import org.cubexmc.commands.RuleGemsTabCompleter;
@@ -18,6 +21,14 @@ import org.cubexmc.utils.EffectUtils;
 import org.cubexmc.utils.SchedulerUtil;
 import net.milkbowl.vault.permission.Permission;
 
+import java.lang.reflect.Field;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
 /**
  * RuleGems 插件主类
  */
@@ -31,23 +42,27 @@ public class RuleGems extends JavaPlugin {
     private HistoryLogger historyLogger;
     private org.cubexmc.manager.CustomCommandExecutor customCommandExecutor;
     private Permission vaultPerms;
+    @SuppressWarnings("unused")
     private Metrics metrics;
+    private CommandAllowanceListener commandAllowanceListener;
+    private final Map<String, org.cubexmc.commands.AllowedCommandProxy> proxyCommands = new HashMap<>();
+    private CommandMap cachedCommandMap;
 
     @Override
     public void onEnable() {
         // 初始化配置管理器
 
         this.configManager = new ConfigManager(this);
-        this.languageManager = new LanguageManager(this);
-        this.effectUtils = new EffectUtils(this);
-        this.historyLogger = new HistoryLogger(this);
-        this.customCommandExecutor = new org.cubexmc.manager.CustomCommandExecutor(this);
-//        this.configManager.loadConfigs();   // 读 config.yml, rulergem.yml
+    this.languageManager = new LanguageManager(this);
+    this.effectUtils = new EffectUtils(this);
+    this.historyLogger = new HistoryLogger(this, languageManager);
+    this.customCommandExecutor = new org.cubexmc.manager.CustomCommandExecutor(this, languageManager);
+//        this.configManager.loadConfigs();   // 读 config.yml, data.yml
         this.gemManager = new GemManager(this, configManager, effectUtils, languageManager);
         this.gemManager.setHistoryLogger(historyLogger);
 
-        this.metrics = new Metrics(this, 27483);
-        loadPlugin();
+    this.metrics = new Metrics(this, 27483);
+    loadPlugin();
 
         // 注册命令
         RuleGemsCommand ruleGemsCommand = new RuleGemsCommand(this, gemManager, configManager, languageManager);
@@ -62,7 +77,8 @@ public class RuleGems extends JavaPlugin {
         getPluginManager().registerEvents(new GemPlaceListener(this, gemManager), this);
         getPluginManager().registerEvents(new GemInventoryListener(gemManager, languageManager), this);
         getPluginManager().registerEvents(new PlayerEventListener(this, gemManager), this);
-        getPluginManager().registerEvents(new CommandAllowanceListener(gemManager, languageManager, configManager, customCommandExecutor), this);
+        this.commandAllowanceListener = new CommandAllowanceListener(gemManager, languageManager, customCommandExecutor);
+        getPluginManager().registerEvents(commandAllowanceListener, this);
         // Setup Vault permissions (optional)
         if (getServer().getPluginManager().getPlugin("Vault") != null) {
             try {
@@ -75,7 +91,7 @@ public class RuleGems extends JavaPlugin {
 
         SchedulerUtil.globalRun(
                 this,
-                () -> gemManager.checkPlayersNearRulerGems(),
+                () -> gemManager.checkPlayersNearRuleGems(),
                 20L,
                 20L
         );
@@ -91,13 +107,19 @@ public class RuleGems extends JavaPlugin {
                 20L * 60 * 60
         );
 
-        // 取消依赖全局粒子设置；如需粒子展示可在 GemManager 内按 per-gem 自行实现
+    // 取消依赖全局粒子设置；如需粒子展示可在 GemManager 内按 per-gem 自行实现
 
-        languageManager.logMessage("plugin_enabled");
+    refreshAllowedCommandProxies();
+
+    languageManager.logMessage("plugin_enabled");
     }
 
     @Override
     public void onDisable() {
+        CommandMap map = getCommandMapSafely();
+        if (map != null) {
+            unregisterProxyCommands(map);
+        }
         gemManager.saveGems();
         languageManager.logMessage("plugin_disabled");
     }
@@ -107,9 +129,10 @@ public class RuleGems extends JavaPlugin {
      */
     public void loadPlugin() {
         saveDefaultConfig();
-        languageManager.loadLanguage();
         configManager.initGemFile();
         configManager.loadConfigs();
+        languageManager.updateBundledLanguages();
+        languageManager.loadLanguage();
         configManager.getGemsData();
         gemManager.loadGems();
         // 恢复已记录坐标的宝石方块材质，确保首次启动即可看到实体方块
@@ -125,5 +148,84 @@ public class RuleGems extends JavaPlugin {
     public HistoryLogger getHistoryLogger() { return historyLogger; }
     public org.cubexmc.manager.CustomCommandExecutor getCustomCommandExecutor() { return customCommandExecutor; }
     public Permission getVaultPerms() { return vaultPerms; }
+
+    public void refreshAllowedCommandProxies() {
+        CommandMap map = getCommandMapSafely();
+        if (map == null || commandAllowanceListener == null) {
+            return;
+        }
+        unregisterProxyCommands(map);
+        Set<String> configuredLabels = configManager.collectAllowedCommandLabels();
+        if (configuredLabels == null) {
+            configuredLabels = Collections.emptySet();
+        }
+
+        Set<String> registered = new HashSet<>();
+        Map<String, Command> known = getKnownCommands(map);
+        for (String label : configuredLabels) {
+            if (label == null || label.isEmpty()) {
+                continue;
+            }
+            String normalized = label.toLowerCase(Locale.ROOT);
+            Command existing = map.getCommand(normalized);
+            if (existing != null && !(existing instanceof org.cubexmc.commands.AllowedCommandProxy)) {
+                getLogger().warning("Skipping proxy registration for /" + normalized + " because another plugin already provides it.");
+                continue;
+            }
+
+            org.cubexmc.commands.AllowedCommandProxy proxy = new org.cubexmc.commands.AllowedCommandProxy(normalized, this, commandAllowanceListener);
+            map.register("rulegems", proxy);
+            proxyCommands.put(normalized, proxy);
+            registered.add(normalized);
+            if (known != null) {
+                known.put(normalized, proxy);
+                known.put("rulegems:" + normalized, proxy);
+            }
+        }
+        commandAllowanceListener.updateProxyLabels(registered);
+    }
+
+    private void unregisterProxyCommands(CommandMap map) {
+        if (proxyCommands.isEmpty()) {
+            return;
+        }
+        Map<String, Command> known = getKnownCommands(map);
+        for (org.cubexmc.commands.AllowedCommandProxy proxy : proxyCommands.values()) {
+            proxy.unregister(map);
+            if (known != null) {
+                known.remove(proxy.getName());
+                known.remove("rulegems:" + proxy.getName());
+            }
+        }
+        proxyCommands.clear();
+    }
+
+    private CommandMap getCommandMapSafely() {
+        if (cachedCommandMap != null) {
+            return cachedCommandMap;
+        }
+        try {
+            Field field = getServer().getClass().getDeclaredField("commandMap");
+            field.setAccessible(true);
+            cachedCommandMap = (CommandMap) field.get(getServer());
+        } catch (Exception ex) {
+            getLogger().warning("Unable to access Bukkit command map: " + ex.getMessage());
+        }
+        return cachedCommandMap;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Command> getKnownCommands(CommandMap map) {
+        if (!(map instanceof SimpleCommandMap)) {
+            return null;
+        }
+        try {
+            Field field = SimpleCommandMap.class.getDeclaredField("knownCommands");
+            field.setAccessible(true);
+            return (Map<String, Command>) field.get(map);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
 
 }

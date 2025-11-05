@@ -1,6 +1,8 @@
 prefix: "&7[&cRuleGems&7]&r"
 
 messages:
+  gem:
+    default_display_name: "&cRule Gem"
   command:
     no_permission: "&c%prefix% You don't have permission to execute this command!"
     usage: "&e%prefix% Usage: /rulegems <place|revoke|reload|rulers|gems|scatter|redeem|redeemall|help>"
@@ -48,21 +50,30 @@ messages:
       scatter: "&e/rulegems scatter &f- Scatter gems"
       redeem: "&e/rulegems redeem &f- Redeem while holding a gem in main hand"
       redeemall: "&e/rulegems redeemall &f- Redeem all at once when complete"
-      history: "&e/rulegems history [lines] [player] &f- View power transfer history"
+      history: "&e/rulegems history [page] [player] &f- View paged power transfer history"
       help: "&e/rulegems help &f- Show help information"
       footer: "&a======================"
     history:
       disabled: "&c%prefix% History logging is not enabled."
       no_records: "&e%prefix% No history records found."
       no_player_records: "&e%prefix% No history entries found for &f%player%&e."
-      player_header: "&6========== Power history for &e%player% &6(&e%count% &6entries) =========="
-      recent_header: "&6========== Recent &e%count% &6power history entries =========="
+      player_header: "&6===== &e%player%'s history &6(&e%page%&6/&e%pages%&6) &7[%count%/%total%] &6====="
+      recent_header: "&6===== Recent history &6(&e%page%&6/&e%pages%&6) &7[%count%/%total%] &6====="
+      page_out_of_range: "&e%prefix% No history entries on page %page%."
+      page_nav_previous: "&a<< Prev"
+      page_nav_previous_disabled: "&7<< Prev"
+      page_nav_next: "&aNext >>"
+      page_nav_next_disabled: "&7Next >>"
+      page_nav_hover: "&eClick to view page %page%"
+      page_nav_divider: "&7 ===== "
+      pagination_hint: "&ePrev: %prev%  Next: %next%  Total pages: %pages%."
       line: "&7%line%"
-      separator: "&6=================================================="
   allowance:
     used: "%prefix% &aUsed &e/%command%&a, remaining &e%remain%&a times."
     none_left: "%prefix% &cThis command has no remaining attempts."
     execute_failed: "%prefix% &cCommand execution failed, attempts have been refunded."
+    cooldown: "%prefix% &cCommand is on cooldown. Wait %seconds% seconds."
+    command_failed_detail: "%prefix% &cCommand execution failed: %command%"
   inventory:
     drag_denied: "&c%prefix% Cannot drag Power Gem here!"
     inventory_full: "&7%prefix% Inventory full, gem has been placed."
@@ -102,4 +113,24 @@ logger:
   gems_scattered: "%prefix% &aScattered &e%count% &agems."
   inventory_full: "%prefix% &cInventory full, dropped on ground"
   plugin_enabled: "%prefix% &aPlugin enabled successfully!"
-  plugin_disabled: "%prefix% &cPlugin disabled!" 
+  plugin_disabled: "%prefix% &cPlugin disabled!"
+
+history:
+  redeem:
+    entry: "&e[Gem Redeem] Player: %player% (%player_uuid%) | Gem: %gem_name% (%gem_key%)%previous_owner_section%%permissions_section%%vault_group_section%"
+    previous_owner: " | Previous: %previous_owner%"
+    permissions: " | Permissions: [%permissions%]"
+    vault_group: " | Vault group: %vault_group%"
+  revoke:
+    entry: "&c[Permission Revoke] Player: %player_name% (%player_uuid%) | Gem: %gem_name% (%gem_key%)%reason_section%%permissions_section%%vault_group_section%"
+    reason: " | Reason: %reason%"
+    permissions: " | Revoked permissions: [%permissions%]"
+    vault_group: " | Revoked group: %vault_group%"
+  full_set:
+    entry: "&6[Full Set Redeem] Player: %player% (%player_uuid%) | Gem count: %gem_count%%previous_owner_section%%permissions_section%"
+    previous_owner: " | Previous ruler: %previous_owner%"
+    permissions: " | Total permissions: [%permissions%]"
+  place:
+    entry: "&a[Gem Placed] Player: %player% | Gem: %gem_key% | Location: %location%"
+  break:
+    entry: "&c[Gem Broken] Player: %player% | Gem: %gem_key% | Location: %location%"

@@ -1,6 +1,8 @@
 prefix: "&7[&cRuleGems&7]&r"
 
 messages:
+  gem:
+    default_display_name: "&c权力宝石"
   command:
     no_permission: "&c%prefix% 你没有权限执行此命令！"
     usage: "&e%prefix% 用法: /rulegems <place|revoke|reload|rulers|gems|scatter|redeem|redeemall|help>"
@@ -48,21 +50,30 @@ messages:
       scatter: "&e/rulegems scatter &f- 散落宝石"
       redeem: "&e/rulegems redeem &f- 主手持宝石时兑换"
       redeemall: "&e/rulegems redeemall &f- 集齐后一次性兑换全部"
-      history: "&e/rulegems history [行数] [玩家名] &f- 查看权限更迭历史"
+      history: "&e/rulegems history [页码] [玩家名] &f- 分页查看权限更迭历史"
       help: "&e/rulegems help &f- 显示帮助信息"
       footer: "&a======================"
     history:
       disabled: "&c%prefix% 历史记录功能未启用。"
       no_records: "&e%prefix% 暂无历史记录。"
       no_player_records: "&e%prefix% 未找到玩家 &f%player% &e的历史记录。"
-      player_header: "&6========== &e%player% &6的权限更迭记录（共 &e%count% &6条）=========="
-      recent_header: "&6========== 最近 &e%count% &6条权限更迭记录 =========="
+      player_header: "&6===== &e%player% &6的记录 &6(&e%page%&6/&e%pages%&6) &7[%count%/%total%] &6====="
+      recent_header: "&6===== 最近记录 &6(&e%page%&6/&e%pages%&6) &7[%count%/%total%] &6====="
+      page_out_of_range: "&e%prefix% 第 %page% 页没有历史记录。"
+      page_nav_previous: "&a<< 上一页"
+      page_nav_previous_disabled: "&7<< 上一页"
+      page_nav_next: "&a下一页 >>"
+      page_nav_next_disabled: "&7下一页 >>"
+      page_nav_hover: "&e点击查看第 %page% 页"
+      page_nav_divider: "&7 ===== "
+      pagination_hint: "&e上一页: %prev%  下一页: %next%  共 %pages% 页。"
       line: "&7%line%"
-      separator: "&6=================================================="
   allowance:
     used: "%prefix% &a已使用 &e/%command%&a，剩余 &e%remain%&a 次。"
     none_left: "%prefix% &c该指令已无剩余次数。"
     execute_failed: "%prefix% &c指令执行失败，已为你退回次数。"
+    cooldown: "%prefix% &c命令冷却中，还需等待 %seconds% 秒。"
+    command_failed_detail: "%prefix% &c命令执行失败: %command%"
   inventory:
     drag_denied: "&c%prefix% 不能将 Ruler Gem 拖拽到此处！"
     inventory_full: "&7%prefix% 检查背包已满, 宝石被放置。"
@@ -103,3 +114,23 @@ logger:
   inventory_full: "%prefix% &c背包已满，掉落在地上"
   plugin_enabled: "%prefix% &a插件已成功启用！"
   plugin_disabled: "%prefix% &c插件已禁用！"
+
+history:
+  redeem:
+    entry: "&e【宝石兑换】 玩家: %player% (%player_uuid%) | 宝石: %gem_name% (%gem_key%)%previous_owner_section%%permissions_section%%vault_group_section%"
+    previous_owner: " | 前任: %previous_owner%"
+    permissions: " | 权限: [%permissions%]"
+    vault_group: " | 权限组: %vault_group%"
+  revoke:
+    entry: "&c【权限撤销】 玩家: %player_name% (%player_uuid%) | 宝石: %gem_name% (%gem_key%)%reason_section%%permissions_section%%vault_group_section%"
+    reason: " | 原因: %reason%"
+    permissions: " | 撤销权限: [%permissions%]"
+    vault_group: " | 撤销权限组: %vault_group%"
+  full_set:
+    entry: "&6【集齐全套】 玩家: %player% (%player_uuid%) | 宝石数量: %gem_count%%previous_owner_section%%permissions_section%"
+    previous_owner: " | 前任统治者: %previous_owner%"
+    permissions: " | 总权限: [%permissions%]"
+  place:
+    entry: "&a【宝石放置】 玩家: %player% | 宝石: %gem_key% | 位置: %location%"
+  break:
+    entry: "&c【宝石破坏】 玩家: %player% | 宝石: %gem_key% | 位置: %location%"

@@ -1,7 +1,8 @@
 package org.cubexmc.manager;
 
-import org.cubexmc.RuleGems;
+import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
+import org.cubexmc.RuleGems;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -11,7 +12,9 @@ import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -22,12 +25,14 @@ import java.util.stream.Stream;
 public class HistoryLogger {
     
     private final RuleGems plugin;
+    private final LanguageManager languageManager;
     private final File logsDirectory;
     private final SimpleDateFormat dateFormat;
     private final SimpleDateFormat fileNameFormat;
     
-    public HistoryLogger(RuleGems plugin) {
+    public HistoryLogger(RuleGems plugin, LanguageManager languageManager) {
         this.plugin = plugin;
+        this.languageManager = languageManager;
         this.logsDirectory = new File(plugin.getDataFolder(), "history");
         this.dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         this.fileNameFormat = new SimpleDateFormat("yyyy-MM");
@@ -54,22 +59,56 @@ public class HistoryLogger {
         String timestamp = dateFormat.format(new Date());
         
         logEntry.append("[").append(timestamp).append("] ");
-        logEntry.append("§e【宝石兑换】 ");
-        logEntry.append("玩家: ").append(player.getName()).append(" (").append(player.getUniqueId()).append(") ");
-        logEntry.append("| 宝石: ").append(gemDisplayName != null ? gemDisplayName : gemKey).append(" (").append(gemKey).append(")");
-        
+
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("player", player.getName());
+        placeholders.put("player_uuid", player.getUniqueId().toString());
+        String gemName = gemDisplayName != null ? gemDisplayName : gemKey;
+        placeholders.put("gem_name", gemName);
+        placeholders.put("gem_key", gemKey);
+
+        String previousOwnerSection = "";
         if (previousOwner != null && !previousOwner.isEmpty()) {
-            logEntry.append(" | 前任: ").append(previousOwner);
+            Map<String, String> sectionPlaceholders = new HashMap<>();
+            sectionPlaceholders.put("previous_owner", previousOwner);
+            previousOwnerSection = formatHistoryMessage("history.redeem.previous_owner", sectionPlaceholders);
+            if (previousOwnerSection.isEmpty()) {
+                previousOwnerSection = " | 前任: " + previousOwner;
+            }
         }
-        
+
+        String permissionsSection = "";
         if (permissions != null && !permissions.isEmpty()) {
-            logEntry.append(" | 权限: [").append(String.join(", ", permissions)).append("]");
+            String joined = String.join(", ", permissions);
+            Map<String, String> sectionPlaceholders = new HashMap<>();
+            sectionPlaceholders.put("permissions", joined);
+            permissionsSection = formatHistoryMessage("history.redeem.permissions", sectionPlaceholders);
+            if (permissionsSection.isEmpty()) {
+                permissionsSection = " | 权限: [" + joined + "]";
+            }
         }
-        
+
+        String vaultGroupSection = "";
         if (vaultGroup != null && !vaultGroup.isEmpty()) {
-            logEntry.append(" | 权限组: ").append(vaultGroup);
+            Map<String, String> sectionPlaceholders = new HashMap<>();
+            sectionPlaceholders.put("vault_group", vaultGroup);
+            vaultGroupSection = formatHistoryMessage("history.redeem.vault_group", sectionPlaceholders);
+            if (vaultGroupSection.isEmpty()) {
+                vaultGroupSection = " | 权限组: " + vaultGroup;
+            }
         }
-        
+
+        placeholders.put("previous_owner_section", previousOwnerSection);
+        placeholders.put("permissions_section", permissionsSection);
+        placeholders.put("vault_group_section", vaultGroupSection);
+
+        String message = formatHistoryMessage("history.redeem.entry", placeholders);
+        if (message.isEmpty()) {
+            message = buildFallbackRedeem(player, gemKey, gemDisplayName, permissions, vaultGroup, previousOwner);
+        }
+
+        logEntry.append(message);
+
         writeLog(logEntry.toString());
     }
     
@@ -91,22 +130,56 @@ public class HistoryLogger {
         String timestamp = dateFormat.format(new Date());
         
         logEntry.append("[").append(timestamp).append("] ");
-        logEntry.append("§c【权限撤销】 ");
-        logEntry.append("玩家: ").append(playerName != null ? playerName : "未知").append(" (").append(playerUuid).append(") ");
-        logEntry.append("| 宝石: ").append(gemDisplayName != null ? gemDisplayName : gemKey).append(" (").append(gemKey).append(")");
-        
+
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("player_name", playerName != null ? playerName : "未知");
+        placeholders.put("player_uuid", playerUuid);
+        String gemName = gemDisplayName != null ? gemDisplayName : gemKey;
+        placeholders.put("gem_name", gemName);
+        placeholders.put("gem_key", gemKey);
+
+        String reasonSection = "";
         if (reason != null && !reason.isEmpty()) {
-            logEntry.append(" | 原因: ").append(reason);
+            Map<String, String> sectionPlaceholders = new HashMap<>();
+            sectionPlaceholders.put("reason", reason);
+            reasonSection = formatHistoryMessage("history.revoke.reason", sectionPlaceholders);
+            if (reasonSection.isEmpty()) {
+                reasonSection = " | 原因: " + reason;
+            }
         }
-        
+
+        String permissionsSection = "";
         if (permissions != null && !permissions.isEmpty()) {
-            logEntry.append(" | 撤销权限: [").append(String.join(", ", permissions)).append("]");
+            String joined = String.join(", ", permissions);
+            Map<String, String> sectionPlaceholders = new HashMap<>();
+            sectionPlaceholders.put("permissions", joined);
+            permissionsSection = formatHistoryMessage("history.revoke.permissions", sectionPlaceholders);
+            if (permissionsSection.isEmpty()) {
+                permissionsSection = " | 撤销权限: [" + joined + "]";
+            }
         }
-        
+
+        String vaultGroupSection = "";
         if (vaultGroup != null && !vaultGroup.isEmpty()) {
-            logEntry.append(" | 撤销权限组: ").append(vaultGroup);
+            Map<String, String> sectionPlaceholders = new HashMap<>();
+            sectionPlaceholders.put("vault_group", vaultGroup);
+            vaultGroupSection = formatHistoryMessage("history.revoke.vault_group", sectionPlaceholders);
+            if (vaultGroupSection.isEmpty()) {
+                vaultGroupSection = " | 撤销权限组: " + vaultGroup;
+            }
         }
-        
+
+        placeholders.put("reason_section", reasonSection);
+        placeholders.put("permissions_section", permissionsSection);
+        placeholders.put("vault_group_section", vaultGroupSection);
+
+        String message = formatHistoryMessage("history.revoke.entry", placeholders);
+        if (message.isEmpty()) {
+            message = buildFallbackRevoke(playerUuid, playerName, gemKey, gemDisplayName, permissions, vaultGroup, reason);
+        }
+
+        logEntry.append(message);
+
         writeLog(logEntry.toString());
     }
     
@@ -123,18 +196,43 @@ public class HistoryLogger {
         String timestamp = dateFormat.format(new Date());
         
         logEntry.append("[").append(timestamp).append("] ");
-        logEntry.append("§6【集齐全套】 ");
-        logEntry.append("玩家: ").append(player.getName()).append(" (").append(player.getUniqueId()).append(") ");
-        logEntry.append("| 宝石数量: ").append(gemCount);
-        
+
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("player", player.getName());
+        placeholders.put("player_uuid", player.getUniqueId().toString());
+        placeholders.put("gem_count", String.valueOf(gemCount));
+
+        String previousOwnerSection = "";
         if (previousFullSetOwner != null && !previousFullSetOwner.isEmpty()) {
-            logEntry.append(" | 前任统治者: ").append(previousFullSetOwner);
+            Map<String, String> sectionPlaceholders = new HashMap<>();
+            sectionPlaceholders.put("previous_owner", previousFullSetOwner);
+            previousOwnerSection = formatHistoryMessage("history.full_set.previous_owner", sectionPlaceholders);
+            if (previousOwnerSection.isEmpty()) {
+                previousOwnerSection = " | 前任统治者: " + previousFullSetOwner;
+            }
         }
-        
+
+        String permissionsSection = "";
         if (permissions != null && !permissions.isEmpty()) {
-            logEntry.append(" | 总权限: [").append(String.join(", ", permissions)).append("]");
+            String joined = String.join(", ", permissions);
+            Map<String, String> sectionPlaceholders = new HashMap<>();
+            sectionPlaceholders.put("permissions", joined);
+            permissionsSection = formatHistoryMessage("history.full_set.permissions", sectionPlaceholders);
+            if (permissionsSection.isEmpty()) {
+                permissionsSection = " | 总权限: [" + joined + "]";
+            }
         }
-        
+
+        placeholders.put("previous_owner_section", previousOwnerSection);
+        placeholders.put("permissions_section", permissionsSection);
+
+        String message = formatHistoryMessage("history.full_set.entry", placeholders);
+        if (message.isEmpty()) {
+            message = buildFallbackFullSet(player, gemCount, permissions, previousFullSetOwner);
+        }
+
+        logEntry.append(message);
+
         writeLog(logEntry.toString());
     }
     
@@ -150,11 +248,19 @@ public class HistoryLogger {
         String timestamp = dateFormat.format(new Date());
         
         logEntry.append("[").append(timestamp).append("] ");
-        logEntry.append("§a【宝石放置】 ");
-        logEntry.append("玩家: ").append(player.getName()).append(" ");
-        logEntry.append("| 宝石: ").append(gemKey).append(" ");
-        logEntry.append("| 位置: ").append(location);
-        
+
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("player", player.getName());
+        placeholders.put("gem_key", gemKey);
+        placeholders.put("location", location);
+
+        String message = formatHistoryMessage("history.place.entry", placeholders);
+        if (message.isEmpty()) {
+            message = buildFallbackPlace(player, gemKey, location);
+        }
+
+        logEntry.append(message);
+
         writeLog(logEntry.toString());
     }
     
@@ -170,12 +276,89 @@ public class HistoryLogger {
         String timestamp = dateFormat.format(new Date());
         
         logEntry.append("[").append(timestamp).append("] ");
-        logEntry.append("§c【宝石破坏】 ");
-        logEntry.append("玩家: ").append(player.getName()).append(" ");
-        logEntry.append("| 宝石: ").append(gemKey).append(" ");
-        logEntry.append("| 位置: ").append(location);
-        
+
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("player", player.getName());
+        placeholders.put("gem_key", gemKey);
+        placeholders.put("location", location);
+
+        String message = formatHistoryMessage("history.break.entry", placeholders);
+        if (message.isEmpty()) {
+            message = buildFallbackBreak(player, gemKey, location);
+        }
+
+        logEntry.append(message);
+
         writeLog(logEntry.toString());
+    }
+
+    private String formatHistoryMessage(String key, Map<String, String> placeholders) {
+        if (languageManager == null) {
+            return "";
+        }
+        String template = languageManager.getMessage(key);
+        if (template == null || template.startsWith("Missing message")) {
+            return "";
+        }
+        if (placeholders != null && !placeholders.isEmpty()) {
+            template = languageManager.formatText(template, placeholders);
+        }
+        return ChatColor.translateAlternateColorCodes('&', template);
+    }
+
+    private String buildFallbackRedeem(Player player, String gemKey, String gemDisplayName,
+                                       List<String> permissions, String vaultGroup, String previousOwner) {
+        StringBuilder builder = new StringBuilder("§e【宝石兑换】 ");
+        builder.append("玩家: ").append(player.getName()).append(" (").append(player.getUniqueId()).append(") ");
+        builder.append("| 宝石: ").append(gemDisplayName != null ? gemDisplayName : gemKey).append(" (").append(gemKey).append(")");
+        if (previousOwner != null && !previousOwner.isEmpty()) {
+            builder.append(" | 前任: ").append(previousOwner);
+        }
+        if (permissions != null && !permissions.isEmpty()) {
+            builder.append(" | 权限: [").append(String.join(", ", permissions)).append("]");
+        }
+        if (vaultGroup != null && !vaultGroup.isEmpty()) {
+            builder.append(" | 权限组: ").append(vaultGroup);
+        }
+        return builder.toString();
+    }
+
+    private String buildFallbackRevoke(String playerUuid, String playerName, String gemKey, String gemDisplayName,
+                                       List<String> permissions, String vaultGroup, String reason) {
+        StringBuilder builder = new StringBuilder("§c【权限撤销】 ");
+        builder.append("玩家: ").append(playerName != null ? playerName : "未知").append(" (").append(playerUuid).append(") ");
+        builder.append("| 宝石: ").append(gemDisplayName != null ? gemDisplayName : gemKey).append(" (").append(gemKey).append(")");
+        if (reason != null && !reason.isEmpty()) {
+            builder.append(" | 原因: ").append(reason);
+        }
+        if (permissions != null && !permissions.isEmpty()) {
+            builder.append(" | 撤销权限: [").append(String.join(", ", permissions)).append("]");
+        }
+        if (vaultGroup != null && !vaultGroup.isEmpty()) {
+            builder.append(" | 撤销权限组: ").append(vaultGroup);
+        }
+        return builder.toString();
+    }
+
+    private String buildFallbackFullSet(Player player, int gemCount, List<String> permissions, String previousFullSetOwner) {
+        StringBuilder builder = new StringBuilder("§6【集齐全套】 ");
+        builder.append("玩家: ").append(player.getName()).append(" (").append(player.getUniqueId()).append(") ");
+        builder.append("| 宝石数量: ").append(gemCount);
+        if (previousFullSetOwner != null && !previousFullSetOwner.isEmpty()) {
+            builder.append(" | 前任统治者: ").append(previousFullSetOwner);
+        }
+        if (permissions != null && !permissions.isEmpty()) {
+            builder.append(" | 总权限: [").append(String.join(", ", permissions)).append("]");
+        }
+        return builder.toString();
+    }
+
+    private String buildFallbackPlace(Player player, String gemKey, String location) {
+        return "§a【宝石放置】 玩家: " + player.getName() + " | 宝石: " + gemKey + " | 位置: " + location;
+    }
+
+    private String buildFallbackBreak(Player player, String gemKey, String location) {
+        return "§c【宝石破坏】 玩家: " + player.getName() + " | 宝石: " + gemKey + " | 位置: " + location;
     }
     
     /**
@@ -202,40 +385,42 @@ public class HistoryLogger {
      * @param lines 要读取的行数
      * @return 历史记录列表
      */
-    public List<String> getRecentHistory(int lines) {
-        List<String> history = new ArrayList<>();
-        
+    public HistoryPage getRecentHistoryPage(int page, int pageSize) {
+        List<String> entries = new ArrayList<>();
+        int total = 0;
+        int startIndex = Math.max(0, (page - 1) * pageSize);
+        int endIndex = startIndex + pageSize;
+
         try {
-            // 获取所有日志文件，按名称排序（即按时间排序）
             File[] logFiles = logsDirectory.listFiles((dir, name) -> name.endsWith(".log"));
             if (logFiles == null || logFiles.length == 0) {
-                return history;
+                return new HistoryPage(entries, total);
             }
-            
-            // 按文件名倒序排列（最新的在前）
+
             java.util.Arrays.sort(logFiles, (a, b) -> b.getName().compareTo(a.getName()));
-            
-            // 从最新的文件开始读取
+
             for (File logFile : logFiles) {
+                List<String> fileLines;
                 try (Stream<String> stream = Files.lines(logFile.toPath())) {
-                    List<String> fileLines = stream.collect(Collectors.toList());
-                    // 倒序读取（最新的在前）
-                    for (int i = fileLines.size() - 1; i >= 0 && history.size() < lines; i--) {
-                        history.add(fileLines.get(i));
-                    }
-                    
-                    if (history.size() >= lines) {
-                        break;
-                    }
+                    fileLines = stream.collect(Collectors.toList());
                 } catch (IOException e) {
                     plugin.getLogger().warning("读取日志文件失败: " + logFile.getName());
+                    continue;
+                }
+
+                for (int i = fileLines.size() - 1; i >= 0; i--) {
+                    String line = fileLines.get(i);
+                    if (total >= startIndex && total < endIndex) {
+                        entries.add(line);
+                    }
+                    total++;
                 }
             }
         } catch (Exception e) {
             plugin.getLogger().warning("读取历史记录失败: " + e.getMessage());
         }
-        
-        return history;
+
+        return new HistoryPage(entries, total);
     }
     
     /**
@@ -245,40 +430,85 @@ public class HistoryLogger {
      * @param lines 最多返回的行数
      * @return 该玩家的历史记录
      */
-    public List<String> getPlayerHistory(String playerName, int lines) {
-        List<String> history = new ArrayList<>();
-        
+    public HistoryPage getPlayerHistoryPage(String playerName, int page, int pageSize) {
+        List<String> entries = new ArrayList<>();
+        int total = 0;
+        int startIndex = Math.max(0, (page - 1) * pageSize);
+        int endIndex = startIndex + pageSize;
+        String lowerPlayer = playerName.toLowerCase(java.util.Locale.ROOT);
+
         try {
             File[] logFiles = logsDirectory.listFiles((dir, name) -> name.endsWith(".log"));
             if (logFiles == null || logFiles.length == 0) {
-                return history;
+                return new HistoryPage(entries, total);
             }
-            
+
             java.util.Arrays.sort(logFiles, (a, b) -> b.getName().compareTo(a.getName()));
-            
+
             for (File logFile : logFiles) {
+                List<String> fileLines;
                 try (Stream<String> stream = Files.lines(logFile.toPath())) {
-                    List<String> matchingLines = stream
-                        .filter(line -> line.contains("玩家: " + playerName))
-                        .collect(Collectors.toList());
-                    
-                    // 倒序添加
-                    for (int i = matchingLines.size() - 1; i >= 0 && history.size() < lines; i--) {
-                        history.add(matchingLines.get(i));
-                    }
-                    
-                    if (history.size() >= lines) {
-                        break;
-                    }
+                    fileLines = stream.collect(Collectors.toList());
                 } catch (IOException e) {
                     plugin.getLogger().warning("读取日志文件失败: " + logFile.getName());
+                    continue;
+                }
+
+                for (int i = fileLines.size() - 1; i >= 0; i--) {
+                    String line = fileLines.get(i);
+                    if (!lineMatchesPlayer(line, lowerPlayer)) {
+                        continue;
+                    }
+                    if (total >= startIndex && total < endIndex) {
+                        entries.add(line);
+                    }
+                    total++;
                 }
             }
         } catch (Exception e) {
             plugin.getLogger().warning("读取玩家历史记录失败: " + e.getMessage());
         }
-        
-        return history;
+
+        return new HistoryPage(entries, total);
+    }
+
+    public List<String> getRecentHistory(int lines) {
+        HistoryPage page = getRecentHistoryPage(1, Math.max(1, lines));
+        return page.getEntries();
+    }
+
+    public List<String> getPlayerHistory(String playerName, int lines) {
+        HistoryPage page = getPlayerHistoryPage(playerName, 1, Math.max(1, lines));
+        return page.getEntries();
+    }
+
+    public static final class HistoryPage {
+        private final List<String> entries;
+        private final int totalCount;
+
+        public HistoryPage(List<String> entries, int totalCount) {
+            this.entries = entries;
+            this.totalCount = totalCount;
+        }
+
+        public List<String> getEntries() {
+            return entries;
+        }
+
+        public int getTotalCount() {
+            return totalCount;
+        }
+    }
+
+    private boolean lineMatchesPlayer(String line, String lowerPlayer) {
+        if (line == null || line.isEmpty()) {
+            return false;
+        }
+        String lowerLine = line.toLowerCase(java.util.Locale.ROOT);
+        return lowerLine.contains("player: " + lowerPlayer)
+                || lowerLine.contains("玩家: " + lowerPlayer)
+                || lowerLine.contains(lowerPlayer + " (")
+                || lowerLine.contains("| " + lowerPlayer + " |");
     }
     
 }

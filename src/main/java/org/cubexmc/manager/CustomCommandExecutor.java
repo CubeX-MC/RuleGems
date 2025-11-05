@@ -14,12 +14,14 @@ import java.util.UUID;
  */
 public class CustomCommandExecutor {
     private final org.cubexmc.RuleGems plugin;
+    private final LanguageManager languageManager;
 
     // 冷却时间管理: 玩家UUID -> (命令名 -> 过期时间戳)
     private final Map<UUID, Map<String, Long>> playerCooldowns = new HashMap<>();
 
-    public CustomCommandExecutor(org.cubexmc.RuleGems plugin) {
+    public CustomCommandExecutor(org.cubexmc.RuleGems plugin, LanguageManager languageManager) {
         this.plugin = plugin;
+        this.languageManager = languageManager;
     }
 
 
@@ -154,7 +156,13 @@ public class CustomCommandExecutor {
             
             if (!success) {
                 allSuccess = false;
-                player.sendMessage("§c命令执行失败: " + finalCommand);
+                if (languageManager != null) {
+                    Map<String, String> messagePlaceholders = new HashMap<>();
+                    messagePlaceholders.put("command", finalCommand);
+                    languageManager.sendMessage(player, "allowance.command_failed_detail", messagePlaceholders);
+                } else {
+                    player.sendMessage("§c命令执行失败: " + finalCommand);
+                }
             }
         }
         
