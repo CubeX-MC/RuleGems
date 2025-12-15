@@ -23,23 +23,22 @@ import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.BlockDamageEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.enchantments.Enchantment;
-import org.bukkit.inventory.ItemFlag;
-
 import org.cubexmc.RuleGems;
 import org.cubexmc.model.ExecuteConfig;
 import org.cubexmc.utils.EffectUtils;
@@ -577,26 +576,23 @@ public class GemManager {
     }
 
     /**
-     * 监听玩家死亡事件
+     * 监听玩家死亡事件：从掉落列表移除宝石并放置为方块
      */
     @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
-        Inventory inv = player.getInventory();
-
-        for (ItemStack item : inv.getContents()) {
+        Location deathLocation = player.getLocation();
+        String playerName = player.getName();
+        
+        java.util.Iterator<ItemStack> iterator = event.getDrops().iterator();
+        while (iterator.hasNext()) {
+            ItemStack item = iterator.next();
             if (isRuleGem(item)) {
                 UUID gemId = getGemUUID(item);
-                inv.remove(item);
+                iterator.remove();
                 gemUuidToHolder.remove(gemId);
-
-                Location deathLocation = player.getLocation();
-
-                if (deathLocation != null) {
-                    triggerScatterEffects(gemId, deathLocation, player.getName());
-                    // 直接在死亡位置尝试放置（region-safe），内部会垂直校正并在必要时回退到随机散落
-                    placeRuleGem(deathLocation, gemId);
-                }
+                triggerScatterEffects(gemId, deathLocation, playerName);
+                placeRuleGem(deathLocation, gemId);
             }
         }
     }
@@ -751,6 +747,10 @@ public class GemManager {
             linePh.put("gem_key", gemKey != null ? gemKey : "unknown");
             linePh.put("gem_name", displayName);
             linePh.put("status", statusText);
+            // 添加 UUID 短形式（前8位）和完整形式
+            String shortUuid = gemId.toString().substring(0, 8);
+            linePh.put("uuid", shortUuid);
+            linePh.put("full_uuid", gemId.toString());
             String plain = languageManager.formatMessage("messages.gem_status.gem_line", linePh);
 
             // 组件：hover 显示 lore；click 传送
@@ -2263,25 +2263,55 @@ public class GemManager {
     }
 
     /**
+     * 获取所有已注册宝石的 UUID 集合
+     */
+    public java.util.Set<java.util.UUID> getAllGemUuids() {
+        return new java.util.HashSet<>(gemUuidToKey.keySet());
+    }
+
+    /**
      * 解析命令中的 gem 标识：优先按 UUID 匹配现存的宝石，否则按 gemKey/显示名匹配唯一的一颗。
      * 若无法解析或不存在则返回 null。
      */
     public java.util.UUID resolveGemIdentifier(String input) {
         if (input == null || input.trim().isEmpty()) return null;
-        // Try parse UUID directly
+        String trimmed = input.trim();
+        
+        // 1. 尝试完整 UUID
         try {
-            java.util.UUID id = java.util.UUID.fromString(input.trim());
+            java.util.UUID id = java.util.UUID.fromString(trimmed);
             if (gemUuidToKey.containsKey(id)) return id;
         } catch (Exception ignored) {}
-        // Fallback to gem key/name
-        String key = resolveGemKeyByNameOrKey(input.trim());
-        if (key == null) return null;
-        for (Map.Entry<java.util.UUID, String> e : gemUuidToKey.entrySet()) {
-            if (e.getValue() != null && e.getValue().equalsIgnoreCase(key)) {
-                return e.getKey();
+        
+        // 2. 尝试简短 UUID 前缀匹配（至少8位）
+        if (trimmed.length() >= 8 && !trimmed.contains(" ")) {
+            for (java.util.UUID id : gemUuidToKey.keySet()) {
+                if (id.toString().toLowerCase().startsWith(trimmed.toLowerCase())) {
+                    return id;
+                }
             }
         }
-        return null;
+        
+        // 3. Fallback to gem key/name：优先返回 placed 状态的宝石，跳过 held 状态
+        String key = resolveGemKeyByNameOrKey(trimmed);
+        if (key == null) return null;
+        
+        java.util.UUID firstHeld = null;
+        for (Map.Entry<java.util.UUID, String> e : gemUuidToKey.entrySet()) {
+            if (e.getValue() != null && e.getValue().equalsIgnoreCase(key)) {
+                java.util.UUID gemId = e.getKey();
+                // 检查是否为 placed 状态（在世界中放置）
+                if (locationToGemUuid.containsValue(gemId)) {
+                    return gemId; // 优先返回 placed 状态的宝石
+                }
+                // 记录第一个 held 状态的宝石作为后备
+                if (firstHeld == null && gemUuidToHolder.containsKey(gemId)) {
+                    firstHeld = gemId;
+                }
+            }
+        }
+        // 如果没有 placed 状态的，返回第一个 held 状态的（兼容性）
+        return firstHeld;
     }
 
     /**

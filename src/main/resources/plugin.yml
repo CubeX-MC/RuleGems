@@ -1,5 +1,5 @@
 name: RuleGems
-version: 1.0.3 
+version: 1.0.4
 main: org.cubexmc.RuleGems
 author: angushushu
 description: "一个管理 RuleGems（统治宝石）的插件"

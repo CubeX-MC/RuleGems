@@ -7,16 +7,18 @@ import java.util.List;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
-
 import org.cubexmc.manager.ConfigManager;
+import org.cubexmc.manager.GemManager;
 import org.cubexmc.model.GemDefinition;
 
 public class RuleGemsTabCompleter implements TabCompleter {
 
     private final ConfigManager configManager;
+    private final GemManager gemManager;
 
-    public RuleGemsTabCompleter(ConfigManager configManager) {
+    public RuleGemsTabCompleter(ConfigManager configManager, GemManager gemManager) {
         this.configManager = configManager;
+        this.gemManager = gemManager;
     }
 
     // 子命令列表
@@ -52,14 +54,14 @@ public class RuleGemsTabCompleter implements TabCompleter {
             return suggestions;
         }
 
-    // /rulegems place <gemKey>
+    // /rulegems place <gemKey 或 UUID>
         if (args.length == 2 && args[0].equalsIgnoreCase("place")) {
-            return getGemKeySuggestions(args[1]);
+            return getGemKeyAndUuidSuggestions(args[1]);
         }
 
-    // /rulegems tp <gemKey>
+    // /rulegems tp <gemKey 或 UUID>
         if (args.length == 2 && args[0].equalsIgnoreCase("tp")) {
-            return getGemKeySuggestions(args[1]);
+            return getGemKeyAndUuidSuggestions(args[1]);
         }
 
     // /rulegems revoke <player>
@@ -111,6 +113,39 @@ public class RuleGemsTabCompleter implements TabCompleter {
                 suggestions.add(key);
             }
         }
+        return suggestions;
+    }
+
+    /**
+     * 获取 gem key 和 UUID 的补全建议
+     * 优先显示 gem key，然后显示所有宝石的 UUID（简短形式）
+     */
+    private List<String> getGemKeyAndUuidSuggestions(String typed) {
+        List<String> suggestions = new ArrayList<>();
+        String prefix = typed == null ? "" : typed.toLowerCase();
+        
+        // 先添加 gem key 补全
+        suggestions.addAll(getGemKeySuggestions(typed));
+        
+        // 再添加所有宝石的 UUID（简短形式前8位，输入更长时显示完整）
+        if (gemManager != null) {
+            for (java.util.UUID uuid : gemManager.getAllGemUuids()) {
+                String fullUuid = uuid.toString();
+                String shortUuid = fullUuid.substring(0, 8);
+                
+                if (prefix.isEmpty()) {
+                    // 无输入时只显示短 UUID
+                    suggestions.add(shortUuid);
+                } else if (shortUuid.toLowerCase().startsWith(prefix)) {
+                    // 输入匹配短 UUID 时，显示完整 UUID
+                    suggestions.add(fullUuid);
+                } else if (fullUuid.toLowerCase().startsWith(prefix)) {
+                    // 输入匹配完整 UUID 时，显示完整 UUID
+                    suggestions.add(fullUuid);
+                }
+            }
+        }
+        
         return suggestions;
     }
 

@@ -69,7 +69,7 @@ public class RuleGems extends JavaPlugin {
         org.bukkit.command.PluginCommand cmd = getCommand("rulegems");
         if (cmd != null) {
             cmd.setExecutor(ruleGemsCommand);
-            cmd.setTabCompleter(new RuleGemsTabCompleter(configManager));
+            cmd.setTabCompleter(new RuleGemsTabCompleter(configManager, gemManager));
         } else {
             getLogger().warning("Command 'rulegems' not found in plugin.yml");
         }

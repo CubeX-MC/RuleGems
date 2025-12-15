@@ -81,8 +81,8 @@ messages:
     header: "&a====== Gem Status ======"
     total_expected: "&a%prefix% Expected gem count: &e%count%"
     total_counts: "&a%prefix% &e%placed_count% placed &a%held_count% held"
-    # Single-line output: [%gem_key%] %gem_name%: %status%
-    gem_line: " &f[&e%gem_key%&f] &r%gem_name%&f: &7%status%"
+    # Single-line output: [%gem_key%] %gem_name% (%uuid%): %status%
+    gem_line: " &f[&e%gem_key%&f] &r%gem_name% &8(%uuid%)&f: &7%status%"
     status_held: "held by %player%"
     status_placed: "placed at &e%x%&f,&e%y%&f,&e%z%&f &b%world%&f"
     status_unknown: "unknown"

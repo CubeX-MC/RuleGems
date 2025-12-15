@@ -81,8 +81,8 @@ messages:
     header: "&a====== 宝石状态 ======"
     total_expected: "&a%prefix% 预计宝石数量: &e%count%"
     total_counts: "&a%prefix% &e%placed_count% 放置 &a%held_count% 持有"
-    # 一行式输出： [%gem_key%] %gem_name%: %status%
-    gem_line: " &f[&e%gem_key%&f] &r%gem_name%&f: &7%status%"
+    # 一行式输出： [%gem_key%] %gem_name% (%uuid%): %status%
+    gem_line: " &f[&e%gem_key%&f] &r%gem_name% &8(%uuid%)&f: &7%status%"
     status_held: "被%player%持有"
     status_placed: "放置在 &e%x%&f,&e%y%&f,&e%z%&f &b%world%&f"
     status_unknown: "状态未知"
