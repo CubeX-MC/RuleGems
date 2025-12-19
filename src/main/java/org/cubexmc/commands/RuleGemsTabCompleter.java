@@ -23,6 +23,7 @@ public class RuleGemsTabCompleter implements TabCompleter {
 
     // 子命令列表
     private static final List<String> SUB_COMMANDS = Arrays.asList(
+            "gui",
             "place",
             "tp",
             "revoke",
@@ -33,6 +34,8 @@ public class RuleGemsTabCompleter implements TabCompleter {
             "redeem",
             "redeemall",
             "history",
+            "setaltar",
+            "removealtar",
             "help"
     );
 
@@ -72,6 +75,16 @@ public class RuleGemsTabCompleter implements TabCompleter {
     // /rulegems redeem 不再需要 key，阻止玩家名或其它补全
         if (args.length >= 2 && (args[0].equalsIgnoreCase("redeem") || args[0].equalsIgnoreCase("redeemall"))) {
             return java.util.Collections.emptyList();
+        }
+
+    // /rulegems setaltar <gemKey>
+        if (args.length == 2 && args[0].equalsIgnoreCase("setaltar")) {
+            return getGemKeySuggestions(args[1]);
+        }
+
+    // /rulegems removealtar <gemKey>
+        if (args.length == 2 && args[0].equalsIgnoreCase("removealtar")) {
+            return getGemKeySuggestions(args[1]);
         }
 
     // /rulegems place <gemKey> <x|~>

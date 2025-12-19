@@ -1,0 +1,501 @@
+package org.cubexmc.manager;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
+import org.bukkit.ChatColor;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.block.Block;
+import org.bukkit.command.CommandSender;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
+import org.cubexmc.RuleGems;
+import org.cubexmc.model.GemDefinition;
+
+/**
+ * 宝石状态管理器 - 负责宝石的核心状态管理
+ * 包括：位置映射、持有者映射、UUID-Key映射、物品创建等
+ */
+public class GemStateManager {
+
+    private static final Locale ROOT_LOCALE = Locale.ROOT;
+
+    private final RuleGems plugin;
+    private final ConfigManager configManager;
+    private final LanguageManager languageManager;
+
+    // NamespacedKeys for persistent data
+    private final NamespacedKey ruleGemKey;
+    private final NamespacedKey uniqueIdKey;
+    private final NamespacedKey gemKeyKey;
+
+    // 核心映射
+    private final Map<Location, UUID> locationToGemUuid = new HashMap<>();
+    private final Map<UUID, Location> gemUuidToLocation = new HashMap<>();
+    private final Map<UUID, Player> gemUuidToHolder = new HashMap<>();
+    private final Map<UUID, String> gemUuidToKey = new HashMap<>();
+
+    // GemDefinition 缓存
+    private final Map<String, GemDefinition> gemDefinitionCache = new HashMap<>();
+
+    public GemStateManager(RuleGems plugin, ConfigManager configManager, LanguageManager languageManager) {
+        this.plugin = plugin;
+        this.configManager = configManager;
+        this.languageManager = languageManager;
+        this.ruleGemKey = new NamespacedKey(plugin, "rule_gem");
+        this.uniqueIdKey = new NamespacedKey(plugin, "unique_id");
+        this.gemKeyKey = new NamespacedKey(plugin, "gem_key");
+    }
+
+    // ==================== 状态访问器 ====================
+
+    public Map<Location, UUID> getLocationToGemUuid() {
+        return locationToGemUuid;
+    }
+
+    public Map<UUID, Location> getGemUuidToLocation() {
+        return gemUuidToLocation;
+    }
+
+    public Map<UUID, Player> getGemUuidToHolder() {
+        return gemUuidToHolder;
+    }
+
+    public Map<UUID, String> getGemUuidToKey() {
+        return gemUuidToKey;
+    }
+
+    public NamespacedKey getRuleGemKey() {
+        return ruleGemKey;
+    }
+
+    public NamespacedKey getUniqueIdKey() {
+        return uniqueIdKey;
+    }
+
+    public NamespacedKey getGemKeyKey() {
+        return gemKeyKey;
+    }
+
+    // ==================== 清理方法 ====================
+
+    public void clearAll() {
+        locationToGemUuid.clear();
+        gemUuidToLocation.clear();
+        gemUuidToHolder.clear();
+        gemUuidToKey.clear();
+        gemDefinitionCache.clear();
+    }
+
+    // ==================== 宝石状态查询 ====================
+
+    /**
+     * 获取宝石的位置（如果已放置）
+     */
+    public Location getGemLocation(UUID gemId) {
+        return gemUuidToLocation.get(gemId);
+    }
+
+    /**
+     * 获取宝石的持有者（如果被持有）
+     */
+    public Player getGemHolder(UUID gemId) {
+        return gemUuidToHolder.get(gemId);
+    }
+
+    /**
+     * 获取宝石的 key
+     */
+    public String getGemKey(UUID gemId) {
+        return gemUuidToKey.get(gemId);
+    }
+
+    /**
+     * 获取所有宝石的 UUID 集合
+     */
+    public Set<UUID> getAllGemUuids() {
+        return new HashSet<>(gemUuidToKey.keySet());
+    }
+
+    /**
+     * 根据位置查找宝石 UUID
+     */
+    public UUID getGemUuidByLocation(Location loc) {
+        return locationToGemUuid.get(loc);
+    }
+
+    /**
+     * 根据 gemId 查找位置
+     */
+    public Location findLocationByGemId(UUID gemId) {
+        return gemUuidToLocation.get(gemId);
+    }
+
+    /**
+     * 获取所有已放置宝石的数量
+     */
+    public int getPlacedCount() {
+        return locationToGemUuid.size();
+    }
+
+    /**
+     * 获取所有被持有宝石的数量
+     */
+    public int getHeldCount() {
+        return gemUuidToHolder.size();
+    }
+
+    // ==================== 宝石识别 ====================
+
+    /**
+     * 判断物品是否为权力宝石
+     */
+    public boolean isRuleGem(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return false;
+        }
+        PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
+        return pdc.has(ruleGemKey, PersistentDataType.BYTE);
+    }
+
+    /**
+     * 判断方块是否为放置的权力宝石
+     */
+    public boolean isRuleGem(Block block) {
+        if (block == null) return false;
+        return locationToGemUuid.containsKey(block.getLocation());
+    }
+
+    /**
+     * 从物品获取宝石 UUID
+     */
+    public UUID getGemUUID(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return null;
+        PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
+        String uuidStr = pdc.get(uniqueIdKey, PersistentDataType.STRING);
+        if (uuidStr == null) return null;
+        try {
+            return UUID.fromString(uuidStr);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 从方块获取宝石 UUID
+     */
+    public UUID getGemUUID(Block block) {
+        if (block == null) return null;
+        return locationToGemUuid.get(block.getLocation());
+    }
+
+    // ==================== GemDefinition 查找 ====================
+
+    /**
+     * 查找 GemDefinition（带缓存）
+     */
+    public GemDefinition findGemDefinition(String key) {
+        if (key == null) return null;
+        GemDefinition cached = gemDefinitionCache.get(key.toLowerCase(ROOT_LOCALE));
+        if (cached != null) return cached;
+        for (GemDefinition d : configManager.getGemDefinitions()) {
+            if (d.getGemKey().equalsIgnoreCase(key)) {
+                gemDefinitionCache.put(key.toLowerCase(ROOT_LOCALE), d);
+                return d;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 重建 GemDefinition 缓存
+     */
+    public void rebuildGemDefinitionCache() {
+        gemDefinitionCache.clear();
+        java.util.List<GemDefinition> defs = configManager.getGemDefinitions();
+        if (defs != null) {
+            for (GemDefinition d : defs) {
+                if (d.getGemKey() != null) {
+                    gemDefinitionCache.put(d.getGemKey().toLowerCase(ROOT_LOCALE), d);
+                }
+            }
+        }
+    }
+
+    // ==================== 宝石物品创建 ====================
+
+    /**
+     * 创建一颗宝石物品
+     */
+    public ItemStack createRuleGem(UUID gemId) {
+        String gemKey = gemUuidToKey.getOrDefault(gemId, null);
+        ItemStack ruleGem = new ItemStack(Material.RED_STAINED_GLASS, 1);
+        boolean enchantedGlint = false;
+        if (gemKey != null) {
+            GemDefinition def = findGemDefinition(gemKey);
+            if (def != null) {
+                ruleGem = new ItemStack(def.getMaterial(), 1);
+                enchantedGlint = def.isEnchanted();
+            }
+        }
+        ItemMeta meta = ruleGem.getItemMeta();
+        if (meta == null) return ruleGem;
+
+        // 名称
+        String defaultDisplayName = null;
+        if (languageManager != null) {
+            defaultDisplayName = languageManager.getMessage("messages.gem.default_display_name");
+        }
+        if (defaultDisplayName == null || defaultDisplayName.startsWith("Missing message")) {
+            defaultDisplayName = "&cRule Gem";
+        }
+        String displayName = ChatColor.translateAlternateColorCodes('&', defaultDisplayName);
+
+        // Lore
+        java.util.List<String> lore = new java.util.ArrayList<>();
+        if (gemKey != null) {
+            GemDefinition def = findGemDefinition(gemKey);
+            if (def != null && def.getDisplayName() != null) {
+                displayName = ChatColor.translateAlternateColorCodes('&', def.getDisplayName());
+            }
+            if (def != null && def.getLore() != null && !def.getLore().isEmpty()) {
+                for (String line : def.getLore()) {
+                    lore.add(ChatColor.translateAlternateColorCodes('&', line));
+                }
+            }
+        }
+        meta.setLore(lore);
+        meta.setDisplayName(displayName);
+
+        // 附魔光效
+        if (enchantedGlint) {
+            try {
+                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_ATTRIBUTES);
+                meta.addEnchant(Enchantment.LUCK, 1, true);
+            } catch (Throwable ignored) {}
+        }
+
+        // 写入 PDC
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        pdc.set(ruleGemKey, PersistentDataType.BYTE, (byte) 1);
+        pdc.set(uniqueIdKey, PersistentDataType.STRING, gemId.toString());
+        if (gemKey != null) {
+            pdc.set(gemKeyKey, PersistentDataType.STRING, gemKey);
+        }
+
+        ruleGem.setItemMeta(meta);
+        return ruleGem;
+    }
+
+    /**
+     * 获取宝石的材质
+     */
+    public Material getGemMaterial(UUID gemId) {
+        String key = gemUuidToKey.get(gemId);
+        if (key != null) {
+            GemDefinition def = findGemDefinition(key);
+            if (def != null && def.getMaterial() != null) return def.getMaterial();
+        }
+        return Material.RED_STAINED_GLASS;
+    }
+
+    // ==================== 工具方法 ====================
+
+    /**
+     * 判断材质是否需要支撑
+     */
+    public boolean isSupportRequired(Material mat) {
+        if (mat == null) return false;
+        String name = mat.name();
+        if (name.endsWith("_TORCH") || name.endsWith("_CARPET") || name.endsWith("_CANDLE")) return true;
+        if (name.startsWith("POTTED_")) return true;
+        if ("SCULK_CATALYST".equals(name)) return true;
+        try {
+            if (!mat.isSolid()) return true;
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    /**
+     * 判断某坐标下方是否有支撑
+     */
+    public boolean hasBlockSupport(Location loc) {
+        if (loc == null || loc.getWorld() == null) return false;
+        Location below = loc.clone().add(0, -1, 0);
+        Block b = below.getBlock();
+        if (b == null) return false;
+        Material m = b.getType();
+        try {
+            return m.isSolid();
+        } catch (Throwable t) {
+            return true;
+        }
+    }
+
+    /**
+     * 解析 gem 标识符（UUID 或 key）
+     */
+    public UUID resolveGemIdentifier(String input) {
+        if (input == null || input.trim().isEmpty()) return null;
+        String trimmed = input.trim();
+
+        // 1. 尝试完整 UUID
+        try {
+            UUID id = UUID.fromString(trimmed);
+            if (gemUuidToKey.containsKey(id)) return id;
+        } catch (Exception ignored) {}
+
+        // 2. 尝试简短 UUID 前缀匹配
+        if (trimmed.length() >= 8 && !trimmed.contains(" ")) {
+            for (UUID id : gemUuidToKey.keySet()) {
+                if (id.toString().toLowerCase().startsWith(trimmed.toLowerCase())) {
+                    return id;
+                }
+            }
+        }
+
+        // 3. 按 gemKey/名称匹配
+        String key = resolveGemKeyByNameOrKey(trimmed);
+        if (key == null) return null;
+
+        UUID firstHeld = null;
+        for (Map.Entry<UUID, String> e : gemUuidToKey.entrySet()) {
+            if (e.getValue() != null && e.getValue().equalsIgnoreCase(key)) {
+                UUID gemId = e.getKey();
+                if (gemUuidToLocation.containsKey(gemId)) {
+                    return gemId;
+                }
+                if (firstHeld == null && gemUuidToHolder.containsKey(gemId)) {
+                    firstHeld = gemId;
+                }
+            }
+        }
+        return firstHeld;
+    }
+
+    /**
+     * 按名称或 key 解析 gemKey
+     */
+    public String resolveGemKeyByNameOrKey(String input) {
+        if (input == null || input.isEmpty()) return null;
+        String lc = input.toLowerCase(ROOT_LOCALE);
+        for (GemDefinition d : configManager.getGemDefinitions()) {
+            if (d.getGemKey().equalsIgnoreCase(input)) return d.getGemKey();
+            String name = d.getDisplayName();
+            if (name != null && ChatColor.stripColor(name).replace("§", "&").replace("&", "").toLowerCase().contains(lc)) {
+                return d.getGemKey();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 确保 gemId 有对应的 gemKey
+     */
+    public void ensureGemKeyAssigned(UUID gemId) {
+        if (gemUuidToKey.containsKey(gemId)) return;
+        java.util.List<GemDefinition> defs = configManager.getGemDefinitions();
+        if (defs == null || defs.isEmpty()) return;
+        String key = defs.get(new java.util.Random().nextInt(defs.size())).getGemKey();
+        gemUuidToKey.put(gemId, key);
+    }
+
+    /**
+     * 输出宝石状态到命令发送者
+     */
+    public void gemStatus(CommandSender sender) {
+        Map<String, String> summary = new HashMap<>();
+        summary.put("count", String.valueOf(configManager.getRequiredCount()));
+        summary.put("placed_count", String.valueOf(locationToGemUuid.size()));
+        summary.put("held_count", String.valueOf(gemUuidToHolder.size()));
+        languageManager.sendMessage(sender, "gem_status.total_expected", summary);
+        languageManager.sendMessage(sender, "gem_status.total_counts", summary);
+
+        java.util.List<Map.Entry<UUID, String>> entries = new java.util.ArrayList<>(gemUuidToKey.entrySet());
+        entries.sort((a, b) -> {
+            String ka = a.getValue() != null ? a.getValue().toLowerCase() : "";
+            String kb = b.getValue() != null ? b.getValue().toLowerCase() : "";
+            int c = ka.compareTo(kb);
+            if (c != 0) return c;
+            return a.getKey().toString().compareTo(b.getKey().toString());
+        });
+
+        boolean isPlayerSender = sender instanceof Player;
+        for (Map.Entry<UUID, String> ent : entries) {
+            UUID gemId = ent.getKey();
+            String gemKey = ent.getValue();
+            GemDefinition def = gemKey != null ? findGemDefinition(gemKey) : null;
+            String displayName = def != null && def.getDisplayName() != null ? def.getDisplayName() : "Gem";
+
+            String statusText;
+            Player holder = gemUuidToHolder.get(gemId);
+            Location loc = gemUuidToLocation.get(gemId);
+
+            if (holder != null) {
+                Map<String, String> ph = new HashMap<>();
+                ph.put("player", holder.getName());
+                statusText = languageManager.formatMessage("gem_status.status_held", ph);
+            } else if (loc != null) {
+                Map<String, String> ph = new HashMap<>();
+                ph.put("x", String.valueOf(loc.getBlockX()));
+                ph.put("y", String.valueOf(loc.getBlockY()));
+                ph.put("z", String.valueOf(loc.getBlockZ()));
+                ph.put("world", loc.getWorld() != null ? loc.getWorld().getName() : "?");
+                statusText = languageManager.formatMessage("gem_status.status_placed", ph);
+            } else {
+                statusText = languageManager.getMessage("gem_status.status_unknown");
+            }
+
+            Map<String, String> linePh = new HashMap<>();
+            linePh.put("gem_key", gemKey != null ? gemKey : "?");
+            linePh.put("gem_name", displayName);
+            linePh.put("uuid", gemId.toString().substring(0, 8));
+            linePh.put("status", statusText);
+            String plain = languageManager.formatMessage("gem_status.gem_line", linePh);
+
+            if (isPlayerSender) {
+                sendClickableGemStatus((Player) sender, gemId, plain, def);
+            } else {
+                sender.sendMessage(ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', plain)));
+            }
+        }
+    }
+
+    private void sendClickableGemStatus(Player player, UUID gemId, String plain, GemDefinition def) {
+        net.md_5.bungee.api.chat.TextComponent comp = new net.md_5.bungee.api.chat.TextComponent(
+            net.md_5.bungee.api.chat.TextComponent.fromLegacyText(
+                ChatColor.translateAlternateColorCodes('&', plain)));
+        
+        StringBuilder loreBuilder = new StringBuilder();
+        if (def != null && def.getLore() != null && !def.getLore().isEmpty()) {
+            for (String line : def.getLore()) {
+                loreBuilder.append(ChatColor.translateAlternateColorCodes('&', line)).append("\n");
+            }
+        } else {
+            loreBuilder.append(ChatColor.GRAY).append("没有更多信息");
+        }
+
+        net.md_5.bungee.api.chat.hover.content.Text text = 
+            new net.md_5.bungee.api.chat.hover.content.Text(loreBuilder.toString().trim());
+        comp.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+            net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT, text));
+
+        String clickCmd = "/rulegems tp " + gemId.toString();
+        comp.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+            net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND, clickCmd));
+        
+        player.spigot().sendMessage(comp);
+    }
+}
+

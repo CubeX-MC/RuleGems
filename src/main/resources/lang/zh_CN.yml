@@ -42,6 +42,7 @@ messages:
       unavailable: "&e%prefix% 该宝石既未被持有也未放置。"
     help:
       header: "&a=== RuleGems 帮助 ==="
+      gui: "&e/rulegems gui &f- 打开主菜单界面"
       place: "&e/rulegems place <gemId> <x|~> <y|~> <z|~> &f- 将指定宝石放到坐标"
       revoke: "&e/rulegems revoke <playerName> &f- 收回该玩家的权限"
       reload: "&e/rulegems reload &f- 重新加载配置"
@@ -51,8 +52,22 @@ messages:
       redeem: "&e/rulegems redeem &f- 主手持宝石时兑换"
       redeemall: "&e/rulegems redeemall &f- 集齐后一次性兑换全部"
       history: "&e/rulegems history [页码] [玩家名] &f- 分页查看权限更迭历史"
+      setaltar: "&e/rulegems setaltar <宝石key> &f- 在当前位置设置宝石祭坛"
+      removealtar: "&e/rulegems removealtar <宝石key> &f- 移除宝石祭坛"
       help: "&e/rulegems help &f- 显示帮助信息"
       footer: "&a======================"
+    gui:
+      player_only: "&c%prefix% 该指令仅限玩家使用。"
+    setaltar:
+      player_only: "&c%prefix% 该指令仅限玩家使用。"
+      usage: "&c%prefix% 用法: /rulegems setaltar <宝石key>"
+      gem_not_found: "&c%prefix% 未找到宝石: &e%gem_key%"
+      success: "&a%prefix% 已将 &f%gem_name% &a的祭坛设置在 &e%x%, %y%, %z% &a(&b%world%&a)"
+    removealtar:
+      usage: "&c%prefix% 用法: /rulegems removealtar <宝石key>"
+      gem_not_found: "&c%prefix% 未找到宝石: &e%gem_key%"
+      no_altar: "&c%prefix% &f%gem_name% &c没有设置祭坛位置。"
+      success: "&a%prefix% 已移除 &f%gem_name% &a的祭坛位置。"
     history:
       disabled: "&c%prefix% 历史记录功能未启用。"
       no_records: "&e%prefix% 暂无历史记录。"
@@ -75,8 +90,74 @@ messages:
     cooldown: "%prefix% &c命令冷却中，还需等待 %seconds% 秒。"
     command_failed_detail: "%prefix% &c命令执行失败: %command%"
   inventory:
-    drag_denied: "&c%prefix% 不能将 Ruler Gem 拖拽到此处！"
+    drag_denied: "&c%prefix% 不能将宝石拖拽到此处！"
+    container_denied: "&c%prefix% 不能将宝石放入容器！"
     inventory_full: "&7%prefix% 检查背包已满, 宝石被放置。"
+  gem_escape:
+    broadcast: "&e%prefix% &f%gem_name% &e逃逸了！它正在寻找新的藏身之处..."
+  place_redeem:
+    success: "&a%prefix% &e祭坛献祭成功！&f%gem_name% &e的力量已注入你的灵魂！"
+    broadcast: "&6%prefix% &e%player% &6在祭坛献上了 &f%gem_name%&6，获得了它的力量！"
+  hold_redeem:
+    cancelled: "&c✖ 已取消"
+    progress_bar: "&6✦ %bar% ✦ &e%percent%%"
+    hint_sneak: "&e提示: 下蹲+长按右键可兑换宝石"
+    hint_normal: "&e提示: 长按右键可兑换宝石，下蹲+右键可放置"
+gui:
+  # 控制栏按钮
+  control:
+    prev: "上一页"
+    next: "下一页"
+    page: "页码"
+    total: "总数"
+    close: "关闭"
+    back: "返回"
+    refresh: "刷新"
+    filter: "筛选"
+    filter_hint: "点击切换筛选条件"
+  # 宝石界面
+  gems:
+    title_admin: "&5✦ 宝石管理面板 ✦"
+    title_player: "&6✦ 权力宝石 ✦"
+    default_name: "&c权力宝石"
+    section_id: "基本信息"
+    section_status: "当前状态"
+    section_permissions: "授予权限"
+    section_commands: "限次命令"
+    section_altar: "祭坛位置"
+    status_held: "被持有"
+    status_placed: "已放置"
+    status_unknown: "状态未知"
+    uses_unlimited: "无限"
+    click_tp_holder: "点击传送到持有者"
+    click_tp_location: "点击传送到宝石位置"
+    hidden_in_world: "隐藏在世界某处..."
+    teleported_to_holder: "&a已传送到持有者 %player%"
+    teleported_to_location: "&a已传送到宝石位置"
+  # 统治者界面
+  rulers:
+    title_admin: "&4✦ 统治者管理 ✦"
+    title_player: "&6✦ 当前统治者 ✦"
+    no_rulers: "暂无统治者"
+    no_rulers_lore: "当前没有玩家兑换宝石"
+    supreme_ruler: "至高统治者"
+    supreme_ruler_desc: "集齐了全部宝石！"
+    holding_gems: "持有的宝石"
+    status_online: "在线"
+    status_offline: "离线"
+    click_tp_player: "点击传送到该玩家"
+    teleported_to_player: "&a已传送到 %player%"
+  # 主菜单
+  menu:
+    title: "&5✦ RuleGems 主菜单 ✦"
+    gems_title: "宝石列表"
+    gems_desc: "查看所有权力宝石的状态"
+    rulers_title: "统治者列表"
+    rulers_desc: "查看当前的权力持有者"
+    gem_count: "宝石数量"
+    ruler_count: "统治者数量"
+    admin_view: "管理员视图"
+    click_to_open: "点击打开"
   gem_status:
     header: "&a====== 宝石状态 ======"
     total_expected: "&a%prefix% 预计宝石数量: &e%count%"
@@ -114,6 +195,8 @@ logger:
   inventory_full: "%prefix% &c背包已满，掉落在地上"
   plugin_enabled: "%prefix% &a插件已成功启用！"
   plugin_disabled: "%prefix% &c插件已禁用！"
+  gem_escape: "%prefix% &e宝石 &f%gem_name% &e已逃逸到新位置！"
+  place_redeem: "%prefix% &a%player% 在祭坛献祭了 %gem_name%"
 
 history:
   redeem:

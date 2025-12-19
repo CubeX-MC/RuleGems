@@ -14,8 +14,8 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-
 import org.cubexmc.RuleGems;
+import org.cubexmc.gui.GUIManager;
 import org.cubexmc.manager.ConfigManager;
 import org.cubexmc.manager.GemManager;
 import org.cubexmc.manager.LanguageManager;
@@ -32,12 +32,14 @@ public class RuleGemsCommand implements CommandExecutor {
     private final GemManager gemManager;
     private final ConfigManager configManager;
     private final LanguageManager languageManager;
+    private final GUIManager guiManager;
 
-    public RuleGemsCommand(RuleGems plugin, GemManager gemManager, ConfigManager configManager, LanguageManager languageManager) {
+    public RuleGemsCommand(RuleGems plugin, GemManager gemManager, ConfigManager configManager, LanguageManager languageManager, GUIManager guiManager) {
         this.plugin = plugin;
         this.gemManager = gemManager;
         this.configManager = configManager;
         this.languageManager = languageManager;
+        this.guiManager = guiManager;
     }
 
     @Override
@@ -48,7 +50,8 @@ public class RuleGemsCommand implements CommandExecutor {
         }
 
         if (args.length == 0) {
-            languageManager.sendMessage(sender, "command.usage");
+            // 无参数时直接显示帮助
+            sendHelp(sender);
             return true;
         }
 
@@ -60,25 +63,51 @@ public class RuleGemsCommand implements CommandExecutor {
                 plugin.refreshAllowedCommandProxies();
                 languageManager.sendMessage(sender, "command.reload_success");
                 return true;
-            case "rulers":
-                if (require(sender, "rulegems.rulers")) return true;
-                java.util.Map<java.util.UUID, java.util.Set<String>> holders = gemManager.getCurrentRulers();
-                if (holders.isEmpty()) {
-                    languageManager.sendMessage(sender, "command.no_rulers");
+            case "gui":
+            case "menu":
+                // 打开主菜单 GUI
+                if (!(sender instanceof Player)) {
+                    languageManager.sendMessage(sender, "command.gui.player_only");
                     return true;
                 }
-                for (java.util.Map.Entry<java.util.UUID, java.util.Set<String>> e : holders.entrySet()) {
-                    Player p = Bukkit.getPlayer(e.getKey());
-                    String name = p != null ? p.getName() : e.getKey().toString();
-                    String extra = e.getValue().contains("ALL") ? "ALL" : String.join(",", e.getValue());
-                    Map<String, String> placeholders = new HashMap<>();
-                    placeholders.put("player", name + " (" + extra + ")");
-                    languageManager.sendMessage(sender, "command.rulers_status", placeholders);
+                if (guiManager != null) {
+                    boolean isAdmin = sender.hasPermission("rulegems.admin");
+                    guiManager.openMainMenu((Player) sender, isAdmin);
+                }
+                return true;
+            case "rulers":
+                if (require(sender, "rulegems.rulers")) return true;
+                // 如果是玩家，打开 GUI；否则输出文字
+                if (sender instanceof Player && guiManager != null) {
+                    boolean isAdmin = sender.hasPermission("rulegems.admin");
+                    guiManager.openRulersGUI((Player) sender, isAdmin);
+                } else {
+                    java.util.Map<java.util.UUID, java.util.Set<String>> holders = gemManager.getCurrentRulers();
+                    if (holders.isEmpty()) {
+                        languageManager.sendMessage(sender, "command.no_rulers");
+                        return true;
+                    }
+                    for (java.util.Map.Entry<java.util.UUID, java.util.Set<String>> e : holders.entrySet()) {
+                        // 使用缓存获取玩家名称（支持离线玩家）
+                        String name = gemManager.getCachedPlayerName(e.getKey());
+                        String extra = e.getValue().contains("ALL") ? "ALL" : String.join(",", e.getValue());
+                        Map<String, String> placeholders = new HashMap<>();
+                        placeholders.put("player", name + " (" + extra + ")");
+                        languageManager.sendMessage(sender, "command.rulers_status", placeholders);
+                    }
                 }
                 return true;
             case "gems":
-                if (require(sender, "rulegems.admin")) return true;
-                gemManager.gemStatus(sender);
+                // gems 指令需要权限检查
+                if (require(sender, "rulegems.gems")) return true;
+                // 对玩家打开 GUI
+                if (sender instanceof Player && guiManager != null) {
+                    boolean isAdmin = sender.hasPermission("rulegems.admin");
+                    guiManager.openGemsGUI((Player) sender, isAdmin);
+                } else {
+                    // 控制台显示详细文字信息
+                    gemManager.gemStatus(sender);
+                }
                 return true;
             case "tp":
                 if (require(sender, "rulegems.admin")) return true;
@@ -111,6 +140,12 @@ public class RuleGemsCommand implements CommandExecutor {
             case "history":
                 if (require(sender, "rulegems.admin")) return true;
                 return handleHistoryCommand(sender, args);
+            case "setaltar":
+                if (require(sender, "rulegems.admin")) return true;
+                return handleSetAltarCommand(sender, args);
+            case "removealtar":
+                if (require(sender, "rulegems.admin")) return true;
+                return handleRemoveAltarCommand(sender, args);
             case "help":
                 sendHelp(sender);
                 return true;
@@ -130,6 +165,7 @@ public class RuleGemsCommand implements CommandExecutor {
 
     private void sendHelp(CommandSender sender) {
         languageManager.sendMessage(sender, "command.help.header");
+        languageManager.sendMessage(sender, "command.help.gui");
         languageManager.sendMessage(sender, "command.help.place");
         languageManager.sendMessage(sender, "command.help.revoke");
         languageManager.sendMessage(sender, "command.help.reload");
@@ -139,6 +175,8 @@ public class RuleGemsCommand implements CommandExecutor {
         languageManager.sendMessage(sender, "command.help.redeem");
         languageManager.sendMessage(sender, "command.help.redeemall");
         languageManager.sendMessage(sender, "command.help.history");
+        languageManager.sendMessage(sender, "command.help.setaltar");
+        languageManager.sendMessage(sender, "command.help.removealtar");
         languageManager.sendMessage(sender, "command.help.help");
         languageManager.sendMessage(sender, "command.help.footer");
     }
@@ -520,5 +558,80 @@ public class RuleGemsCommand implements CommandExecutor {
             return "";
         }
         return value;
+    }
+
+    private boolean handleSetAltarCommand(CommandSender sender, String[] args) {
+        // /rulegems setaltar <gemKey>
+        if (!(sender instanceof Player)) {
+            languageManager.sendMessage(sender, "command.setaltar.player_only");
+            return true;
+        }
+        if (args.length < 2) {
+            languageManager.sendMessage(sender, "command.setaltar.usage");
+            return true;
+        }
+
+        Player player = (Player) sender;
+        String gemKey = args[1].toLowerCase();
+
+        // 检查宝石是否存在
+        org.cubexmc.model.GemDefinition def = gemManager.findGemDefinitionByKey(gemKey);
+        if (def == null) {
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("gem_key", args[1]);
+            languageManager.sendMessage(sender, "command.setaltar.gem_not_found", placeholders);
+            return true;
+        }
+
+        // 设置祭坛位置为玩家当前位置
+        Location loc = player.getLocation().getBlock().getLocation();
+        gemManager.setGemAltarLocation(gemKey, loc);
+
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("gem_key", gemKey);
+        placeholders.put("gem_name", def.getDisplayName());
+        placeholders.put("x", String.valueOf(loc.getBlockX()));
+        placeholders.put("y", String.valueOf(loc.getBlockY()));
+        placeholders.put("z", String.valueOf(loc.getBlockZ()));
+        placeholders.put("world", loc.getWorld() != null ? loc.getWorld().getName() : "unknown");
+        languageManager.sendMessage(sender, "command.setaltar.success", placeholders);
+        return true;
+    }
+
+    private boolean handleRemoveAltarCommand(CommandSender sender, String[] args) {
+        // /rulegems removealtar <gemKey>
+        if (args.length < 2) {
+            languageManager.sendMessage(sender, "command.removealtar.usage");
+            return true;
+        }
+
+        String gemKey = args[1].toLowerCase();
+
+        // 检查宝石是否存在
+        org.cubexmc.model.GemDefinition def = gemManager.findGemDefinitionByKey(gemKey);
+        if (def == null) {
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("gem_key", args[1]);
+            languageManager.sendMessage(sender, "command.removealtar.gem_not_found", placeholders);
+            return true;
+        }
+
+        // 检查是否有祭坛设置
+        if (def.getAltarLocation() == null) {
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("gem_key", gemKey);
+            placeholders.put("gem_name", def.getDisplayName());
+            languageManager.sendMessage(sender, "command.removealtar.no_altar", placeholders);
+            return true;
+        }
+
+        // 移除祭坛位置
+        gemManager.removeGemAltarLocation(gemKey);
+
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("gem_key", gemKey);
+        placeholders.put("gem_name", def.getDisplayName());
+        languageManager.sendMessage(sender, "command.removealtar.success", placeholders);
+        return true;
     }
 }

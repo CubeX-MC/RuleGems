@@ -12,7 +12,6 @@ import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-
 import org.cubexmc.RuleGems;
 import org.cubexmc.model.ExecuteConfig;
 import org.cubexmc.model.GemDefinition;
@@ -50,6 +49,28 @@ public class ConfigManager {
     private boolean inventoryGrantsEnabled;
     private boolean redeemEnabled;
     private boolean fullSetGrantsAllEnabled;
+
+    // 宝石逃逸配置
+    private boolean gemEscapeEnabled;
+    private long gemEscapeMinIntervalTicks;  // 存储为 tick 单位
+    private long gemEscapeMaxIntervalTicks;  // 存储为 tick 单位
+    private boolean gemEscapeBroadcast;
+    private String gemEscapeSound;
+    private String gemEscapeParticle;
+
+    // 放置兑换（祭坛模式）配置
+    private boolean placeRedeemEnabled;
+    // 长按右键兑换
+    private boolean holdToRedeemEnabled;
+    // 是否需要下蹲才能触发长按兑换（true=下蹲兑换，普通放置；false=普通兑换，下蹲放置）
+    private boolean sneakToRedeem;
+    // 长按时长（tick）
+    private int holdToRedeemDurationTicks;
+    private int placeRedeemRadius;
+    private String placeRedeemSound;
+    private String placeRedeemParticle;
+    private boolean placeRedeemBeaconBeam;
+    private int placeRedeemBeaconDuration;
 
     public ConfigManager(RuleGems plugin) {
         this.plugin = plugin;
@@ -105,8 +126,24 @@ public class ConfigManager {
         // 7) 授权策略
         ConfigurationSection gp = this.config.getConfigurationSection("grant_policy");
         this.inventoryGrantsEnabled = gp != null && gp.getBoolean("inventory_grants", false);
-        this.redeemEnabled = gp == null ? true : gp.getBoolean("redeem_enabled", true);
-        this.fullSetGrantsAllEnabled = gp == null ? true : gp.getBoolean("full_set_grants_all", true);
+        this.redeemEnabled = gp == null || gp.getBoolean("redeem_enabled", true);
+        this.fullSetGrantsAllEnabled = gp == null || gp.getBoolean("full_set_grants_all", true);
+        this.placeRedeemEnabled = gp != null && gp.getBoolean("place_redeem_enabled", false);
+        // 兼容旧配置: hold_to_redeem 可能在 grant_policy 或者 hold_to_redeem_enabled
+        this.holdToRedeemEnabled = gp != null && (gp.getBoolean("hold_to_redeem_enabled", gp.getBoolean("hold_to_redeem", true)));
+        
+        // 从独立的 hold_to_redeem 配置块读取，同时兼容旧的 grant_policy.sneak_to_redeem
+        ConfigurationSection htr = this.config.getConfigurationSection("hold_to_redeem");
+        if (htr != null) {
+            this.sneakToRedeem = htr.getBoolean("sneak_to_redeem", true);
+            // 读取长按时长（秒），转换为tick（1秒=20tick）
+            double durationSeconds = htr.getDouble("duration", 3.0);
+            this.holdToRedeemDurationTicks = (int) (durationSeconds * 20);
+        } else {
+            // 兼容旧配置
+            this.sneakToRedeem = gp == null || gp.getBoolean("sneak_to_redeem", true);
+            this.holdToRedeemDurationTicks = 60; // 默认3秒
+        }
 
         // 7.1) global toggles
         ConfigurationSection toggles = this.config.getConfigurationSection("toggles");
@@ -138,6 +175,50 @@ public class ConfigManager {
 
         // 8) 读取情景效果
         this.gemScatterExecute     = loadExecuteConfig("gem_scatter_execute");
+
+        // 9) 宝石逃逸配置
+        ConfigurationSection escapeSection = this.config.getConfigurationSection("gem_escape");
+        if (escapeSection != null) {
+            this.gemEscapeEnabled = escapeSection.getBoolean("enabled", false);
+            this.gemEscapeMinIntervalTicks = parseTimeToTicks(escapeSection.getString("min_interval", "30m"));
+            this.gemEscapeMaxIntervalTicks = parseTimeToTicks(escapeSection.getString("max_interval", "2h"));
+            this.gemEscapeBroadcast = escapeSection.getBoolean("broadcast", true);
+            this.gemEscapeSound = escapeSection.getString("sound", "ENTITY_ENDERMAN_TELEPORT");
+            this.gemEscapeParticle = escapeSection.getString("particle", "PORTAL");
+        } else {
+            this.gemEscapeEnabled = false;
+            this.gemEscapeMinIntervalTicks = 30 * 60 * 20L;  // 30分钟
+            this.gemEscapeMaxIntervalTicks = 2 * 60 * 60 * 20L;  // 2小时
+            this.gemEscapeBroadcast = true;
+            this.gemEscapeSound = "ENTITY_ENDERMAN_TELEPORT";
+            this.gemEscapeParticle = "PORTAL";
+        }
+        // 确保 min <= max
+        if (this.gemEscapeMinIntervalTicks > this.gemEscapeMaxIntervalTicks) {
+            long tmp = this.gemEscapeMinIntervalTicks;
+            this.gemEscapeMinIntervalTicks = this.gemEscapeMaxIntervalTicks;
+            this.gemEscapeMaxIntervalTicks = tmp;
+        }
+        // 确保最小间隔至少 1 秒
+        if (this.gemEscapeMinIntervalTicks < 20L) {
+            this.gemEscapeMinIntervalTicks = 20L;
+        }
+
+        // 10) 放置兑换（祭坛模式）全局设置
+        ConfigurationSection prSection = this.config.getConfigurationSection("place_redeem");
+        if (prSection != null) {
+            this.placeRedeemRadius = prSection.getInt("radius", 1);
+            this.placeRedeemSound = prSection.getString("sound", "BLOCK_BEACON_ACTIVATE");
+            this.placeRedeemParticle = prSection.getString("particle", "TOTEM");
+            this.placeRedeemBeaconBeam = prSection.getBoolean("beacon_beam", true);
+            this.placeRedeemBeaconDuration = prSection.getInt("beacon_beam_duration", 5);
+        } else {
+            this.placeRedeemRadius = 1;
+            this.placeRedeemSound = "BLOCK_BEACON_ACTIVATE";
+            this.placeRedeemParticle = "TOTEM";
+            this.placeRedeemBeaconBeam = true;
+            this.placeRedeemBeaconDuration = 5;
+        }
     }
 
     private void loadGemDefinitions() {
@@ -329,7 +410,23 @@ public class ConfigManager {
             }
         }
 
-        return new GemDefinition(gemKey, material, displayName, particle, sound, onPickup, onScatter, onRedeem, perms, group, lore, redeemTitle, enchanted, allowed, mutex, count, corner1, corner2);
+        // 解析放置兑换祭坛位置（可选）
+        Location altarLocation = null;
+        Object altarObj = map.get("altar");
+        if (altarObj instanceof java.util.Map) {
+            java.util.Map<?, ?> altarMap = (java.util.Map<?, ?>) altarObj;
+            String altarWorldName = stringOf(altarMap.get("world"));
+            if (altarWorldName != null && !altarWorldName.isEmpty()) {
+                World altarWorld = Bukkit.getWorld(altarWorldName);
+                if (altarWorld != null) {
+                    altarLocation = parseLocationFromMap(altarMap, altarWorld);
+                } else {
+                    plugin.getLogger().warning("宝石 " + gemKey + " 的祭坛配置中找不到世界: " + altarWorldName);
+                }
+            }
+        }
+
+        return new GemDefinition(gemKey, material, displayName, particle, sound, onPickup, onScatter, onRedeem, perms, group, lore, redeemTitle, enchanted, allowed, mutex, count, corner1, corner2, altarLocation);
     }
     
     /**
@@ -392,6 +489,46 @@ public class ConfigManager {
     }
     private String stringOf(Object o) {
         return o == null ? null : String.valueOf(o);
+    }
+
+    /**
+     * 解析时间字符串为 tick 数量
+     * 支持的单位: s(秒), m(分钟), h(小时), d(天)
+     * 示例: "30m", "2h", "1d", "90s"
+     * 如果没有单位，默认为分钟
+     */
+    private long parseTimeToTicks(String timeStr) {
+        if (timeStr == null || timeStr.isEmpty()) {
+            return 30 * 60 * 20L; // 默认 30 分钟
+        }
+        
+        timeStr = timeStr.trim().toLowerCase();
+        
+        // 尝试解析带单位的格式
+        long multiplier = 60 * 20L; // 默认单位：分钟 -> tick
+        String numPart = timeStr;
+        
+        if (timeStr.endsWith("s")) {
+            multiplier = 20L; // 秒 -> tick
+            numPart = timeStr.substring(0, timeStr.length() - 1);
+        } else if (timeStr.endsWith("m")) {
+            multiplier = 60 * 20L; // 分钟 -> tick
+            numPart = timeStr.substring(0, timeStr.length() - 1);
+        } else if (timeStr.endsWith("h")) {
+            multiplier = 60 * 60 * 20L; // 小时 -> tick
+            numPart = timeStr.substring(0, timeStr.length() - 1);
+        } else if (timeStr.endsWith("d")) {
+            multiplier = 24 * 60 * 60 * 20L; // 天 -> tick
+            numPart = timeStr.substring(0, timeStr.length() - 1);
+        }
+        
+        try {
+            double value = Double.parseDouble(numPart.trim());
+            return (long) (value * multiplier);
+        } catch (NumberFormatException e) {
+            plugin.getLogger().warning("无法解析时间格式: " + timeStr + "，使用默认值 30m");
+            return 30 * 60 * 20L;
+        }
     }
 
     private java.util.List<String> toStringList(Object o) {
@@ -509,6 +646,30 @@ public class ConfigManager {
     public String getRedeemAllSound() { return redeemAllSound; }
     public java.util.List<String> getRedeemAllPermissions() { return redeemAllPermissions; }
     public java.util.List<org.cubexmc.model.AllowedCommand> getRedeemAllAllowedCommands() { return redeemAllAllowed; }
+
+    // 宝石逃逸配置 getters
+    public boolean isGemEscapeEnabled() { return gemEscapeEnabled; }
+    /** 返回最小逃逸间隔（tick 单位） */
+    public long getGemEscapeMinIntervalTicks() { return gemEscapeMinIntervalTicks; }
+    /** 返回最大逃逸间隔（tick 单位） */
+    public long getGemEscapeMaxIntervalTicks() { return gemEscapeMaxIntervalTicks; }
+    public boolean isGemEscapeBroadcast() { return gemEscapeBroadcast; }
+    public String getGemEscapeSound() { return gemEscapeSound; }
+    public String getGemEscapeParticle() { return gemEscapeParticle; }
+
+    // 放置兑换（祭坛模式）配置 getters
+    public boolean isPlaceRedeemEnabled() { return placeRedeemEnabled; }
+    // 长按右键兑换 getter
+    public boolean isHoldToRedeemEnabled() { return holdToRedeemEnabled; }
+    // 是否需要下蹲才能触发长按兑换
+    public boolean isSneakToRedeem() { return sneakToRedeem; }
+    // 长按兑换时长（tick）
+    public int getHoldToRedeemDurationTicks() { return holdToRedeemDurationTicks; }
+    public int getPlaceRedeemRadius() { return placeRedeemRadius; }
+    public String getPlaceRedeemSound() { return placeRedeemSound; }
+    public String getPlaceRedeemParticle() { return placeRedeemParticle; }
+    public boolean isPlaceRedeemBeaconBeam() { return placeRedeemBeaconBeam; }
+    public int getPlaceRedeemBeaconDuration() { return placeRedeemBeaconDuration; }
 
     /**
      * Collect every configured allowed-command label for proxy registration.

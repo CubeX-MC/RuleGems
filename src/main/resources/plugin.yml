@@ -1,5 +1,5 @@
 name: RuleGems
-version: 1.0.4
+version: 1.0.5
 main: org.cubexmc.RuleGems
 author: angushushu
 description: "一个管理 RuleGems（统治宝石）的插件"
@@ -17,7 +17,7 @@ commands:
 
 permissions:
   rulegems.admin:
-    description: Allows access to all RuleGems commands
+    description: Allows access to all RuleGems admin commands
     default: op
   rulegems.redeem:
     description: Allows using /rulegems redeem
@@ -27,6 +27,9 @@ permissions:
     default: true
   rulegems.rulers:
     description: Allows using /rulegems rulers
+    default: true
+  rulegems.gems:
+    description: Allows using /rulegems gems to view gem list
     default: true
   rulegems.help:
     description: Allows using /rulegems help

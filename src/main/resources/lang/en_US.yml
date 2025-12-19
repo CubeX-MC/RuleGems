@@ -42,6 +42,7 @@ messages:
       unavailable: "&e%prefix% That gem is neither held nor placed."
     help:
       header: "&a=== RuleGems Help ==="
+      gui: "&e/rulegems gui &f- Open main menu GUI"
       place: "&e/rulegems place <gemId> <x|~> <y|~> <z|~> &f- Place a specific gem at coordinates"
       revoke: "&e/rulegems revoke <playerName> &f- Revoke player's permissions"
       reload: "&e/rulegems reload &f- Reload configuration"
@@ -51,8 +52,22 @@ messages:
       redeem: "&e/rulegems redeem &f- Redeem while holding a gem in main hand"
       redeemall: "&e/rulegems redeemall &f- Redeem all at once when complete"
       history: "&e/rulegems history [page] [player] &f- View paged power transfer history"
+      setaltar: "&e/rulegems setaltar <gemKey> &f- Set gem altar at current location"
+      removealtar: "&e/rulegems removealtar <gemKey> &f- Remove gem altar"
       help: "&e/rulegems help &f- Show help information"
       footer: "&a======================"
+    gui:
+      player_only: "&c%prefix% This command is for players only."
+    setaltar:
+      player_only: "&c%prefix% This command is for players only."
+      usage: "&c%prefix% Usage: /rulegems setaltar <gemKey>"
+      gem_not_found: "&c%prefix% Gem not found: &e%gem_key%"
+      success: "&a%prefix% Set &f%gem_name%'s &aaltar at &e%x%, %y%, %z% &a(&b%world%&a)"
+    removealtar:
+      usage: "&c%prefix% Usage: /rulegems removealtar <gemKey>"
+      gem_not_found: "&c%prefix% Gem not found: &e%gem_key%"
+      no_altar: "&c%prefix% &f%gem_name% &cdoes not have an altar set."
+      success: "&a%prefix% Removed &f%gem_name%'s &aaltar location."
     history:
       disabled: "&c%prefix% History logging is not enabled."
       no_records: "&e%prefix% No history records found."
@@ -75,8 +90,74 @@ messages:
     cooldown: "%prefix% &cCommand is on cooldown. Wait %seconds% seconds."
     command_failed_detail: "%prefix% &cCommand execution failed: %command%"
   inventory:
-    drag_denied: "&c%prefix% Cannot drag Power Gem here!"
+    drag_denied: "&c%prefix% Cannot drag Gem here!"
+    container_denied: "&c%prefix% Cannot put Gem into containers!"
     inventory_full: "&7%prefix% Inventory full, gem has been placed."
+  gem_escape:
+    broadcast: "&e%prefix% &f%gem_name% &ehas escaped! It is seeking a new hiding place..."
+  place_redeem:
+    success: "&a%prefix% &eAltar sacrifice successful! &f%gem_name%'s &epower has been infused into your soul!"
+    broadcast: "&6%prefix% &e%player% &6offered &f%gem_name% &6at the altar and gained its power!"
+  hold_redeem:
+    cancelled: "&c✖ Cancelled"
+    progress_bar: "&6✦ %bar% ✦ &e%percent%%"
+    hint_sneak: "&eTip: Sneak + hold right-click to redeem the gem"
+    hint_normal: "&eTip: Hold right-click to redeem, sneak + right-click to place"
+gui:
+  # Control bar buttons
+  control:
+    prev: "Previous"
+    next: "Next"
+    page: "Page"
+    total: "Total"
+    close: "Close"
+    back: "Back"
+    refresh: "Refresh"
+    filter: "Filter"
+    filter_hint: "Click to toggle filter"
+  # Gems GUI
+  gems:
+    title_admin: "&5✦ Gem Management ✦"
+    title_player: "&6✦ Rule Gems ✦"
+    default_name: "&cRule Gem"
+    section_id: "Basic Info"
+    section_status: "Current Status"
+    section_permissions: "Permissions"
+    section_commands: "Commands"
+    section_altar: "Altar Location"
+    status_held: "Held"
+    status_placed: "Placed"
+    status_unknown: "Unknown"
+    uses_unlimited: "Unlimited"
+    click_tp_holder: "Click to teleport to holder"
+    click_tp_location: "Click to teleport to gem"
+    hidden_in_world: "Hidden somewhere in the world..."
+    teleported_to_holder: "&aTeleported to holder %player%"
+    teleported_to_location: "&aTeleported to gem location"
+  # Rulers GUI
+  rulers:
+    title_admin: "&4✦ Rulers Management ✦"
+    title_player: "&6✦ Current Rulers ✦"
+    no_rulers: "No Rulers"
+    no_rulers_lore: "No players have redeemed gems"
+    supreme_ruler: "Supreme Ruler"
+    supreme_ruler_desc: "Collected all gems!"
+    holding_gems: "Holding Gems"
+    status_online: "Online"
+    status_offline: "Offline"
+    click_tp_player: "Click to teleport to player"
+    teleported_to_player: "&aTeleported to %player%"
+  # Main Menu
+  menu:
+    title: "&5✦ RuleGems Menu ✦"
+    gems_title: "Gems List"
+    gems_desc: "View all power gems status"
+    rulers_title: "Rulers List"
+    rulers_desc: "View current power holders"
+    gem_count: "Gem Count"
+    ruler_count: "Ruler Count"
+    admin_view: "Admin View"
+    click_to_open: "Click to open"
   gem_status:
     header: "&a====== Gem Status ======"
     total_expected: "&a%prefix% Expected gem count: &e%count%"
@@ -114,6 +195,8 @@ logger:
   inventory_full: "%prefix% &cInventory full, dropped on ground"
   plugin_enabled: "%prefix% &aPlugin enabled successfully!"
   plugin_disabled: "%prefix% &cPlugin disabled!"
+  gem_escape: "%prefix% &eGem &f%gem_name% &ehas escaped to a new location!"
+  place_redeem: "%prefix% &a%player% sacrificed %gem_name% at the altar"
 
 history:
   redeem:

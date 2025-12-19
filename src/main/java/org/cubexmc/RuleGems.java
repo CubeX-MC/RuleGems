@@ -1,26 +1,5 @@
 package org.cubexmc;
 
-import static org.bukkit.Bukkit.getPluginManager;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandMap;
-import org.bukkit.command.SimpleCommandMap;
-import org.bukkit.plugin.java.JavaPlugin;
-
-import org.cubexmc.commands.RuleGemsTabCompleter;
-import org.cubexmc.commands.RuleGemsCommand;
-import org.cubexmc.listeners.GemInventoryListener;
-import org.cubexmc.listeners.GemPlaceListener;
-import org.cubexmc.listeners.PlayerEventListener;
-import org.cubexmc.listeners.CommandAllowanceListener;
-import org.cubexmc.manager.ConfigManager;
-import org.cubexmc.manager.GemManager;
-import org.cubexmc.manager.HistoryLogger;
-import org.cubexmc.manager.LanguageManager;
-import org.cubexmc.metrics.Metrics;
-import org.cubexmc.utils.EffectUtils;
-import org.cubexmc.utils.SchedulerUtil;
-import net.milkbowl.vault.permission.Permission;
-
 import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.HashMap;
@@ -28,6 +7,29 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+
+import static org.bukkit.Bukkit.getPluginManager;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandMap;
+import org.bukkit.command.SimpleCommandMap;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.cubexmc.commands.RuleGemsCommand;
+import org.cubexmc.commands.RuleGemsTabCompleter;
+import org.cubexmc.listeners.CommandAllowanceListener;
+import org.cubexmc.listeners.GemConsumeListener;
+import org.cubexmc.listeners.GemInventoryListener;
+import org.cubexmc.listeners.GemPlaceListener;
+import org.cubexmc.listeners.PlayerEventListener;
+import org.cubexmc.manager.ConfigManager;
+import org.cubexmc.manager.GemManager;
+import org.cubexmc.manager.HistoryLogger;
+import org.cubexmc.manager.LanguageManager;
+import org.cubexmc.gui.GUIManager;
+import org.cubexmc.metrics.Metrics;
+import org.cubexmc.utils.EffectUtils;
+import org.cubexmc.utils.SchedulerUtil;
+
+import net.milkbowl.vault.permission.Permission;
 
 /**
  * RuleGems 插件主类
@@ -41,6 +43,7 @@ public class RuleGems extends JavaPlugin {
     private LanguageManager languageManager;
     private HistoryLogger historyLogger;
     private org.cubexmc.manager.CustomCommandExecutor customCommandExecutor;
+    private GUIManager guiManager;
     private Permission vaultPerms;
     @SuppressWarnings("unused")
     private Metrics metrics;
@@ -60,12 +63,13 @@ public class RuleGems extends JavaPlugin {
 //        this.configManager.loadConfigs();   // 读 config.yml, data.yml
         this.gemManager = new GemManager(this, configManager, effectUtils, languageManager);
         this.gemManager.setHistoryLogger(historyLogger);
+        this.guiManager = new GUIManager(this, gemManager, languageManager);
 
     this.metrics = new Metrics(this, 27483);
     loadPlugin();
 
         // 注册命令
-        RuleGemsCommand ruleGemsCommand = new RuleGemsCommand(this, gemManager, configManager, languageManager);
+        RuleGemsCommand ruleGemsCommand = new RuleGemsCommand(this, gemManager, configManager, languageManager, guiManager);
         org.bukkit.command.PluginCommand cmd = getCommand("rulegems");
         if (cmd != null) {
             cmd.setExecutor(ruleGemsCommand);
@@ -77,6 +81,7 @@ public class RuleGems extends JavaPlugin {
         getPluginManager().registerEvents(new GemPlaceListener(this, gemManager), this);
         getPluginManager().registerEvents(new GemInventoryListener(gemManager, languageManager), this);
         getPluginManager().registerEvents(new PlayerEventListener(this, gemManager), this);
+        getPluginManager().registerEvents(new GemConsumeListener(this, gemManager, configManager, languageManager), this);
         this.commandAllowanceListener = new CommandAllowanceListener(gemManager, languageManager, customCommandExecutor);
         getPluginManager().registerEvents(commandAllowanceListener, this);
         // Setup Vault permissions (optional)
@@ -147,6 +152,7 @@ public class RuleGems extends JavaPlugin {
     public LanguageManager getLanguageManager() { return languageManager; }
     public HistoryLogger getHistoryLogger() { return historyLogger; }
     public org.cubexmc.manager.CustomCommandExecutor getCustomCommandExecutor() { return customCommandExecutor; }
+    public GUIManager getGUIManager() { return guiManager; }
     public Permission getVaultPerms() { return vaultPerms; }
 
     public void refreshAllowedCommandProxies() {

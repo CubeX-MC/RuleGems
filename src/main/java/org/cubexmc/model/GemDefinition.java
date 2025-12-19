@@ -30,6 +30,7 @@ public class GemDefinition {
     private final int count; // 该类别宝石实例数量（默认 1）
     private final Location randomPlaceCorner1; // 随机生成范围角落1（可选，null则使用全局默认）
     private final Location randomPlaceCorner2; // 随机生成范围角落2（可选，null则使用全局默认）
+    private Location altarLocation; // 放置兑换祭坛位置（可选，null则该宝石不支持祭坛兑换）
 
     public GemDefinition(String gemKey,
                          Material material,
@@ -48,7 +49,8 @@ public class GemDefinition {
                          java.util.List<String> mutualExclusive,
                          int count,
                          Location randomPlaceCorner1,
-                         Location randomPlaceCorner2) {
+                         Location randomPlaceCorner2,
+                         Location altarLocation) {
         this.gemKey = gemKey;
         this.material = material;
         this.displayName = displayName;
@@ -67,6 +69,7 @@ public class GemDefinition {
         this.count = Math.max(1, count);
         this.randomPlaceCorner1 = randomPlaceCorner1;
         this.randomPlaceCorner2 = randomPlaceCorner2;
+        this.altarLocation = altarLocation;
     }
 
     public String getGemKey() {
@@ -139,6 +142,14 @@ public class GemDefinition {
 
     public Location getRandomPlaceCorner2() {
         return randomPlaceCorner2;
+    }
+
+    public Location getAltarLocation() {
+        return altarLocation;
+    }
+
+    public void setAltarLocation(Location altarLocation) {
+        this.altarLocation = altarLocation;
     }
 }
 

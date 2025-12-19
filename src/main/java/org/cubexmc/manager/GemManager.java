@@ -55,6 +55,7 @@ public class GemManager {
     private final NamespacedKey uniqueIdKey;
     private final NamespacedKey gemKeyKey;
     private final Map<Location, UUID> locationToGemUuid = new HashMap<>();
+    private final Map<UUID, Location> gemUuidToLocation = new HashMap<>(); // 反向映射，O(1) 查找
     private final Map<UUID, Player> gemUuidToHolder = new HashMap<>();
     private final Map<UUID, String> gemUuidToKey = new HashMap<>();
     // 归属：按 gemId 记录当前兑换归属玩家
@@ -81,6 +82,15 @@ public class GemManager {
     // Global allowances (e.g., redeem_all extras): player -> label -> remaining uses
     private final Map<java.util.UUID, java.util.Map<String, Integer>> playerGlobalAllowedUses = new HashMap<>();
     private static final java.util.Locale ROOT_LOCALE = java.util.Locale.ROOT;
+    
+    // GemDefinition 缓存，避免重复遍历列表
+    private final Map<String, org.cubexmc.model.GemDefinition> gemDefinitionCache = new HashMap<>();
+    
+    // 宝石逃逸调度任务（Object 用于兼容 Bukkit 和 Folia 的不同返回类型）
+    private final Map<UUID, Object> gemEscapeTasks = new HashMap<>();
+    
+    // 玩家名称缓存（用于离线玩家显示）
+    private final Map<java.util.UUID, String> playerNameCache = new HashMap<>();
 
     public GemManager(RuleGems plugin, ConfigManager configManager, EffectUtils effectUtils,
                       LanguageManager languageManager) {
@@ -114,6 +124,7 @@ public class GemManager {
         
         // 清空所有缓存，避免 reload 时累积重复数据
         locationToGemUuid.clear();
+        gemUuidToLocation.clear();
         gemUuidToHolder.clear();
         gemUuidToKey.clear();
         gemIdToRedeemer.clear();
@@ -125,6 +136,7 @@ public class GemManager {
         playerGemHeldUses.clear();
         playerGemRedeemUses.clear();
         playerGlobalAllowedUses.clear();
+        playerNameCache.clear();
         fullSetOwner = null;
         // 读取宝石数据
         // 放置的宝石
@@ -143,6 +155,19 @@ public class GemManager {
                 if (list != null) {
                     playerUuidToRedeemedKeys.put(pu, new java.util.HashSet<>(list));
                 }
+            }
+        }
+        // 读取玩家名称缓存
+        ConfigurationSection namesSection = gemsData.getConfigurationSection("player_names");
+        if (namesSection != null) {
+            for (String uuidStr : namesSection.getKeys(false)) {
+                try {
+                    java.util.UUID uid = java.util.UUID.fromString(uuidStr);
+                    String name = namesSection.getString(uuidStr);
+                    if (name != null && !name.isEmpty()) {
+                        playerNameCache.put(uid, name);
+                    }
+                } catch (Exception ignored) {}
             }
         }
         // 兼容旧结构：redeem_owner 按 key；新结构：redeem_owner_by_id 按 gemId
@@ -299,6 +324,7 @@ public class GemManager {
                 }
 
                 locationToGemUuid.put(loc, gemId);
+                gemUuidToLocation.put(gemId, loc);
                 gemUuidToKey.put(gemId, gemKey);
             }
         }
@@ -349,9 +375,17 @@ public class GemManager {
         Map<String, String> placeholders2 = new HashMap<>();
         placeholders2.put("count", String.valueOf(gemUuidToHolder.size()));
         languageManager.logMessage("gems_held_loaded", placeholders2);
+        
+        // 重建 GemDefinition 缓存
+        rebuildGemDefinitionCache();
+        
+        // 初始化宝石逃逸任务
+        initializeEscapeTasks();
     }
 
     public void saveGems() {
+        // 取消所有逃逸任务
+        cancelAllEscapeTasks();
         FileConfiguration gemsData = configManager.getGemsData();
         gemsData.set("placed-gems", null);
         gemsData.set("held-gems", null);
@@ -361,6 +395,7 @@ public class GemManager {
         gemsData.set("full_set_owner", null);
         gemsData.set("pending_revokes", null);
         gemsData.set("allowed_uses", null);
+        gemsData.set("player_names", null);
 
         for (Location loc : locationToGemUuid.keySet()) {
             String path = "placed-gems." + locationToGemUuid.get(loc).toString();
@@ -418,6 +453,10 @@ public class GemManager {
                 gemsData.set(base + ".global." + l.getKey(), l.getValue());
             }
         }
+        // 保存玩家名称缓存
+        for (Map.Entry<java.util.UUID, String> e : playerNameCache.entrySet()) {
+            gemsData.set("player_names." + e.getKey().toString(), e.getValue());
+        }
         configManager.saveGemData(gemsData);
     }
 
@@ -469,9 +508,21 @@ public class GemManager {
 
         Block block = event.getBlockPlaced();
         Location placedLoc = block.getLocation();
+        Player placer = event.getPlayer();
+
+        // 检查是否是放置兑换（祭坛模式）- 每颗宝石有独立的祭坛位置
+        String currentGemKey = gemUuidToKey.get(gemId);
+        org.cubexmc.model.GemDefinition matchedDef = findMatchingAltarGem(placedLoc, currentGemKey);
+        if (matchedDef != null) {
+            // 触发放置兑换
+            handlePlaceRedeem(placer, gemId, placedLoc, block, matchedDef);
+            return;
+        }
+
         // 更新放置和持有信息
         gemUuidToHolder.remove(gemId);
         locationToGemUuid.put(placedLoc, gemId);
+        gemUuidToLocation.put(gemId, placedLoc);
 
         // 记录宝石放置
         if (historyLogger != null) {
@@ -481,11 +532,10 @@ public class GemManager {
                 placedLoc.getBlockY(), 
                 placedLoc.getBlockZ(),
                 placedLoc.getWorld() != null ? placedLoc.getWorld().getName() : "unknown");
-            historyLogger.logGemPlace(event.getPlayer(), gemKey != null ? gemKey : gemId.toString(), locationStr);
+            historyLogger.logGemPlace(placer, gemKey != null ? gemKey : gemId.toString(), locationStr);
         }
 
         // Creative players keep placement items by default; ensure the gem is removed from inventory post-placement
-        Player placer = event.getPlayer();
         if (placer != null) {
             UUID placedGemId = gemId;
             SchedulerUtil.entityRun(plugin, placer, () -> {
@@ -523,6 +573,8 @@ public class GemManager {
                 ItemStack gemItem = createRuleGem(gemId);
                 inv.addItem(gemItem);
                 gemUuidToHolder.put(gemId, player);
+                // 取消宝石逃逸任务（被拾取后不再逃逸）
+                cancelEscape(gemId);
                 unplaceRuleGem(block.getLocation(), gemId);
                 // inventory_grants: 处理持有者与限次指令的归属与发放
                 handleInventoryOwnershipOnPickup(player, gemId);
@@ -627,6 +679,7 @@ public class GemManager {
         }
         // 清空坐标-宝石映射，确保后续重新计算
         locationToGemUuid.clear();
+        gemUuidToLocation.clear();
 
         // 2) 收回所有玩家背包中的宝石，并清空"持有映射"
         for (Player player : Bukkit.getOnlinePlayers()) {
@@ -878,10 +931,33 @@ public class GemManager {
     }
 
     private org.cubexmc.model.GemDefinition findGemDefinition(String key) {
+        if (key == null) return null;
+        // 使用缓存进行 O(1) 查找
+        org.cubexmc.model.GemDefinition cached = gemDefinitionCache.get(key.toLowerCase(ROOT_LOCALE));
+        if (cached != null) return cached;
+        // 缓存未命中时遍历并更新缓存
         for (org.cubexmc.model.GemDefinition d : configManager.getGemDefinitions()) {
-            if (d.getGemKey().equalsIgnoreCase(key)) return d;
+            if (d.getGemKey().equalsIgnoreCase(key)) {
+                gemDefinitionCache.put(key.toLowerCase(ROOT_LOCALE), d);
+                return d;
+            }
         }
         return null;
+    }
+    
+    /**
+     * 重建 GemDefinition 缓存（reload 时调用）
+     */
+    private void rebuildGemDefinitionCache() {
+        gemDefinitionCache.clear();
+        List<org.cubexmc.model.GemDefinition> defs = configManager.getGemDefinitions();
+        if (defs != null) {
+            for (org.cubexmc.model.GemDefinition d : defs) {
+                if (d.getGemKey() != null) {
+                    gemDefinitionCache.put(d.getGemKey().toLowerCase(ROOT_LOCALE), d);
+                }
+            }
+        }
     }
 
     private void ensureGemKeyAssigned(UUID gemId) {
@@ -1130,26 +1206,7 @@ public class GemManager {
     }
 
     /**
-     * 根据locationToGemUuid里的数据，初始化宝石方块
-     */
-//    public void setGems() {
-//        for (Location loc : locationToGemUuid.keySet()) {
-//            placeRuleGem(loc, locationToGemUuid.get(loc));
-//        }
-//        // 检查所有在线玩家，如果背包里有宝石，设置宝石材质
-//        // 刚开机应该不会有
-//        for (Player player : Bukkit.getOnlinePlayers()) {
-//            Inventory inv = player.getInventory();
-//            for (ItemStack item : inv.getContents()) {
-//                if (isRuleGem(item)) {
-//                    placeRuleGem(player.getLocation(), getGemUUID(item));
-//                }
-//            }
-//        }
-//    }
-
-    /*
-     * get total gem count
+     * 获取宝石总数（放置 + 持有）
      */
     public int getTotalGemCount() {
         return locationToGemUuid.size() + gemUuidToHolder.size();
@@ -1198,6 +1255,9 @@ public class GemManager {
             }
             target.getBlock().setType(mat);
             locationToGemUuid.put(target, gemId);
+            gemUuidToLocation.put(gemId, target);
+            // 调度宝石逃逸
+            scheduleEscape(gemId);
         }, 0L, -1L);
     }
 
@@ -1210,6 +1270,7 @@ public class GemManager {
         SchedulerUtil.regionRun(plugin, fLoc, () -> {
             fLoc.getBlock().setType(Material.AIR);
             locationToGemUuid.remove(fLoc, gemId);
+            gemUuidToLocation.remove(gemId);
         }, 0L, -1L);
     }
 
@@ -1261,14 +1322,35 @@ public class GemManager {
         if (range != null) {
             randomPlaceGem(gemId, range[0], range[1]);
         } else {
-            plugin.getLogger().warning("无法放置宝石 " + gemId + "：未配置生成范围");
+            // 回退：使用主世界出生点作为放置位置
+            plugin.getLogger().warning("无法放置宝石 " + gemId + "：未配置生成范围，尝试使用主世界出生点");
+            World defaultWorld = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+            if (defaultWorld != null) {
+                Location spawnLoc = defaultWorld.getSpawnLocation();
+                placeRuleGem(spawnLoc, gemId);
+            } else {
+                plugin.getLogger().severe("无法放置宝石 " + gemId + "：没有可用的世界！宝石将处于 unknown 状态");
+            }
         }
     }
 
     // 在随机范围内尝试放置（Folia 安全）：每次选择一个候选 (x,z)，在该坐标区域线程中计算最高地面并放置
     private void scheduleRandomAttempt(UUID gemId, Location corner1, Location corner2, int attemptsLeft) {
-        if (corner1 == null || corner2 == null || attemptsLeft <= 0) return;
+        if (corner1 == null || corner2 == null) return;
         if (corner1.getWorld() != corner2.getWorld()) return;
+        
+        // 最后一次尝试失败后，回退到范围中心点
+        if (attemptsLeft <= 0) {
+            plugin.getLogger().warning("宝石 " + gemId + " 随机放置失败，回退到范围中心点");
+            int centerX = (corner1.getBlockX() + corner2.getBlockX()) / 2;
+            int centerZ = (corner1.getBlockZ() + corner2.getBlockZ()) / 2;
+            World world = corner1.getWorld();
+            int y = world.getHighestBlockYAt(centerX, centerZ) + 1;
+            Location fallback = new Location(world, centerX, y, centerZ);
+            placeRuleGem(fallback, gemId);
+            return;
+        }
+        
         World world = corner1.getWorld();
         Random rand = new Random();
         int minX = Math.min(corner1.getBlockX(), corner2.getBlockX());
@@ -1285,14 +1367,14 @@ public class GemManager {
                 Location place = new Location(world, x, y, z);
                 WorldBorder border = world.getWorldBorder();
                 if (!border.isInside(place)) {
-                    if (attemptsLeft - 1 > 0) scheduleRandomAttempt(gemId, corner1, corner2, attemptsLeft - 1);
+                    scheduleRandomAttempt(gemId, corner1, corner2, attemptsLeft - 1);
                     return;
                 }
                 // 最终放置
                 placeRuleGem(place, gemId);
             } catch (Throwable t) {
                 // 若计算失败，继续下一次尝试
-                if (attemptsLeft - 1 > 0) scheduleRandomAttempt(gemId, corner1, corner2, attemptsLeft - 1);
+                scheduleRandomAttempt(gemId, corner1, corner2, attemptsLeft - 1);
             }
         }, 0L, -1L);
     }
@@ -1328,6 +1410,404 @@ public class GemManager {
                 }, 0L, -1L);
             }
         }, 0L, 20L);
+    }
+
+    // ==================== 宝石逃逸机制 ====================
+
+    /**
+     * 为宝石调度逃逸任务（在随机时间后自动移动到新位置）
+     */
+    public void scheduleEscape(UUID gemId) {
+        if (!configManager.isGemEscapeEnabled()) return;
+        if (gemId == null) return;
+        
+        // 取消旧任务
+        cancelEscape(gemId);
+        
+        // 计算随机延迟（已经是 tick 单位）
+        long minTicks = configManager.getGemEscapeMinIntervalTicks();
+        long maxTicks = configManager.getGemEscapeMaxIntervalTicks();
+        Random rand = new Random();
+        long range = Math.max(1L, maxTicks - minTicks);
+        long delayTicks = minTicks + (long) (rand.nextDouble() * range);
+        
+        // 调度逃逸任务
+        Object task = SchedulerUtil.globalRun(plugin, () -> triggerEscape(gemId), delayTicks, -1L);
+        if (task != null) {
+            gemEscapeTasks.put(gemId, task);
+        }
+    }
+
+    /**
+     * 取消宝石的逃逸任务
+     */
+    public void cancelEscape(UUID gemId) {
+        if (gemId == null) return;
+        Object task = gemEscapeTasks.remove(gemId);
+        if (task != null) {
+            SchedulerUtil.cancelTask(task);
+        }
+    }
+
+    /**
+     * 取消所有宝石的逃逸任务
+     */
+    public void cancelAllEscapeTasks() {
+        for (Object task : gemEscapeTasks.values()) {
+            if (task != null) {
+                SchedulerUtil.cancelTask(task);
+            }
+        }
+        gemEscapeTasks.clear();
+    }
+
+    /**
+     * 为所有已放置的宝石初始化逃逸任务
+     */
+    public void initializeEscapeTasks() {
+        if (!configManager.isGemEscapeEnabled()) return;
+        for (UUID gemId : gemUuidToLocation.keySet()) {
+            scheduleEscape(gemId);
+        }
+    }
+
+    /**
+     * 触发宝石逃逸：移动到新的随机位置
+     */
+    private void triggerEscape(UUID gemId) {
+        if (gemId == null) return;
+        
+        // 移除任务记录
+        gemEscapeTasks.remove(gemId);
+        
+        // 获取当前位置
+        Location oldLocation = gemUuidToLocation.get(gemId);
+        if (oldLocation == null) {
+            // 宝石不在放置状态（可能被拾取了），不处理
+            return;
+        }
+        
+        // 播放逃逸特效（在旧位置）
+        playEscapeEffects(oldLocation, gemId);
+        
+        // 移除旧位置
+        unplaceRuleGem(oldLocation, gemId);
+        
+        // 随机放置到新位置
+        randomPlaceGem(gemId);
+        
+        // 广播消息
+        if (configManager.isGemEscapeBroadcast()) {
+            broadcastEscape(gemId);
+        }
+        
+        // 重新调度下一次逃逸（会在 placeRuleGemInternal 中调用）
+    }
+
+    /**
+     * 播放宝石逃逸特效
+     */
+    private void playEscapeEffects(Location location, UUID gemId) {
+        if (location == null || location.getWorld() == null) return;
+        
+        final Location loc = location.clone().add(0.5, 0.5, 0.5);
+        SchedulerUtil.regionRun(plugin, loc, () -> {
+            World world = loc.getWorld();
+            if (world == null) return;
+            
+            // 播放粒子
+            String particleStr = configManager.getGemEscapeParticle();
+            if (particleStr != null && !particleStr.isEmpty()) {
+                try {
+                    Particle particle = Particle.valueOf(particleStr.toUpperCase());
+                    world.spawnParticle(particle, loc, 50, 0.5, 0.5, 0.5, 0.1);
+                } catch (IllegalArgumentException ignored) {}
+            }
+            
+            // 播放音效
+            String soundStr = configManager.getGemEscapeSound();
+            if (soundStr != null && !soundStr.isEmpty()) {
+                try {
+                    org.bukkit.Sound sound = org.bukkit.Sound.valueOf(soundStr.toUpperCase());
+                    world.playSound(loc, sound, 1.0f, 1.0f);
+                } catch (IllegalArgumentException ignored) {}
+            }
+        }, 0L, -1L);
+    }
+
+    /**
+     * 广播宝石逃逸消息
+     */
+    private void broadcastEscape(UUID gemId) {
+        String gemKey = gemUuidToKey.getOrDefault(gemId, "unknown");
+        org.cubexmc.model.GemDefinition def = findGemDefinition(gemKey);
+        String gemName = def != null ? def.getDisplayName() : gemKey;
+        
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("gem_name", gemName);
+        placeholders.put("gem_key", gemKey);
+        
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            languageManager.sendMessage(player, "gem_escape.broadcast", placeholders);
+        }
+        languageManager.logMessage("gem_escape", placeholders);
+    }
+
+    // ==================== 放置兑换（祭坛模式）====================
+
+    /**
+     * 查找宝石定义（根据 key），暴露给外部使用
+     */
+    public org.cubexmc.model.GemDefinition findGemDefinitionByKey(String gemKey) {
+        return findGemDefinition(gemKey);
+    }
+
+    /**
+     * 设置宝石的祭坛位置
+     */
+    public void setGemAltarLocation(String gemKey, Location location) {
+        org.cubexmc.model.GemDefinition def = findGemDefinition(gemKey);
+        if (def != null) {
+            def.setAltarLocation(location);
+            // 保存到配置文件
+            saveGemAltarToConfig(gemKey, location);
+        }
+    }
+
+    /**
+     * 移除宝石的祭坛位置
+     */
+    public void removeGemAltarLocation(String gemKey) {
+        org.cubexmc.model.GemDefinition def = findGemDefinition(gemKey);
+        if (def != null) {
+            def.setAltarLocation(null);
+            // 从配置文件移除
+            removeGemAltarFromConfig(gemKey);
+        }
+    }
+
+    /**
+     * 保存祭坛位置到宝石配置文件
+     */
+    private void saveGemAltarToConfig(String gemKey, Location loc) {
+        // 遍历 gems 文件夹找到包含此 gemKey 的配置文件
+        java.io.File gemsFolder = new java.io.File(plugin.getDataFolder(), "gems");
+        if (!gemsFolder.exists()) return;
+
+        for (java.io.File file : gemsFolder.listFiles()) {
+            if (file.isFile() && file.getName().endsWith(".yml")) {
+                org.bukkit.configuration.file.YamlConfiguration yaml = 
+                    org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
+                if (yaml.contains(gemKey)) {
+                    yaml.set(gemKey + ".altar.world", loc.getWorld().getName());
+                    yaml.set(gemKey + ".altar.x", loc.getBlockX());
+                    yaml.set(gemKey + ".altar.y", loc.getBlockY());
+                    yaml.set(gemKey + ".altar.z", loc.getBlockZ());
+                    try {
+                        yaml.save(file);
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("保存祭坛配置失败: " + e.getMessage());
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
+    /**
+     * 从宝石配置文件移除祭坛位置
+     */
+    private void removeGemAltarFromConfig(String gemKey) {
+        java.io.File gemsFolder = new java.io.File(plugin.getDataFolder(), "gems");
+        if (!gemsFolder.exists()) return;
+
+        for (java.io.File file : gemsFolder.listFiles()) {
+            if (file.isFile() && file.getName().endsWith(".yml")) {
+                org.bukkit.configuration.file.YamlConfiguration yaml = 
+                    org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
+                if (yaml.contains(gemKey)) {
+                    yaml.set(gemKey + ".altar", null);
+                    try {
+                        yaml.save(file);
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("移除祭坛配置失败: " + e.getMessage());
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
+    /**
+     * 检查位置是否在某颗宝石的祭坛范围内
+     * @return 匹配的 GemDefinition，或 null
+     */
+    private org.cubexmc.model.GemDefinition findMatchingAltarGem(Location loc, String gemKey) {
+        if (!configManager.isPlaceRedeemEnabled()) return null;
+        if (loc == null || gemKey == null) return null;
+
+        org.cubexmc.model.GemDefinition def = findGemDefinition(gemKey);
+        if (def == null) return null;
+
+        Location altar = def.getAltarLocation();
+        if (altar == null) return null;
+        if (altar.getWorld() == null || loc.getWorld() == null) return null;
+        if (!altar.getWorld().equals(loc.getWorld())) return null;
+
+        int radius = configManager.getPlaceRedeemRadius();
+        double distance = altar.distance(loc);
+        if (distance <= radius) {
+            return def;
+        }
+        return null;
+    }
+
+    /**
+     * 处理放置兑换逻辑
+     */
+    private void handlePlaceRedeem(Player player, UUID gemId, Location placedLoc, Block block, org.cubexmc.model.GemDefinition def) {
+        if (player == null || gemId == null || def == null) return;
+
+        String targetKey = def.getGemKey();
+        String gemName = def.getDisplayName();
+
+        // 播放祭坛兑换特效（包括信标光束）
+        playPlaceRedeemEffects(placedLoc);
+
+        // 标记已兑换并发放奖励（与 redeemGemInHand 相同的逻辑）
+        markGemRedeemed(player, targetKey);
+        applyRedeemRewards(player, def);
+
+        // 单颗竞争撤销逻辑
+        String normalizedKey = targetKey.toLowerCase(Locale.ROOT);
+        UUID old = gemIdToRedeemer.put(gemId, player.getUniqueId());
+        String previousOwnerName = null;
+        if (old != null && !old.equals(player.getUniqueId())) {
+            decrementOwnerKeyCount(old, normalizedKey, def);
+            Player oldP = Bukkit.getPlayer(old);
+            if (oldP != null && oldP.isOnline()) {
+                previousOwnerName = oldP.getName();
+            }
+        }
+        incrementOwnerKeyCount(player.getUniqueId(), normalizedKey, def);
+        reassignRedeemInstanceAllowance(gemId, player.getUniqueId(), def, true);
+
+        // 记录兑换事件
+        if (historyLogger != null) {
+            historyLogger.logGemRedeem(
+                player,
+                targetKey,
+                gemName,
+                def.getPermissions() != null ? def.getPermissions() : Collections.emptyList(),
+                def.getVaultGroup(),
+                previousOwnerName
+            );
+        }
+
+        // 发送成功消息
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("gem_name", gemName);
+        placeholders.put("gem_key", targetKey);
+        placeholders.put("player", player.getName());
+        languageManager.sendMessage(player, "place_redeem.success", placeholders);
+
+        // 广播消息
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            if (!online.equals(player)) {
+                languageManager.sendMessage(online, "place_redeem.broadcast", placeholders);
+            }
+        }
+
+        // 宝石消失并重新随机放置（与 redeem 命令相同）
+        gemUuidToHolder.remove(gemId);
+        SchedulerUtil.regionRun(plugin, placedLoc, () -> {
+            block.setType(Material.AIR);
+        }, 1L, -1L);
+        randomPlaceGem(gemId);
+
+        // 清理玩家背包中可能残留的宝石物品（创造模式）
+        SchedulerUtil.entityRun(plugin, player, () -> {
+            removeGemItemFromInventory(player, gemId);
+            try { player.updateInventory(); } catch (Throwable ignored) {}
+        }, 1L, -1L);
+    }
+
+    /**
+     * 播放放置兑换特效（包括信标光束）
+     */
+    private void playPlaceRedeemEffects(Location location) {
+        if (location == null || location.getWorld() == null) return;
+
+        final Location loc = location.clone().add(0.5, 0.5, 0.5);
+        SchedulerUtil.regionRun(plugin, loc, () -> {
+            World world = loc.getWorld();
+            if (world == null) return;
+
+            // 播放粒子
+            String particleStr = configManager.getPlaceRedeemParticle();
+            if (particleStr != null && !particleStr.isEmpty()) {
+                try {
+                    Particle particle = Particle.valueOf(particleStr.toUpperCase());
+                    world.spawnParticle(particle, loc, 100, 1.0, 1.0, 1.0, 0.1);
+                } catch (IllegalArgumentException ignored) {}
+            }
+
+            // 播放音效
+            String soundStr = configManager.getPlaceRedeemSound();
+            if (soundStr != null && !soundStr.isEmpty()) {
+                try {
+                    org.bukkit.Sound sound = org.bukkit.Sound.valueOf(soundStr.toUpperCase());
+                    world.playSound(loc, sound, 1.0f, 1.0f);
+                } catch (IllegalArgumentException ignored) {}
+            }
+
+            // 播放信标光束特效
+            if (configManager.isPlaceRedeemBeaconBeam()) {
+                playBeaconBeamEffect(loc, configManager.getPlaceRedeemBeaconDuration());
+            }
+        }, 0L, -1L);
+    }
+
+    /**
+     * 播放信标光束特效
+     * 通过临时放置信标和玻璃来创建光束效果
+     */
+    private void playBeaconBeamEffect(Location loc, int durationSeconds) {
+        if (loc == null || loc.getWorld() == null) return;
+
+        World world = loc.getWorld();
+        Location beaconLoc = loc.clone();
+        beaconLoc.setY(world.getMinHeight()); // 放在最底层
+
+        // 使用末地水晶光束代替（更简单且不需要修改方块）
+        // 或者使用 END_ROD 粒子模拟光束
+        final int height = loc.getBlockY() - world.getMinHeight();
+        final long durationTicks = durationSeconds * 20L;
+        final int interval = 2; // 每2tick刷新一次
+
+        // 创建向上的粒子光束
+        final Object[] taskHolder = new Object[1];
+        taskHolder[0] = SchedulerUtil.globalRun(plugin, () -> {
+            if (world == null) {
+                if (taskHolder[0] != null) SchedulerUtil.cancelTask(taskHolder[0]);
+                return;
+            }
+            // 从底部到宝石位置生成 END_ROD 粒子
+            for (int y = 0; y < height; y += 3) {
+                Location particleLoc = loc.clone();
+                particleLoc.setY(world.getMinHeight() + y);
+                world.spawnParticle(Particle.END_ROD, particleLoc, 2, 0.1, 0, 0.1, 0.01);
+            }
+            // 在宝石位置生成爆发粒子
+            world.spawnParticle(Particle.TOTEM, loc, 5, 0.5, 0.5, 0.5, 0.1);
+        }, 0L, interval);
+
+        // 在持续时间后取消任务
+        SchedulerUtil.globalRun(plugin, () -> {
+            if (taskHolder[0] != null) {
+                SchedulerUtil.cancelTask(taskHolder[0]);
+            }
+        }, durationTicks, -1L);
     }
 
     /**
@@ -1392,12 +1872,7 @@ public class GemManager {
     // 玩法调整后不再需要该方法
 
     private Location findLocationByGemId(UUID gemId) {
-        for (Map.Entry<Location, UUID> e : locationToGemUuid.entrySet()) {
-            if (e.getValue().equals(gemId)) {
-                return e.getKey();
-            }
-        }
-        return null;
+        return gemUuidToLocation.get(gemId); // O(1) 查找
     }
 
     /**
@@ -1412,6 +1887,13 @@ public class GemManager {
      */
     public Player getGemHolder(UUID gemId) {
         return gemUuidToHolder.get(gemId);
+    }
+
+    /**
+     * 公共获取：根据宝石 UUID 返回其 gemKey
+     */
+    public String getGemKey(UUID gemId) {
+        return gemUuidToKey.get(gemId);
     }
 
     /**
@@ -1544,6 +2026,8 @@ public class GemManager {
      */
     public boolean redeemGemInHand(Player player) {
         if (player == null) return false;
+        // 缓存玩家名称（用于离线时显示）
+        cachePlayerName(player);
         if (!configManager.isRedeemEnabled()) {
             languageManager.sendMessage(player, "command.redeem.disabled");
             return true;
@@ -1998,6 +2482,8 @@ public class GemManager {
 
     // 兑换全部：要求集齐并且都在背包中
     public boolean redeemAll(Player player) {
+        // 缓存玩家名称（用于离线时显示）
+        cachePlayerName(player);
         if (!configManager.isFullSetGrantsAllEnabled()) {
             languageManager.sendMessage(player, "command.redeemall.disabled");
             return true;
@@ -2123,7 +2609,7 @@ public class GemManager {
                     extraAllows,
                     java.util.Collections.emptyList(),
                     1,
-                    null, null  // 添加随机生成范围参数
+                    null, null, null  // 添加随机生成范围和祭坛参数
             );
             grantAllowedCommands(player, pseudo);
         }
@@ -2301,7 +2787,7 @@ public class GemManager {
             if (e.getValue() != null && e.getValue().equalsIgnoreCase(key)) {
                 java.util.UUID gemId = e.getKey();
                 // 检查是否为 placed 状态（在世界中放置）
-                if (locationToGemUuid.containsValue(gemId)) {
+                if (gemUuidToLocation.containsKey(gemId)) {
                     return gemId; // 优先返回 placed 状态的宝石
                 }
                 // 记录第一个 held 状态的宝石作为后备
@@ -2347,6 +2833,7 @@ public class GemManager {
             } catch (Throwable ignored) {}
             t.getBlock().setType(mat);
             locationToGemUuid.put(t, gemId);
+            gemUuidToLocation.put(gemId, t);
             // 成功后：清理旧位置
             if (oldLoc != null) {
                 unplaceRuleGem(oldLoc, gemId);
@@ -2359,5 +2846,51 @@ public class GemManager {
             }
             // 不再清理同 key 的重复：允许同类多实例存在
         }, 0L, -1L);
+    }
+
+    /**
+     * 缓存玩家名称（用于离线时显示）
+     * @param player 玩家
+     */
+    public void cachePlayerName(Player player) {
+        if (player != null) {
+            playerNameCache.put(player.getUniqueId(), player.getName());
+        }
+    }
+
+    /**
+     * 获取玩家名称（优先从缓存获取，回退到 Bukkit API）
+     * @param uuid 玩家UUID
+     * @return 玩家名称，如果无法获取则返回 UUID 的前8位
+     */
+    public String getCachedPlayerName(java.util.UUID uuid) {
+        if (uuid == null) return "Unknown";
+        
+        // 1. 先检查是否在线
+        Player online = Bukkit.getPlayer(uuid);
+        if (online != null) {
+            // 在线时更新缓存
+            playerNameCache.put(uuid, online.getName());
+            return online.getName();
+        }
+        
+        // 2. 从缓存获取
+        String cached = playerNameCache.get(uuid);
+        if (cached != null && !cached.isEmpty()) {
+            return cached;
+        }
+        
+        // 3. 尝试从 OfflinePlayer 获取（可能需要查询 Mojang API，较慢）
+        try {
+            org.bukkit.OfflinePlayer offline = Bukkit.getOfflinePlayer(uuid);
+            String name = offline.getName();
+            if (name != null && !name.isEmpty()) {
+                playerNameCache.put(uuid, name);
+                return name;
+            }
+        } catch (Exception ignored) {}
+        
+        // 4. 最后回退到 UUID 前8位
+        return uuid.toString().substring(0, 8);
     }
 }
