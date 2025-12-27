@@ -54,6 +54,9 @@ messages:
       history: "&e/rulegems history [页码] [玩家名] &f- 分页查看权限更迭历史"
       setaltar: "&e/rulegems setaltar <宝石key> &f- 在当前位置设置宝石祭坛"
       removealtar: "&e/rulegems removealtar <宝石key> &f- 移除宝石祭坛"
+      appoint: "&e/rulegems appoint <权限集> <玩家> &f- 任命玩家获得权限集"
+      dismiss: "&e/rulegems dismiss <权限集> <玩家> &f- 撤销玩家的权限集"
+      appointees: "&e/rulegems appointees [权限集] &f- 查看被任命者列表"
       help: "&e/rulegems help &f- 显示帮助信息"
       footer: "&a======================"
     gui:
@@ -68,6 +71,29 @@ messages:
       gem_not_found: "&c%prefix% 未找到宝石: &e%gem_key%"
       no_altar: "&c%prefix% &f%gem_name% &c没有设置祭坛位置。"
       success: "&a%prefix% 已移除 &f%gem_name% &a的祭坛位置。"
+    appoint:
+      player_only: "&c%prefix% 该指令仅限玩家使用。"
+      usage: "&c%prefix% 用法: /rulegems appoint <权限集> <玩家>"
+      disabled: "&c%prefix% 委任功能已禁用。"
+      invalid_perm_set: "&c%prefix% 无效的权限集: &e%perm_set%"
+      player_not_found: "&c%prefix% 找不到玩家: &e%player%"
+      cannot_self: "&c%prefix% 不能任命自己！"
+      already_appointed: "&c%prefix% &e%player% &c已经被任命为 %perm_set%。"
+      max_reached: "&c%prefix% 你的任命数量已达上限 (&e%max%&c)。"
+      success: "&a%prefix% 成功任命 &e%player% &a为 %perm_set%！"
+      failed: "&c%prefix% 任命失败。"
+    dismiss:
+      player_only: "&c%prefix% 该指令仅限玩家使用。"
+      usage: "&c%prefix% 用法: /rulegems dismiss <权限集> <玩家>"
+      not_appointed: "&c%prefix% &e%player% &c未被任命为该权限集。"
+      success: "&a%prefix% 已撤销 &e%player% &a的 %perm_set% 身份。"
+      failed: "&c%prefix% 撤销失败，你可能没有权限执行此操作。"
+    appointees:
+      header: "&a=== 被任命者列表 ==="
+      no_perm_sets: "&7暂无配置任何权限集。"
+      set_header: "&6%perm_set% &7(&e%count% &7人)"
+      none: "  &7- 暂无被任命者"
+      entry: "  &f- &e%appointee% &7(由 &f%appointer% &7任命)"
     history:
       disabled: "&c%prefix% 历史记录功能未启用。"
       no_records: "&e%prefix% 暂无历史记录。"
@@ -103,6 +129,28 @@ messages:
     progress_bar: "&6✦ %bar% ✦ &e%percent%%"
     hint_sneak: "&e提示: 下蹲+长按右键可兑换宝石"
     hint_normal: "&e提示: 长按右键可兑换宝石，下蹲+右键可放置"
+feature:
+  navigate:
+    no_gem_found: "&e%prefix% 当前世界没有放置的宝石。"
+    out_of_range: "&e%prefix% 探测范围内没有发现宝石。"
+    cooldown: "&c%prefix% 请等待 &e%seconds% &c秒后再使用。"
+    found: "&a%prefix% &e指南针已指向 &6%direction% &e方向的宝石。"
+    found_with_distance: "&a%prefix% &e指南针已指向 &6%direction% &e方向，距离 &6%distance%&e。"
+    distance:
+      very_close: "很近"
+      close: "较近"
+      far: "较远"
+      very_far: "很远"
+      blocks: "%distance% 格"
+    direction:
+      north: "北"
+      south: "南"
+      east: "东"
+      west: "西"
+      northeast: "东北"
+      northwest: "西北"
+      southeast: "东南"
+      southwest: "西南"
 gui:
   # 控制栏按钮
   control:
@@ -147,6 +195,37 @@ gui:
     status_offline: "离线"
     click_tp_player: "点击传送到该玩家"
     teleported_to_player: "&a已传送到 %player%"
+    appointee_count: "任命人数: &e%count%"
+    click_view_appointees: "点击查看任命详情"
+    shift_click_tp: "Shift+点击传送到该玩家"
+  # 任命详情界面
+  appointees:
+    title: "&d✦ %ruler% 的任命 ✦"
+    no_appointees: "暂无任命"
+    no_appointees_lore: "该统治者尚未任命任何人"
+    position: "职位:"
+    permissions: "权限列表"
+    allowed_commands: "限次命令"
+    delegate_permissions: "委任权限"
+    # 条件相关
+    conditions: "生效条件"
+    condition_active: "&a✔ 条件满足"
+    condition_inactive: "&c✘ 条件不满足"
+    condition_time: "时间: %type%"
+    condition_time_always: "始终"
+    condition_time_day: "仅白天 (0-12000)"
+    condition_time_night: "仅夜晚 (12000-24000)"
+    condition_time_custom: "自定义 (%from%-%to%)"
+    condition_worlds: "世界: %mode%"
+    condition_worlds_whitelist: "仅限"
+    condition_worlds_blacklist: "排除"
+    can_appoint: "可任命"
+    appointed_at: "任命时间:"
+    and_more: "及其他 %count% 项..."
+    click_tp: "点击传送到该玩家"
+    shift_click_dismiss: "Shift+点击撤销任命"
+    teleported_to_player: "&a已传送到 %player%"
+    dismissed: "&a已撤销 %player% 的任命"
   # 主菜单
   menu:
     title: "&5✦ RuleGems 主菜单 ✦"

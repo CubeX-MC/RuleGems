@@ -14,12 +14,13 @@ public class GUIHolder implements InventoryHolder {
      * GUI 类型枚举
      */
     public enum GUIType {
-        MAIN_MENU,      // 主菜单
-        GEMS,           // 宝石列表
-        RULERS,         // 统治者列表
-        GEM_DETAIL,     // 宝石详情
-        RULER_DETAIL,   // 统治者详情
-        CONFIRM         // 确认对话框
+        MAIN_MENU,          // 主菜单
+        GEMS,               // 宝石列表
+        RULERS,             // 统治者列表
+        GEM_DETAIL,         // 宝石详情
+        RULER_DETAIL,       // 统治者详情
+        RULER_APPOINTEES,   // 统治者任命详情
+        CONFIRM             // 确认对话框
     }
 
     private final GUIType type;

@@ -4,14 +4,19 @@
 # 你可以在 gems 文件夹中创建多个配置文件
 # 也可以在子文件夹中添加配置文件
 # 插件会递归读取所有 .yml 文件中的宝石配置
+#
+# power 配置方式（定义在 powers 文件夹中）：
+#   方式1: 引用模板      power: "justice"
+#   方式2: 组合多模板    power: ["fighter", "healer"]
+#   方式3: 继承并扩展    power: { base: "fighter", permissions: ["extra.perm"] }
+#   方式4: 内联定义      power: { permissions: [...], command_allows: [...] }
 # ==========================================
 
-# 正义宝石 - 限制5次的jail指令
+# 正义宝石 - 引用 powers 文件夹中定义的 justice 模板
 justice:
   material: AMETHYST_BLOCK
   name: "&d正义宝石"
   count: 1
-  mutual_exclusive: []
   lore:
     - "&e可用指令:"
     - "&a/rgjail <玩家> [监狱] [时长]"
@@ -21,45 +26,23 @@ justice:
   redeem_title: ["&d%player% 兑换了正义宝石", "&e正义由你守护！"]
   particle: ENCHANTMENT_TABLE
   sound: BLOCK_AMETHYST_BLOCK_RESONATE
-  permissions: []
-  command_allows:
-    - command: "/rgjail"
-      execute:
-        - "console:cmi jail %arg1% %arg2|jailed% %arg3|5m%"
-      time_limit: 5
-      cooldown: 60
-  # 可选：为这个宝石设置单独的生成范围
-  # 如果不设置，将使用 config.yml 中的默认范围
-  # random_place_range:
-  #   world: world
-  #   corner1: { x: -50, y: 160, z: -50 }
-  #   corner2: { x: 50, y: 30, z: 50 }
-  # 可选：放置兑换祭坛位置（启用 place_redeem_enabled 后生效）
-  # 可以使用 /rulegems setaltar justice 在当前位置设置
-  # altar:
-  #   world: world
-  #   x: 100
-  #   y: 64
-  #   z: 100
+  # 引用 powers 模板（推荐方式）
+  power: "justice"
   on_pickup:
-    commands: []
     sound: BLOCK_AMETHYST_BLOCK_RESONATE
     particle: ENCHANTMENT_TABLE
   on_scatter:
-    commands: []
     sound: ENTITY_WITHER_SKELETON_DEATH
     particle: PORTAL
   on_redeem:
-    commands: []
     sound: ENTITY_ENDER_DRAGON_GROWL
     particle: DRAGON_BREATH
 
-# 真相宝石 - CoreProtect检查权限
+# 真相宝石 - 引用 inspector 模板
 truth:
   material: DIAMOND_BLOCK
   name: "&b真相宝石"
   count: 1
-  mutual_exclusive: []
   lore:
     - "&e授予权限:"
     - "&a/co inspect &7- 检查模式"
@@ -69,85 +52,121 @@ truth:
   redeem_title: ["&b%player% 兑换了真相宝石", "&e真相将为你揭晓！"]
   particle: GLOW
   sound: BLOCK_SCULK_SENSOR_CLICKING
-  permissions:
-    - "coreprotect.inspect"
-    - "coreprotect.lookup"
-  command_allows: []
+  # 引用 powers 模板
+  power: "inspector"
   on_pickup:
-    commands: []
     sound: BLOCK_SCULK_SENSOR_CLICKING
     particle: GLOW
   on_scatter:
-    commands: []
     sound: ENTITY_ALLAY_DEATH
     particle: SOUL
   on_redeem:
-    commands: []
     sound: BLOCK_BEACON_ACTIVATE
     particle: END_ROD
 
-# 飞行宝石 - 限次Console执行的限时飞行
+# 飞行宝石 - 引用 flight 模板
 flight:
   material: QUARTZ_BLOCK
   name: "&e飞行宝石"
   count: 1
-  mutual_exclusive: []
   lore:
     - "&e可用指令:"
     - "&a/tempfly &7- 60秒飞行"
     - "&7使用次数: &c3次"
     - "&7冷却时间: &6300秒"
+    - "&e药水效果:"
+    - "&a缓降 I &7- 持续生效"
   enchanted: true
   redeem_title: ["&e%player% 兑换了飞行宝石", "&b展翅翱翔！"]
   particle: CLOUD
   sound: ENTITY_ENDER_DRAGON_FLAP
-  permissions: []
-  command_allows:
-    - command: "/tempfly"
-      execute:
-        - "console:cmi tfly %player% 60"
-        - "console:tellraw %player% {\"text\":\"✈ 你获得了60秒飞行时间！\",\"color\":\"green\"}"
-      time_limit: 3
-      cooldown: 300
+  # 引用 powers 模板
+  power: "flight"
   on_pickup:
-    commands: []
     sound: ENTITY_ENDER_DRAGON_FLAP
     particle: CLOUD
   on_scatter:
-    commands: []
     sound: ENTITY_PHANTOM_DEATH
     particle: POOF
   on_redeem:
-    commands: []
     sound: ENTITY_BAT_TAKEOFF
     particle: FIREWORK
 
-# 生命宝石 - Heal权限
+# 生命宝石 - 引用 healer 模板
 life:
   material: REDSTONE_BLOCK
   name: "&c生命宝石"
   count: 1
-  mutual_exclusive: []
   lore:
     - "&e授予权限:"
     - "&a/heal &7- 恢复生命值"
     - "&7使用次数: &a无限"
+    - "&e药水效果:"
+    - "&c生命恢复 II &7- 持续生效"
+    - "&c生命提升 I &7- 持续生效"
   enchanted: true
   redeem_title: ["&c%player% 兑换了生命宝石", "&e生命之力流淌全身！"]
   particle: HEART
   sound: BLOCK_BEACON_POWER_SELECT
-  permissions:
-    - "cmi.command.heal"
-  command_allows: []
+  # 引用 powers 模板
+  power: "healer"
   on_pickup:
-    commands: []
     sound: BLOCK_BEACON_POWER_SELECT
     particle: HEART
   on_scatter:
-    commands: []
     sound: ENTITY_ZOMBIE_VILLAGER_DEATH
     particle: DAMAGE_INDICATOR
   on_redeem:
-    commands: []
     sound: ENTITY_PLAYER_LEVELUP
     particle: TOTEM
+
+# ==========================================
+# 高级示例：组合多个 powers 模板
+# ==========================================
+# ruler:
+#   material: GOLD_BLOCK
+#   name: "&6统治之石"
+#   count: 1
+#   # 组合多个模板：战斗+治愈+检查
+#   power: ["fighter", "healer", "inspector"]
+
+# ==========================================
+# 高级示例：继承模板并扩展
+# ==========================================
+# emperor:
+#   material: BEACON
+#   name: "&e帝王宝石"
+#   count: 1
+#   power:
+#     # 继承 admin_basic 模板
+#     base: "admin_basic"
+#     # 额外添加权限
+#     permissions:
+#       - "emperor.decree"
+#     # 额外添加委任能力（可在 gems 中定义）
+#     appoints:
+#       minister:
+#         display_name: "&4大臣"
+#         max_appointments: 3
+#         ref: "admin_basic"
+
+# ==========================================
+# 高级示例：宝石专属生成范围和祭坛
+# ==========================================
+# rare_gem:
+#   material: EMERALD_BLOCK
+#   name: "&a稀有宝石"
+#   count: 1
+#   power: "inspector"
+#   # 宝石专属生成范围（不使用全局默认）
+#   random_place_range:
+#     world: world_nether
+#     corner1: { x: -50, y: 100, z: -50 }
+#     corner2: { x: 50, y: 30, z: 50 }
+#   # 祭坛兑换位置（使用 place_redeem_enabled 时生效）
+#   # 也可以用 /rulegems setaltar rare_gem 命令设置
+#   altar:
+#     world: world
+#     x: 0
+#     y: 64
+#     z: 0

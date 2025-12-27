@@ -18,16 +18,22 @@
 - `/rulegems reload` 重载配置
 - `/rulegems rulers` 查看当前权力持有者
 - `/rulegems gems` 查看宝石状态
+- `/rulegems gui` 打开 GUI 界面
 - `/rulegems scatter` 收回所有宝石并随机散布
 - `/rulegems redeem` 主手持宝石时兑换单颗
 - `/rulegems redeemall` 集齐所有种类后一次性兑换
 - `/rulegems history [行数] [玩家名]` 查看宝石历史记录，可选过滤玩家
+- `/rulegems appoint <权限集> <玩家>` 任命玩家获得指定权限集
+- `/rulegems dismiss <权限集> <玩家>` 撤销玩家的权限集任命
+- `/rulegems appointees [权限集]` 查看被任命者列表
 
 ## 权限
 - `rulegems.admin` 管理指令（默认 OP）
 - `rulegems.redeem` 兑换单颗（默认 true）
 - `rulegems.redeemall` 兑换全部（默认 true）
 - `rulegems.rulers` 查看当前持有者（默认 true）
+- `rulegems.navigate` 使用指南针导航到最近宝石（默认 false）
+- `rulegems.appoint.<权限集>` 任命其他玩家获得指定权限集
 
 ## 兼容性
 - 服务器：Spigot / Paper 1.16+；兼容 Folia
@@ -78,4 +84,89 @@
   - `permissions`: `redeemall` 成功时的额外权限
   - `command_allows`: `redeemall` 成功时的额外限次指令（语法同上）
 - 与 Vault 配合时，权限组的授予 / 撤销通过当前权限后端执行。
+
+## 扩展功能
+
+### 宝石导航 (Navigate)
+持有 `rulegems.navigate` 权限的玩家可以使用指南针右键导航到最近的宝石位置。
+- 配置文件：`features/navigate.yml`
+- 启用后，玩家右键指南针会显示最近宝石的方向和距离
+
+### 委任系统 (Appoint)
+允许统治者将部分权限委任给其他玩家，形成权力树结构。
+
+#### 核心概念
+- **权限集 (Permission Set)**：预定义的一组权限、限次命令和可选的继承关系
+- **任命 (Appoint)**：统治者将权限集授予其他玩家
+- **级联撤销 (Cascade Revoke)**：当任命者失去权限时，其任命的所有人也会被撤销（可配置）
+- **条件系统 (Conditions)**：权限集可设置生效条件（时间/世界），仅在满足条件时生效
+
+#### 配置文件
+`features/appoint.yml` 定义权限集：
+```yaml
+enabled: true
+cascade_revoke: true  # 级联撤销（连坐制）
+condition_refresh_interval: 30  # 条件刷新间隔（秒），设为0禁用定时刷新
+
+permission_sets:
+  knight:  # 权限集 key，对应权限节点 rulegems.appoint.knight
+    display_name: "&6骑士"
+    description: "拥有基础战斗相关权限"
+    max_appointments: 3  # 每个任命者最多任命人数，-1为无限
+    permissions:
+      - example.permission1
+    command_allows:  # 限次命令（语法同宝石）
+      - command: "/kit warrior"
+        time_limit: 3
+    delegate_permissions:  # 可再次委任的权限
+      - rulegems.appoint.squire
+    inherits:  # 继承其他权限集
+      - squire
+    on_appoint:  # 任命时执行的命令
+      - "console: broadcast %player% 任命 %target% 为骑士"
+    on_revoke:  # 撤销时执行的命令
+      - "console: broadcast %target% 的骑士头衔被撤销"
+    
+    # 条件配置（可选）
+    conditions:
+      time:
+        enabled: true
+        type: day  # always / day / night / custom
+        from: 0    # 自定义时间范围（仅type=custom时生效）
+        to: 12000  # Minecraft时间: 0=日出, 6000=正午, 12000=日落
+      worlds:
+        enabled: true
+        mode: whitelist  # whitelist / blacklist
+        list:
+          - world
+          - world_nether
+```
+
+#### 条件系统
+权限集可设置生效条件，当条件不满足时，该权限集的权限和限次命令暂时失效：
+
+**时间条件** (`conditions.time`)：
+- `always`：始终生效（默认）
+- `day`：仅白天生效（0-12000 tick）
+- `night`：仅夜晚生效（12000-24000 tick）
+- `custom`：自定义时间范围（通过 `from` 和 `to` 指定）
+
+**世界条件** (`conditions.worlds`)：
+- `whitelist`：仅在指定世界生效
+- `blacklist`：在指定世界之外生效
+
+条件刷新时机：
+1. 玩家切换世界时立即刷新
+2. 根据 `condition_refresh_interval` 定时刷新（用于时间条件）
+
+#### 权力树示例
+```
+国王（宝石持有者，拥有 rulegems.appoint.duke）
+└── 公爵（被任命，通过 delegate_permissions 拥有 rulegems.appoint.knight）
+    └── 骑士（被任命）
+```
+当国王失去宝石 → 公爵被级联撤销 → 骑士也被级联撤销
+
+#### GUI 支持
+在统治者列表 GUI 中点击任意统治者可查看其任命的所有玩家及详细信息。
 

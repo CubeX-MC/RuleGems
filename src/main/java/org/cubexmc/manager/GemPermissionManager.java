@@ -259,6 +259,33 @@ public class GemPermissionManager {
                         "归属切换：失去最后一件该类型宝石（离线撤销）");
                 }
             }
+            
+            // 触发 AppointFeature 级联撤销检查
+            triggerAppointCascadeRevoke(owner, def.getPermissions());
+        }
+    }
+    
+    /**
+     * 触发 AppointFeature 的级联撤销检查
+     * 检查被撤销的权限列表中是否包含 rulegems.appoint.* 权限
+     */
+    private void triggerAppointCascadeRevoke(UUID playerUuid, List<String> revokedPermissions) {
+        if (revokedPermissions == null || revokedPermissions.isEmpty()) return;
+        if (plugin.getFeatureManager() == null) return;
+        
+        org.cubexmc.features.appoint.AppointFeature appointFeature = 
+            plugin.getFeatureManager().getAppointFeature();
+        if (appointFeature == null || !appointFeature.isEnabled()) return;
+        
+        // 检查是否撤销了 appoint 相关权限
+        for (String perm : revokedPermissions) {
+            if (perm != null && perm.startsWith("rulegems.appoint.")) {
+                String permSetKey = perm.substring("rulegems.appoint.".length());
+                // 延迟执行，确保权限已经完全撤销
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    appointFeature.onAppointerLostPermission(playerUuid, permSetKey);
+                });
+            }
         }
     }
 

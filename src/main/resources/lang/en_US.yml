@@ -54,6 +54,9 @@ messages:
       history: "&e/rulegems history [page] [player] &f- View paged power transfer history"
       setaltar: "&e/rulegems setaltar <gemKey> &f- Set gem altar at current location"
       removealtar: "&e/rulegems removealtar <gemKey> &f- Remove gem altar"
+      appoint: "&e/rulegems appoint <perm_set> <player> &f- Appoint a player to a permission set"
+      dismiss: "&e/rulegems dismiss <perm_set> <player> &f- Dismiss a player from a permission set"
+      appointees: "&e/rulegems appointees [perm_set] &f- View list of appointees"
       help: "&e/rulegems help &f- Show help information"
       footer: "&a======================"
     gui:
@@ -68,6 +71,29 @@ messages:
       gem_not_found: "&c%prefix% Gem not found: &e%gem_key%"
       no_altar: "&c%prefix% &f%gem_name% &cdoes not have an altar set."
       success: "&a%prefix% Removed &f%gem_name%'s &aaltar location."
+    appoint:
+      player_only: "&c%prefix% This command is for players only."
+      usage: "&c%prefix% Usage: /rulegems appoint <perm_set> <player>"
+      disabled: "&c%prefix% Appoint feature is disabled."
+      invalid_perm_set: "&c%prefix% Invalid permission set: &e%perm_set%"
+      player_not_found: "&c%prefix% Player not found: &e%player%"
+      cannot_self: "&c%prefix% You cannot appoint yourself!"
+      already_appointed: "&c%prefix% &e%player% &cis already appointed as %perm_set%."
+      max_reached: "&c%prefix% You have reached your appointment limit (&e%max%&c)."
+      success: "&a%prefix% Successfully appointed &e%player% &aas %perm_set%!"
+      failed: "&c%prefix% Appointment failed."
+    dismiss:
+      player_only: "&c%prefix% This command is for players only."
+      usage: "&c%prefix% Usage: /rulegems dismiss <perm_set> <player>"
+      not_appointed: "&c%prefix% &e%player% &cis not appointed to this permission set."
+      success: "&a%prefix% Dismissed &e%player% &afrom %perm_set%."
+      failed: "&c%prefix% Dismissal failed. You may not have permission to do this."
+    appointees:
+      header: "&a=== Appointees List ==="
+      no_perm_sets: "&7No permission sets configured."
+      set_header: "&6%perm_set% &7(&e%count% &7appointed)"
+      none: "  &7- No appointees"
+      entry: "  &f- &e%appointee% &7(by &f%appointer%&7)"
     history:
       disabled: "&c%prefix% History logging is not enabled."
       no_records: "&e%prefix% No history records found."
@@ -103,6 +129,28 @@ messages:
     progress_bar: "&6✦ %bar% ✦ &e%percent%%"
     hint_sneak: "&eTip: Sneak + hold right-click to redeem the gem"
     hint_normal: "&eTip: Hold right-click to redeem, sneak + right-click to place"
+feature:
+  navigate:
+    no_gem_found: "&e%prefix% No placed gems in current world."
+    out_of_range: "&e%prefix% No gems found within range."
+    cooldown: "&c%prefix% Please wait &e%seconds% &cseconds."
+    found: "&a%prefix% &eCompass is now pointing &6%direction%&e."
+    found_with_distance: "&a%prefix% &eCompass is now pointing &6%direction%&e, &6%distance% &eaway."
+    distance:
+      very_close: "very close"
+      close: "nearby"
+      far: "far away"
+      very_far: "very far"
+      blocks: "%distance% blocks"
+    direction:
+      north: "North"
+      south: "South"
+      east: "East"
+      west: "West"
+      northeast: "Northeast"
+      northwest: "Northwest"
+      southeast: "Southeast"
+      southwest: "Southwest"
 gui:
   # Control bar buttons
   control:
@@ -147,6 +195,37 @@ gui:
     status_offline: "Offline"
     click_tp_player: "Click to teleport to player"
     teleported_to_player: "&aTeleported to %player%"
+    appointee_count: "Appointees: &e%count%"
+    click_view_appointees: "Click to view appointees"
+    shift_click_tp: "Shift+Click to teleport"
+  # Appointees GUI
+  appointees:
+    title: "&d✦ %ruler%'s Appointees ✦"
+    no_appointees: "No Appointees"
+    no_appointees_lore: "This ruler has not appointed anyone"
+    position: "Position:"
+    permissions: "Permissions"
+    allowed_commands: "Allowed Commands"
+    delegate_permissions: "Delegate Permissions"
+    # Condition related
+    conditions: "Conditions"
+    condition_active: "&a✔ Conditions met"
+    condition_inactive: "&c✘ Conditions not met"
+    condition_time: "Time: %type%"
+    condition_time_always: "Always"
+    condition_time_day: "Day only (0-12000)"
+    condition_time_night: "Night only (12000-24000)"
+    condition_time_custom: "Custom (%from%-%to%)"
+    condition_worlds: "World: %mode%"
+    condition_worlds_whitelist: "Only in"
+    condition_worlds_blacklist: "Exclude"
+    can_appoint: "Can appoint"
+    appointed_at: "Appointed at:"
+    and_more: "and %count% more..."
+    click_tp: "Click to teleport"
+    shift_click_dismiss: "Shift+Click to dismiss"
+    teleported_to_player: "&aTeleported to %player%"
+    dismissed: "&aDismissed %player%'s appointment"
   # Main Menu
   menu:
     title: "&5✦ RuleGems Menu ✦"

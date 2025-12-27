@@ -146,6 +146,12 @@ public class RuleGemsCommand implements CommandExecutor {
             case "removealtar":
                 if (require(sender, "rulegems.admin")) return true;
                 return handleRemoveAltarCommand(sender, args);
+            case "appoint":
+                return handleAppointCommand(sender, args);
+            case "dismiss":
+                return handleDismissCommand(sender, args);
+            case "appointees":
+                return handleAppointeesCommand(sender, args);
             case "help":
                 sendHelp(sender);
                 return true;
@@ -177,6 +183,9 @@ public class RuleGemsCommand implements CommandExecutor {
         languageManager.sendMessage(sender, "command.help.history");
         languageManager.sendMessage(sender, "command.help.setaltar");
         languageManager.sendMessage(sender, "command.help.removealtar");
+        languageManager.sendMessage(sender, "command.help.appoint");
+        languageManager.sendMessage(sender, "command.help.dismiss");
+        languageManager.sendMessage(sender, "command.help.appointees");
         languageManager.sendMessage(sender, "command.help.help");
         languageManager.sendMessage(sender, "command.help.footer");
     }
@@ -632,6 +641,241 @@ public class RuleGemsCommand implements CommandExecutor {
         placeholders.put("gem_key", gemKey);
         placeholders.put("gem_name", def.getDisplayName());
         languageManager.sendMessage(sender, "command.removealtar.success", placeholders);
+        return true;
+    }
+
+    // ==================== 委任功能命令 ====================
+
+    private boolean handleAppointCommand(CommandSender sender, String[] args) {
+        // /rulegems appoint <perm_set> <player>
+        if (!(sender instanceof Player)) {
+            languageManager.sendMessage(sender, "command.appoint.player_only");
+            return true;
+        }
+        
+        if (args.length < 3) {
+            languageManager.sendMessage(sender, "command.appoint.usage");
+            return true;
+        }
+        
+        org.cubexmc.features.appoint.AppointFeature appointFeature = plugin.getFeatureManager().getAppointFeature();
+        if (appointFeature == null || !appointFeature.isEnabled()) {
+            languageManager.sendMessage(sender, "command.appoint.disabled");
+            return true;
+        }
+        
+        String permSetKey = args[1].toLowerCase();
+        String targetName = args[2];
+        
+        // 检查权限集是否存在
+        org.cubexmc.model.AppointDefinition def = appointFeature.getAppointDefinition(permSetKey);
+        if (def == null) {
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("perm_set", args[1]);
+            languageManager.sendMessage(sender, "command.appoint.invalid_perm_set", placeholders);
+            return true;
+        }
+        
+        // 检查任命者权限
+        Player appointer = (Player) sender;
+        if (!appointer.hasPermission("rulegems.appoint." + permSetKey) && !appointer.hasPermission("rulegems.admin")) {
+            languageManager.sendMessage(sender, "command.no_permission");
+            return true;
+        }
+        
+        // 查找目标玩家
+        Player target = Bukkit.getPlayer(targetName);
+        if (target == null) {
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("player", targetName);
+            languageManager.sendMessage(sender, "command.appoint.player_not_found", placeholders);
+            return true;
+        }
+        
+        // 不能任命自己
+        if (target.equals(appointer)) {
+            languageManager.sendMessage(sender, "command.appoint.cannot_self");
+            return true;
+        }
+        
+        // 检查是否已被任命
+        if (appointFeature.isAppointed(target.getUniqueId(), permSetKey)) {
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("player", target.getName());
+            placeholders.put("perm_set", ChatColor.translateAlternateColorCodes('&', def.getDisplayName()));
+            languageManager.sendMessage(sender, "command.appoint.already_appointed", placeholders);
+            return true;
+        }
+        
+        // 检查任命数量限制
+        if (def.getMaxAppointments() > 0) {
+            int currentCount = appointFeature.getAppointmentCountBy(appointer.getUniqueId(), permSetKey);
+            if (currentCount >= def.getMaxAppointments()) {
+                Map<String, String> placeholders = new HashMap<>();
+                placeholders.put("max", String.valueOf(def.getMaxAppointments()));
+                languageManager.sendMessage(sender, "command.appoint.max_reached", placeholders);
+                return true;
+            }
+        }
+        
+        // 执行任命
+        boolean success = appointFeature.appoint(appointer, target, permSetKey);
+        if (success) {
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("player", target.getName());
+            placeholders.put("perm_set", ChatColor.translateAlternateColorCodes('&', def.getDisplayName()));
+            languageManager.sendMessage(sender, "command.appoint.success", placeholders);
+        } else {
+            languageManager.sendMessage(sender, "command.appoint.failed");
+        }
+        
+        return true;
+    }
+
+    private boolean handleDismissCommand(CommandSender sender, String[] args) {
+        // /rulegems dismiss <perm_set> <player>
+        if (!(sender instanceof Player)) {
+            languageManager.sendMessage(sender, "command.dismiss.player_only");
+            return true;
+        }
+        
+        if (args.length < 3) {
+            languageManager.sendMessage(sender, "command.dismiss.usage");
+            return true;
+        }
+        
+        org.cubexmc.features.appoint.AppointFeature appointFeature = plugin.getFeatureManager().getAppointFeature();
+        if (appointFeature == null || !appointFeature.isEnabled()) {
+            languageManager.sendMessage(sender, "command.appoint.disabled");
+            return true;
+        }
+        
+        String permSetKey = args[1].toLowerCase();
+        String targetName = args[2];
+        
+        // 检查权限集是否存在
+        org.cubexmc.model.AppointDefinition def = appointFeature.getAppointDefinition(permSetKey);
+        if (def == null) {
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("perm_set", args[1]);
+            languageManager.sendMessage(sender, "command.appoint.invalid_perm_set", placeholders);
+            return true;
+        }
+        
+        // 查找目标玩家（支持离线）
+        Player target = Bukkit.getPlayer(targetName);
+        UUID targetUuid = null;
+        if (target != null) {
+            targetUuid = target.getUniqueId();
+        } else {
+            // 尝试从已任命列表中查找
+            for (org.cubexmc.features.appoint.Appointment appointment : appointFeature.getAppointees(permSetKey)) {
+                String cachedName = gemManager.getCachedPlayerName(appointment.getAppointeeUuid());
+                if (cachedName.equalsIgnoreCase(targetName)) {
+                    targetUuid = appointment.getAppointeeUuid();
+                    break;
+                }
+            }
+        }
+        
+        if (targetUuid == null) {
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("player", targetName);
+            languageManager.sendMessage(sender, "command.dismiss.not_appointed", placeholders);
+            return true;
+        }
+        
+        // 执行撤销
+        Player dismisser = (Player) sender;
+        boolean success = appointFeature.dismiss(dismisser, targetUuid, permSetKey);
+        if (success) {
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("player", targetName);
+            placeholders.put("perm_set", ChatColor.translateAlternateColorCodes('&', def.getDisplayName()));
+            languageManager.sendMessage(sender, "command.dismiss.success", placeholders);
+        } else {
+            languageManager.sendMessage(sender, "command.dismiss.failed");
+        }
+        
+        return true;
+    }
+
+    private boolean handleAppointeesCommand(CommandSender sender, String[] args) {
+        // /rulegems appointees [perm_set]
+        org.cubexmc.features.appoint.AppointFeature appointFeature = plugin.getFeatureManager().getAppointFeature();
+        if (appointFeature == null || !appointFeature.isEnabled()) {
+            languageManager.sendMessage(sender, "command.appoint.disabled");
+            return true;
+        }
+        
+        if (args.length < 2) {
+            // 显示所有权限集的被任命者
+            languageManager.sendMessage(sender, "command.appointees.header");
+            
+            Map<String, org.cubexmc.model.AppointDefinition> definitions = appointFeature.getAppointDefinitions();
+            if (definitions.isEmpty()) {
+                languageManager.sendMessage(sender, "command.appointees.no_perm_sets");
+                return true;
+            }
+            
+            for (org.cubexmc.model.AppointDefinition def : definitions.values()) {
+                List<org.cubexmc.features.appoint.Appointment> appointees = appointFeature.getAppointees(def.getKey());
+                
+                Map<String, String> placeholders = new HashMap<>();
+                placeholders.put("perm_set", ChatColor.translateAlternateColorCodes('&', def.getDisplayName()));
+                placeholders.put("count", String.valueOf(appointees.size()));
+                languageManager.sendMessage(sender, "command.appointees.set_header", placeholders);
+                
+                if (appointees.isEmpty()) {
+                    languageManager.sendMessage(sender, "command.appointees.none");
+                } else {
+                    for (org.cubexmc.features.appoint.Appointment appointment : appointees) {
+                        String appointeeName = gemManager.getCachedPlayerName(appointment.getAppointeeUuid());
+                        String appointerName = appointment.getAppointerUuid() != null ? 
+                            gemManager.getCachedPlayerName(appointment.getAppointerUuid()) : "System";
+                        
+                        Map<String, String> linePh = new HashMap<>();
+                        linePh.put("appointee", appointeeName);
+                        linePh.put("appointer", appointerName);
+                        languageManager.sendMessage(sender, "command.appointees.entry", linePh);
+                    }
+                }
+            }
+        } else {
+            // 显示特定权限集的被任命者
+            String permSetKey = args[1].toLowerCase();
+            org.cubexmc.model.AppointDefinition def = appointFeature.getAppointDefinition(permSetKey);
+            
+            if (def == null) {
+                Map<String, String> placeholders = new HashMap<>();
+                placeholders.put("perm_set", args[1]);
+                languageManager.sendMessage(sender, "command.appoint.invalid_perm_set", placeholders);
+                return true;
+            }
+            
+            List<org.cubexmc.features.appoint.Appointment> appointees = appointFeature.getAppointees(permSetKey);
+            
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("perm_set", ChatColor.translateAlternateColorCodes('&', def.getDisplayName()));
+            placeholders.put("count", String.valueOf(appointees.size()));
+            languageManager.sendMessage(sender, "command.appointees.set_header", placeholders);
+            
+            if (appointees.isEmpty()) {
+                languageManager.sendMessage(sender, "command.appointees.none");
+            } else {
+                for (org.cubexmc.features.appoint.Appointment appointment : appointees) {
+                    String appointeeName = gemManager.getCachedPlayerName(appointment.getAppointeeUuid());
+                    String appointerName = appointment.getAppointerUuid() != null ? 
+                        gemManager.getCachedPlayerName(appointment.getAppointerUuid()) : "System";
+                    
+                    Map<String, String> linePh = new HashMap<>();
+                    linePh.put("appointee", appointeeName);
+                    linePh.put("appointer", appointerName);
+                    languageManager.sendMessage(sender, "command.appointees.entry", linePh);
+                }
+            }
+        }
+        
         return true;
     }
 }

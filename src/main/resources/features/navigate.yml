@@ -1,0 +1,31 @@
+# ==========================================
+# 指南针导航功能配置 (Navigate Feature)
+# ==========================================
+# 允许拥有 rulegems.navigate 权限的玩家
+# 使用指南针右键来探测最近宝石的方位
+
+# 是否启用此功能
+enabled: true
+
+# 最大探测范围（方块数）
+# 设为 -1 表示无限制
+max_range: -1
+
+# 使用冷却时间（秒）
+# 设为 0 表示无冷却
+cooldown: 3
+
+# 是否在消息中显示距离
+show_distance: true
+
+# 距离显示精度
+# exact: 显示精确数值（如 "156 格"）
+# approximate: 显示大概范围（如 "很近/较近/较远/很远"）
+distance_precision: approximate
+
+# 大概范围阈值（仅 distance_precision 为 approximate 时生效）
+distance_thresholds:
+  very_close: 50    # 0-50: 很近
+  close: 150        # 50-150: 较近
+  far: 500          # 150-500: 较远
+  # 500+: 很远

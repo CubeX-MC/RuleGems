@@ -58,6 +58,7 @@ public class GUIManager implements Listener {
     private final MainMenuGUI mainMenuGUI;
     private final GemsGUI gemsGUI;
     private final RulersGUI rulersGUI;
+    private final RulerAppointeesGUI rulerAppointeesGUI;
 
     public GUIManager(RuleGems plugin, GemManager gemManager, LanguageManager languageManager) {
         this.plugin = plugin;
@@ -72,6 +73,7 @@ public class GUIManager implements Listener {
         this.mainMenuGUI = new MainMenuGUI(this, gemManager, languageManager);
         this.gemsGUI = new GemsGUI(this, gemManager, languageManager);
         this.rulersGUI = new RulersGUI(this, gemManager, languageManager);
+        this.rulerAppointeesGUI = new RulerAppointeesGUI(this, gemManager, languageManager, plugin);
 
         // 注册事件监听器
         Bukkit.getPluginManager().registerEvents(this, plugin);
@@ -133,6 +135,20 @@ public class GUIManager implements Listener {
      */
     public void openRulersGUI(Player player, boolean isAdmin, int page) {
         rulersGUI.open(player, isAdmin, page);
+    }
+
+    /**
+     * 打开统治者任命详情 GUI
+     */
+    public void openRulerAppointeesGUI(Player player, UUID rulerUuid, boolean isAdmin) {
+        openRulerAppointeesGUI(player, rulerUuid, isAdmin, 0);
+    }
+
+    /**
+     * 打开统治者任命详情 GUI（指定页码）
+     */
+    public void openRulerAppointeesGUI(Player player, UUID rulerUuid, boolean isAdmin, int page) {
+        rulerAppointeesGUI.open(player, rulerUuid, isAdmin, page);
     }
 
     // ========== 布局辅助方法 ==========
@@ -240,7 +256,10 @@ public class GUIManager implements Listener {
                 handleGemsClick(player, holder, pdc);
                 break;
             case RULERS:
-                handleRulersClick(player, holder, pdc, clicked);
+                handleRulersClick(player, holder, pdc, clicked, event.isShiftClick());
+                break;
+            case RULER_APPOINTEES:
+                handleAppointeesClick(player, holder, pdc, clicked, event.isShiftClick());
                 break;
             default:
                 break;
@@ -265,8 +284,14 @@ public class GUIManager implements Listener {
                 refreshGUI(player, holder);
                 break;
             case "back":
-                // 返回主菜单
-                openMainMenu(player, holder.isAdmin());
+                // 返回上一级
+                if (holder.getType() == GUIHolder.GUIType.RULER_APPOINTEES) {
+                    // 从任命详情返回到统治者列表
+                    openRulersGUI(player, holder.isAdmin());
+                } else {
+                    // 其他情况返回主菜单
+                    openMainMenu(player, holder.isAdmin());
+                }
                 break;
             case "filter":
                 // 循环切换筛选（暂未实现）
@@ -295,6 +320,14 @@ public class GUIManager implements Listener {
             case RULERS:
                 openRulersGUI(player, holder.isAdmin(), newPage);
                 break;
+            case RULER_APPOINTEES:
+                if (holder.getFilter() != null) {
+                    try {
+                        UUID rulerUuid = UUID.fromString(holder.getFilter());
+                        openRulerAppointeesGUI(player, rulerUuid, holder.isAdmin(), newPage);
+                    } catch (Exception ignored) {}
+                }
+                break;
             default:
                 break;
         }
@@ -313,6 +346,14 @@ public class GUIManager implements Listener {
                 break;
             case RULERS:
                 openRulersGUI(player, holder.isAdmin(), holder.getPage());
+                break;
+            case RULER_APPOINTEES:
+                if (holder.getFilter() != null) {
+                    try {
+                        UUID rulerUuid = UUID.fromString(holder.getFilter());
+                        openRulerAppointeesGUI(player, rulerUuid, holder.isAdmin(), holder.getPage());
+                    } catch (Exception ignored) {}
+                }
                 break;
             default:
                 break;
@@ -351,10 +392,38 @@ public class GUIManager implements Listener {
     /**
      * 处理统治者 GUI 点击
      */
-    private void handleRulersClick(Player player, GUIHolder holder, PersistentDataContainer pdc, ItemStack clicked) {
-        // 只有管理员可以传送
-        if (!holder.isAdmin()) return;
+    private void handleRulersClick(Player player, GUIHolder holder, PersistentDataContainer pdc, ItemStack clicked, boolean shiftClick) {
+        // 检查是否点击了玩家头颅
+        if (clicked.getType() != Material.PLAYER_HEAD) return;
         
+        String playerUuidStr = pdc.get(playerUuidKey, PersistentDataType.STRING);
+        if (playerUuidStr == null) return;
+        
+        try {
+            UUID targetUuid = UUID.fromString(playerUuidStr);
+            
+            // 左键点击 - 查看任命详情
+            if (!shiftClick) {
+                openRulerAppointeesGUI(player, targetUuid, holder.isAdmin());
+                return;
+            }
+            
+            // Shift+左键点击 - 管理员传送
+            if (holder.isAdmin()) {
+                Player target = Bukkit.getPlayer(targetUuid);
+                if (target != null && target.isOnline()) {
+                    player.closeInventory();
+                    SchedulerUtil.safeTeleport(plugin, player, target.getLocation());
+                    player.sendMessage(msg("rulers.teleported_to_player").replace("%player%", target.getName()));
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    /**
+     * 处理被任命者 GUI 点击
+     */
+    private void handleAppointeesClick(Player player, GUIHolder holder, PersistentDataContainer pdc, ItemStack clicked, boolean shiftClick) {
         // 检查是否点击了玩家头颅
         if (clicked.getType() != Material.PLAYER_HEAD) return;
         
@@ -365,12 +434,57 @@ public class GUIManager implements Listener {
             UUID targetUuid = UUID.fromString(playerUuidStr);
             Player target = Bukkit.getPlayer(targetUuid);
             
-            if (target != null && target.isOnline()) {
+            // Shift+点击 - 管理员撤销任命
+            if (shiftClick && holder.isAdmin()) {
+                // 获取统治者 UUID
+                String rulerUuidStr = holder.getFilter();
+                if (rulerUuidStr != null) {
+                    UUID rulerUuid = UUID.fromString(rulerUuidStr);
+                    // 调用撤销逻辑
+                    if (dismissAppointee(player, rulerUuid, targetUuid)) {
+                        // 刷新 GUI
+                        openRulerAppointeesGUI(player, rulerUuid, holder.isAdmin(), holder.getPage());
+                    }
+                }
+                return;
+            }
+            
+            // 普通点击 - 管理员传送到被任命者
+            if (holder.isAdmin() && target != null && target.isOnline()) {
                 player.closeInventory();
                 SchedulerUtil.safeTeleport(plugin, player, target.getLocation());
-                player.sendMessage(msg("rulers.teleported_to_player").replace("%player%", target.getName()));
+                player.sendMessage(msg("appointees.teleported_to_player").replace("%player%", target.getName()));
             }
         } catch (Exception ignored) {}
+    }
+
+    /**
+     * 撤销任命
+     */
+    private boolean dismissAppointee(Player admin, UUID rulerUuid, UUID appointeeUuid) {
+        if (plugin.getFeatureManager() == null) return false;
+        
+        org.cubexmc.features.appoint.AppointFeature appointFeature = 
+            plugin.getFeatureManager().getAppointFeature();
+        if (appointFeature == null || !appointFeature.isEnabled()) return false;
+        
+        // 获取被任命者的任命信息
+        java.util.List<org.cubexmc.features.appoint.Appointment> appointments = 
+            appointFeature.getAppointmentsByAppointer(rulerUuid);
+        
+        for (org.cubexmc.features.appoint.Appointment appointment : appointments) {
+            if (appointment.getAppointeeUuid().equals(appointeeUuid)) {
+                // 执行撤销
+                boolean result = appointFeature.dismiss(admin, appointeeUuid, appointment.getPermSetKey());
+                if (result) {
+                    String appointeeName = gemManager.getCachedPlayerName(appointeeUuid);
+                    admin.sendMessage(msg("appointees.dismissed").replace("%player%", appointeeName));
+                    return true;
+                }
+            }
+        }
+        
+        return false;
     }
 
     @EventHandler

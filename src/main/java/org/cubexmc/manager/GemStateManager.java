@@ -31,7 +31,8 @@ public class GemStateManager {
 
     private static final Locale ROOT_LOCALE = Locale.ROOT;
 
-    private final RuleGems plugin;
+    @SuppressWarnings("unused")
+    private final RuleGems plugin; // 保留用于未来扩展
     private final ConfigManager configManager;
     private final LanguageManager languageManager;
 

@@ -15,6 +15,7 @@ import org.bukkit.command.SimpleCommandMap;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.cubexmc.commands.RuleGemsCommand;
 import org.cubexmc.commands.RuleGemsTabCompleter;
+import org.cubexmc.features.FeatureManager;
 import org.cubexmc.listeners.CommandAllowanceListener;
 import org.cubexmc.listeners.GemConsumeListener;
 import org.cubexmc.listeners.GemInventoryListener;
@@ -24,6 +25,7 @@ import org.cubexmc.manager.ConfigManager;
 import org.cubexmc.manager.GemManager;
 import org.cubexmc.manager.HistoryLogger;
 import org.cubexmc.manager.LanguageManager;
+import org.cubexmc.manager.PowerStructureManager;
 import org.cubexmc.gui.GUIManager;
 import org.cubexmc.metrics.Metrics;
 import org.cubexmc.utils.EffectUtils;
@@ -44,6 +46,8 @@ public class RuleGems extends JavaPlugin {
     private HistoryLogger historyLogger;
     private org.cubexmc.manager.CustomCommandExecutor customCommandExecutor;
     private GUIManager guiManager;
+    private FeatureManager featureManager;
+    private PowerStructureManager powerStructureManager;
     private Permission vaultPerms;
     @SuppressWarnings("unused")
     private Metrics metrics;
@@ -58,6 +62,7 @@ public class RuleGems extends JavaPlugin {
         this.configManager = new ConfigManager(this);
     this.languageManager = new LanguageManager(this);
     this.effectUtils = new EffectUtils(this);
+    this.powerStructureManager = new PowerStructureManager(this);
     this.historyLogger = new HistoryLogger(this, languageManager);
     this.customCommandExecutor = new org.cubexmc.manager.CustomCommandExecutor(this, languageManager);
 //        this.configManager.loadConfigs();   // 读 config.yml, data.yml
@@ -84,6 +89,11 @@ public class RuleGems extends JavaPlugin {
         getPluginManager().registerEvents(new GemConsumeListener(this, gemManager, configManager, languageManager), this);
         this.commandAllowanceListener = new CommandAllowanceListener(gemManager, languageManager, customCommandExecutor);
         getPluginManager().registerEvents(commandAllowanceListener, this);
+        
+        // 初始化功能管理器
+        this.featureManager = new FeatureManager(this, gemManager);
+        featureManager.registerFeatures();
+        
         // Setup Vault permissions (optional)
         if (getServer().getPluginManager().getPlugin("Vault") != null) {
             try {
@@ -121,6 +131,11 @@ public class RuleGems extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        // 关闭功能管理器
+        if (featureManager != null) {
+            featureManager.shutdownAll();
+        }
+        
         CommandMap map = getCommandMapSafely();
         if (map != null) {
             unregisterProxyCommands(map);
@@ -143,8 +158,10 @@ public class RuleGems extends JavaPlugin {
         // 恢复已记录坐标的宝石方块材质，确保首次启动即可看到实体方块
         gemManager.initializePlacedGemBlocks();
         // 补齐配置定义但当前不存在的宝石，保证“服务器里永远有配置中的所有 gems”
-        gemManager.ensureConfiguredGemsPresent();
-    }
+        gemManager.ensureConfiguredGemsPresent();        // 重载功能配置
+        if (featureManager != null) {
+            featureManager.reloadAll();
+        }    }
 
     public ConfigManager getConfigManager() { return configManager; }
     public GemManager getGemManager() { return gemManager; }
@@ -153,7 +170,9 @@ public class RuleGems extends JavaPlugin {
     public HistoryLogger getHistoryLogger() { return historyLogger; }
     public org.cubexmc.manager.CustomCommandExecutor getCustomCommandExecutor() { return customCommandExecutor; }
     public GUIManager getGUIManager() { return guiManager; }
+    public FeatureManager getFeatureManager() { return featureManager; }
     public Permission getVaultPerms() { return vaultPerms; }
+    public PowerStructureManager getPowerStructureManager() { return powerStructureManager; }
 
     public void refreshAllowedCommandProxies() {
         CommandMap map = getCommandMapSafely();

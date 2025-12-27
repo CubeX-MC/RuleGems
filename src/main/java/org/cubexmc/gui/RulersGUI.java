@@ -6,6 +6,9 @@ import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.cubexmc.RuleGems;
+import org.cubexmc.features.appoint.Appointment;
+import org.cubexmc.features.appoint.AppointFeature;
 import org.cubexmc.manager.GemManager;
 import org.cubexmc.manager.LanguageManager;
 import org.cubexmc.model.GemDefinition;
@@ -42,6 +45,10 @@ public class RulersGUI {
 
     private String rawMsg(String path) {
         return lang.getMessage("gui." + path);
+    }
+    
+    private RuleGems getPlugin() {
+        return guiManager.getPlugin();
     }
 
     /**
@@ -175,17 +182,40 @@ public class RulersGUI {
             builder.addLore("&c● " + rawMsg("rulers.status_offline"));
         }
         
+        // 任命信息
+        int appointeeCount = getAppointeeCount(playerUuid);
+        if (appointeeCount > 0) {
+            builder.addEmptyLore();
+            builder.addLore("&d▸ " + rawMsg("rulers.appointee_count").replace("%count%", String.valueOf(appointeeCount)));
+        }
+        
         // 管理员信息
         if (isAdmin) {
             builder.addEmptyLore()
                    .addLore("&8UUID: &7" + playerUuid.toString().substring(0, 8) + "...");
-            
-            if (isOnline) {
-                builder.addEmptyLore()
-                       .addLore("&a» " + rawMsg("rulers.click_tp_player"));
-            }
+        }
+        
+        // 点击提示
+        builder.addEmptyLore();
+        builder.addLore("&e» " + rawMsg("rulers.click_view_appointees"));
+        if (isAdmin && isOnline) {
+            builder.addLore("&a» " + rawMsg("rulers.shift_click_tp"));
         }
         
         return builder.build();
+    }
+    
+    /**
+     * 获取某个统治者任命的人数
+     */
+    private int getAppointeeCount(UUID rulerUuid) {
+        RuleGems plugin = getPlugin();
+        if (plugin.getFeatureManager() == null) return 0;
+        
+        AppointFeature appointFeature = plugin.getFeatureManager().getAppointFeature();
+        if (appointFeature == null || !appointFeature.isEnabled()) return 0;
+        
+        List<Appointment> appointments = appointFeature.getAppointmentsByAppointer(rulerUuid);
+        return appointments.size();
     }
 }

@@ -25,7 +25,6 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
@@ -103,7 +102,9 @@ public class GemManager {
         this.gemKeyKey = new NamespacedKey(plugin, "gem_key");
     }
 
-    @EventHandler
+    /**
+     * 处理宝石方块被敲击事件（允许一击破坏）
+     */
     public void onGemDamage(BlockDamageEvent event) {
         Block block = event.getBlock();
         if (block == null) return;
@@ -489,7 +490,9 @@ public class GemManager {
         }
     }
 
-    @EventHandler
+    /**
+     * 处理宝石放置事件
+     */
     public void onGemPlaced(BlockPlaceEvent event) {
         // 放置宝石只更新位置，不触发授予权限
         ItemStack inHand = event.getItemInHand();
@@ -547,7 +550,9 @@ public class GemManager {
         // 不再通过放置触发权限或胜利逻辑
     }
 
-    @EventHandler
+    /**
+     * 处理宝石破坏事件
+     */
     public void onGemBroken(BlockBreakEvent event) {
         Block block = event.getBlock();
 
@@ -589,7 +594,9 @@ public class GemManager {
         }
     }
 
-    @EventHandler
+    /**
+     * 处理玩家退出事件（将背包中的宝石放置到地面）
+     */
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         Inventory inv = player.getInventory();
@@ -611,8 +618,9 @@ public class GemManager {
         }
     }
 
-    @EventHandler
-    // 丢弃将自动放置在地面
+    /**
+     * 处理玩家丢弃宝石事件（自动放置到地面）
+     */
     public void onPlayerDropItem(PlayerDropItemEvent event) {
         ItemStack item = event.getItemDrop().getItemStack();
         UUID gemId = getGemUUID(item);
@@ -628,9 +636,8 @@ public class GemManager {
     }
 
     /**
-     * 监听玩家死亡事件：从掉落列表移除宝石并放置为方块
+     * 处理玩家死亡事件：从掉落列表移除宝石并放置为方块
      */
-    @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
         Location deathLocation = player.getLocation();
@@ -998,15 +1005,16 @@ public class GemManager {
         int after = before + 1;
         map.put(key, after);
         if (before == 0 && def != null) {
-            // 0->1：发放权限与（若 inventory_grants 关闭或兑换场景）初始化额度；这里复用现有发放逻辑
+            // 0->1：使用 PowerStructureManager 应用权限结构
             Player p = org.bukkit.Bukkit.getPlayer(owner);
             if (p != null && p.isOnline()) {
-                if (def.getPermissions() != null && !def.getPermissions().isEmpty()) {
-                    grantRedeemPermissions(p, def.getPermissions());
+                // 使用 PowerStructureManager 统一应用权限、Vault组和效果
+                PowerStructureManager psm = plugin.getPowerStructureManager();
+                if (psm != null && def.getPowerStructure() != null) {
+                    psm.applyStructure(p, def.getPowerStructure(), "gem_redeem", key, false);
                 }
-                if (def.getVaultGroup() != null && !def.getVaultGroup().isEmpty() && plugin.getVaultPerms() != null) {
-                    try { plugin.getVaultPerms().playerAddGroup(p, def.getVaultGroup()); } catch (Exception ignored) {}
-                }
+                // 授予 appoints 权限（rulegems.appoint.<key>）
+                grantAppointPermissions(p, def);
                 try { p.recalculatePermissions(); } catch (Throwable ignored) {}
             }
         }
@@ -1019,13 +1027,16 @@ public class GemManager {
         int after = Math.max(0, before - 1);
         map.put(key, after);
         if (after == 0 && def != null) {
-            // 1->0：撤回权限与额度
+            // 1->0：使用 PowerStructureManager 撤销权限结构
             Player p = org.bukkit.Bukkit.getPlayer(owner);
             if (p != null && p.isOnline()) {
-                if (def.getPermissions() != null) revokeNodes(p, def.getPermissions());
-                if (def.getVaultGroup() != null && !def.getVaultGroup().isEmpty() && plugin.getVaultPerms() != null) {
-                    try { plugin.getVaultPerms().playerRemoveGroup(p, def.getVaultGroup()); } catch (Exception ignored) {}
+                // 使用 PowerStructureManager 统一撤销权限、Vault组和效果
+                PowerStructureManager psm = plugin.getPowerStructureManager();
+                if (psm != null && def.getPowerStructure() != null) {
+                    psm.removeStructure(p, def.getPowerStructure(), "gem_redeem", key);
                 }
+                // 撤销 appoints 权限
+                revokeAppointPermissions(p, def);
                 try { p.recalculatePermissions(); } catch (Throwable ignored) {}
                 if (historyLogger != null) {
                     historyLogger.logPermissionRevoke(
@@ -1040,8 +1051,12 @@ public class GemManager {
                 }
             } else {
                 // 离线撤销：队列权限与组；额度直接移除
+                java.util.List<String> permsToRevoke = new java.util.ArrayList<>();
+                if (def.getPermissions() != null) permsToRevoke.addAll(def.getPermissions());
+                // 添加 appoint 权限到撤销列表
+                permsToRevoke.addAll(getAppointPermissionNodes(def));
                 queueOfflineRevokes(owner,
-                        def.getPermissions() != null ? def.getPermissions() : java.util.Collections.emptyList(),
+                        permsToRevoke,
                         (def.getVaultGroup() != null && !def.getVaultGroup().isEmpty()) ? java.util.Collections.singleton(def.getVaultGroup()) : java.util.Collections.emptySet());
                 if (historyLogger != null) {
                     historyLogger.logPermissionRevoke(
@@ -1058,6 +1073,68 @@ public class GemManager {
         }
     }
 
+    /**
+     * 获取宝石的 appoint 权限节点列表
+     */
+    private java.util.List<String> getAppointPermissionNodes(org.cubexmc.model.GemDefinition def) {
+        java.util.List<String> nodes = new java.util.ArrayList<>();
+        if (def == null || def.getPowerStructure() == null) return nodes;
+        
+        org.cubexmc.model.PowerStructure power = def.getPowerStructure();
+        if (power.getAppoints() != null && !power.getAppoints().isEmpty()) {
+            for (String appointKey : power.getAppoints().keySet()) {
+                nodes.add("rulegems.appoint." + appointKey);
+            }
+        }
+        return nodes;
+    }
+    
+    /**
+     * 授予宝石关联的 appoint 权限
+     * 使用 PowerStructureManager 统一管理
+     */
+    private void grantAppointPermissions(Player player, org.cubexmc.model.GemDefinition def) {
+        java.util.List<String> appointPerms = getAppointPermissionNodes(def);
+        if (!appointPerms.isEmpty()) {
+            // 创建一个临时 PowerStructure 用于 appoint 权限
+            org.cubexmc.model.PowerStructure appointPower = new org.cubexmc.model.PowerStructure();
+            appointPower.setPermissions(appointPerms);
+            
+            PowerStructureManager psm = plugin.getPowerStructureManager();
+            if (psm != null) {
+                psm.applyStructure(player, appointPower, "gem_appoint", def.getGemKey(), false);
+            }
+        }
+    }
+    
+    /**
+     * 撤销宝石关联的 appoint 权限
+     * 使用 PowerStructureManager 统一管理
+     */
+    private void revokeAppointPermissions(Player player, org.cubexmc.model.GemDefinition def) {
+        java.util.List<String> appointPerms = getAppointPermissionNodes(def);
+        if (!appointPerms.isEmpty()) {
+            // 创建一个临时 PowerStructure 用于 appoint 权限撤销
+            org.cubexmc.model.PowerStructure appointPower = new org.cubexmc.model.PowerStructure();
+            appointPower.setPermissions(appointPerms);
+            
+            PowerStructureManager psm = plugin.getPowerStructureManager();
+            if (psm != null) {
+                psm.removeStructure(player, appointPower, "gem_appoint", def.getGemKey());
+            }
+            
+            // 触发级联撤销
+            org.cubexmc.features.appoint.AppointFeature appointFeature = 
+                plugin.getFeatureManager().getAppointFeature();
+            if (appointFeature != null && appointFeature.isEnabled()) {
+                for (String perm : appointPerms) {
+                    String permSetKey = perm.substring("rulegems.appoint.".length());
+                    appointFeature.onAppointerLostPermission(player.getUniqueId(), permSetKey);
+                }
+            }
+        }
+    }
+
     public ConfigManager getConfigManager() { return configManager; }
 
     public void setHistoryLogger(HistoryLogger historyLogger) {
@@ -1066,6 +1143,9 @@ public class GemManager {
 
     public void recalculateGrants(Player player) {
         if (!configManager.isInventoryGrantsEnabled()) return;
+        
+        PowerStructureManager psm = plugin.getPowerStructureManager();
+        
         // 先收集当前背包中的 key（保持扫描顺序，去重）
         java.util.List<String> presentKeysOrdered = new java.util.ArrayList<>();
         Inventory inv = player.getInventory();
@@ -1087,28 +1167,56 @@ public class GemManager {
             if (selectedKeys.contains(k)) continue;
             if (!conflictsWithSelected(k, selectedKeys)) selectedKeys.add(k);
         }
+        
+        // 找出需要移除的 keys（之前有，现在没了）
+        java.util.Set<String> keysToRemove = new java.util.HashSet<>(previouslyActive);
+        keysToRemove.removeAll(selectedKeys);
+        
+        // 找出需要新增的 keys（之前没有，现在有了）
+        java.util.Set<String> keysToAdd = new java.util.HashSet<>(selectedKeys);
+        keysToAdd.removeAll(previouslyActive);
+        
         playerActiveHeldKeys.put(player.getUniqueId(), selectedKeys);
-        // 聚合权限
-        java.util.Set<String> shouldHave = new java.util.HashSet<>();
-        for (String k : selectedKeys) {
-            org.cubexmc.model.GemDefinition def = findGemDefinition(k);
-            if (def == null) continue;
-            if (def.getPermissions() != null) {
-                for (String node : def.getPermissions()) {
-                    if (node != null && !node.trim().isEmpty()) shouldHave.add(node);
+        
+        // 使用 PowerStructureManager 处理权限
+        if (psm != null) {
+            // 移除不再持有的宝石权限
+            for (String k : keysToRemove) {
+                org.cubexmc.model.GemDefinition def = findGemDefinition(k);
+                if (def != null && def.getPowerStructure() != null) {
+                    psm.removeStructure(player, def.getPowerStructure(), "gem_inv", k);
                 }
             }
-        }
-        org.bukkit.permissions.PermissionAttachment attachment = invAttachments.computeIfAbsent(player.getUniqueId(), p -> player.addAttachment(plugin));
-        // 现有的权限节点
-        java.util.Set<String> current = new java.util.HashSet<>(attachment.getPermissions().keySet());
-        // 需要新增
-        for (String node : shouldHave) {
-            if (!current.contains(node)) attachment.setPermission(node, true);
-        }
-        // 需要移除
-        for (String node : current) {
-            if (!shouldHave.contains(node)) attachment.unsetPermission(node);
+            // 添加新持有的宝石权限
+            for (String k : keysToAdd) {
+                org.cubexmc.model.GemDefinition def = findGemDefinition(k);
+                if (def != null && def.getPowerStructure() != null) {
+                    // inventory_grants 不应用 Vault 组和效果，只应用权限
+                    org.cubexmc.model.PowerStructure invPower = new org.cubexmc.model.PowerStructure();
+                    invPower.setPermissions(def.getPermissions());
+                    psm.applyStructure(player, invPower, "gem_inv", k, false);
+                }
+            }
+        } else {
+            // 回退到旧逻辑（兼容）
+            java.util.Set<String> shouldHave = new java.util.HashSet<>();
+            for (String k : selectedKeys) {
+                org.cubexmc.model.GemDefinition def = findGemDefinition(k);
+                if (def == null) continue;
+                if (def.getPermissions() != null) {
+                    for (String node : def.getPermissions()) {
+                        if (node != null && !node.trim().isEmpty()) shouldHave.add(node);
+                    }
+                }
+            }
+            org.bukkit.permissions.PermissionAttachment attachment = invAttachments.computeIfAbsent(player.getUniqueId(), p -> player.addAttachment(plugin));
+            java.util.Set<String> current = new java.util.HashSet<>(attachment.getPermissions().keySet());
+            for (String node : shouldHave) {
+                if (!current.contains(node)) attachment.setPermission(node, true);
+            }
+            for (String node : current) {
+                if (!shouldHave.contains(node)) attachment.unsetPermission(node);
+            }
         }
         player.recalculatePermissions();
     }
@@ -1775,7 +1883,8 @@ public class GemManager {
     private void playBeaconBeamEffect(Location loc, int durationSeconds) {
         if (loc == null || loc.getWorld() == null) return;
 
-        World world = loc.getWorld();
+        final World world = loc.getWorld();
+        final String worldName = world.getName();
         Location beaconLoc = loc.clone();
         beaconLoc.setY(world.getMinHeight()); // 放在最底层
 
@@ -1788,18 +1897,20 @@ public class GemManager {
         // 创建向上的粒子光束
         final Object[] taskHolder = new Object[1];
         taskHolder[0] = SchedulerUtil.globalRun(plugin, () -> {
-            if (world == null) {
+            // 防御性检查：世界可能在异步执行期间被卸载
+            World currentWorld = Bukkit.getWorld(worldName);
+            if (currentWorld == null) {
                 if (taskHolder[0] != null) SchedulerUtil.cancelTask(taskHolder[0]);
                 return;
             }
             // 从底部到宝石位置生成 END_ROD 粒子
             for (int y = 0; y < height; y += 3) {
                 Location particleLoc = loc.clone();
-                particleLoc.setY(world.getMinHeight() + y);
-                world.spawnParticle(Particle.END_ROD, particleLoc, 2, 0.1, 0, 0.1, 0.01);
+                particleLoc.setY(currentWorld.getMinHeight() + y);
+                currentWorld.spawnParticle(Particle.END_ROD, particleLoc, 2, 0.1, 0, 0.1, 0.01);
             }
             // 在宝石位置生成爆发粒子
-            world.spawnParticle(Particle.TOTEM, loc, 5, 0.5, 0.5, 0.5, 0.1);
+            currentWorld.spawnParticle(Particle.TOTEM, loc, 5, 0.5, 0.5, 0.5, 0.1);
         }, 0L, interval);
 
         // 在持续时间后取消任务
@@ -1914,24 +2025,20 @@ public class GemManager {
         java.util.UUID uid = player.getUniqueId();
         boolean hadAny = false;
         
+        PowerStructureManager psm = plugin.getPowerStructureManager();
+        
         // 1. 收集该玩家拥有的所有宝石类型
         java.util.Map<String, Integer> counts = ownerKeyCount.get(uid);
         if (counts != null && !counts.isEmpty()) {
             hadAny = true;
             
-            // 撤销每个类型的权限与组
-            for (Map.Entry<String, Integer> e : new java.util.HashMap<>(counts).entrySet()) {
-                String key = e.getKey();
-                org.cubexmc.model.GemDefinition def = findGemDefinition(key);
-                if (def != null) {
-                    if (def.getPermissions() != null) {
-                        revokeNodes(player, def.getPermissions());
-                    }
-                    if (def.getVaultGroup() != null && !def.getVaultGroup().isEmpty() && plugin.getVaultPerms() != null) {
-                        try { plugin.getVaultPerms().playerRemoveGroup(player, def.getVaultGroup()); } catch (Exception ignored) {}
-                    }
-                }
+            // 使用 PowerStructureManager 撤销所有宝石相关命名空间
+            if (psm != null) {
+                psm.clearNamespace(player, "gem_redeem");
+                psm.clearNamespace(player, "gem_appoint");
+                psm.clearNamespace(player, "gem_inv");
             }
+            
             // 清空该玩家的归属计数
             counts.clear();
         }
@@ -1939,9 +2046,19 @@ public class GemManager {
         // 2. 如果该玩家是 full set owner，撤销额外权限
         if (uid.equals(fullSetOwner)) {
             hadAny = true;
-            java.util.List<String> extraPerms = configManager.getRedeemAllPermissions();
-            if (extraPerms != null && !extraPerms.isEmpty()) {
-                revokeNodes(player, extraPerms);
+            // 使用 PowerStructureManager 撤销 redeem_all 权限
+            if (psm != null) {
+                java.util.List<String> extraPerms = configManager.getRedeemAllPermissions();
+                if (extraPerms != null && !extraPerms.isEmpty()) {
+                    org.cubexmc.model.PowerStructure redeemAllPower = new org.cubexmc.model.PowerStructure();
+                    redeemAllPower.setPermissions(extraPerms);
+                    psm.removeStructure(player, redeemAllPower, "gem_redeem_all", "full_set");
+                }
+            } else {
+                java.util.List<String> extraPerms = configManager.getRedeemAllPermissions();
+                if (extraPerms != null && !extraPerms.isEmpty()) {
+                    revokeNodes(player, extraPerms);
+                }
             }
             fullSetOwner = null;
         }
@@ -1958,7 +2075,7 @@ public class GemManager {
         // 清空 gemIdToRedeemer 中该玩家的所有兑换记录（这是 rulers 命令读取的数据源）
         gemIdToRedeemer.entrySet().removeIf(entry -> uid.equals(entry.getValue()));
         
-        // 5. 清空该玩家的权限附件
+        // 5. 清空该玩家的权限附件（兼容旧逻辑）
         org.bukkit.permissions.PermissionAttachment invAtt = invAttachments.remove(uid);
         if (invAtt != null) {
             try { player.removeAttachment(invAtt); } catch (Throwable ignored) {}
@@ -2537,6 +2654,17 @@ public class GemManager {
             Player prev = Bukkit.getPlayer(previousFull);
             if (prev != null && prev.isOnline()) {
                 previousFullOwnerName = prev.getName();
+                PowerStructureManager psm = plugin.getPowerStructureManager();
+                if (psm != null) {
+                    // 使用 PowerStructureManager 撤销每个宝石的权限
+                    for (org.cubexmc.model.GemDefinition d : defs) {
+                        if (d.getPowerStructure() != null) {
+                            psm.removeStructure(prev, d.getPowerStructure(), "gem_redeem", d.getGemKey());
+                        }
+                        revokeAllowedCommands(previousFull, d);
+                    }
+                } else {
+                    // 回退到旧逻辑
                     for (org.cubexmc.model.GemDefinition d : defs) {
                         if (d.getPermissions() != null) revokeNodes(prev, d.getPermissions());
                         if (d.getVaultGroup() != null && !d.getVaultGroup().isEmpty() && plugin.getVaultPerms() != null) {
@@ -2544,6 +2672,7 @@ public class GemManager {
                         }
                         revokeAllowedCommands(previousFull, d);
                     }
+                }
                 prev.recalculatePermissions();
             } else {
                 // Queue all per-gem revocations for previous full owner
@@ -2589,7 +2718,15 @@ public class GemManager {
         // 额外发放：redeem_all 权限与限次指令
         java.util.List<String> extraPerms = configManager.getRedeemAllPermissions();
         if (extraPerms != null && !extraPerms.isEmpty()) {
-            grantRedeemPermissions(player, extraPerms);
+            // 使用 PowerStructureManager 应用 redeem_all 权限
+            PowerStructureManager psm = plugin.getPowerStructureManager();
+            if (psm != null) {
+                org.cubexmc.model.PowerStructure redeemAllPower = new org.cubexmc.model.PowerStructure();
+                redeemAllPower.setPermissions(extraPerms);
+                psm.applyStructure(player, redeemAllPower, "gem_redeem_all", "full_set", false);
+            } else {
+                grantRedeemPermissions(player, extraPerms);
+            }
         }
         java.util.List<org.cubexmc.model.AllowedCommand> extraAllows = configManager.getRedeemAllAllowedCommands();
         if (extraAllows != null && !extraAllows.isEmpty()) {
@@ -2892,5 +3029,40 @@ public class GemManager {
         
         // 4. 最后回退到 UUID 前8位
         return uuid.toString().substring(0, 8);
+    }
+
+    // ==================== Features 支持方法 ====================
+
+    /**
+     * 获取所有已放置宝石的位置映射
+     * @return 宝石UUID到位置的映射（只读副本）
+     */
+    public Map<UUID, Location> getAllGemLocations() {
+        return new HashMap<>(gemUuidToLocation);
+    }
+
+    /**
+     * 根据位置获取宝石UUID
+     * @param loc 位置
+     * @return 宝石UUID，如果该位置没有宝石则返回null
+     */
+    public UUID getGemUuidByLocation(Location loc) {
+        return locationToGemUuid.get(loc);
+    }
+
+    /**
+     * 获取宝石的显示名称
+     * @param gemId 宝石UUID
+     * @return 宝石显示名称，如果找不到则返回null
+     */
+    public String getGemDisplayName(UUID gemId) {
+        String gemKey = gemUuidToKey.get(gemId);
+        if (gemKey == null) return null;
+        
+        org.cubexmc.model.GemDefinition def = findGemDefinition(gemKey);
+        if (def != null && def.getDisplayName() != null) {
+            return ChatColor.translateAlternateColorCodes('&', def.getDisplayName());
+        }
+        return gemKey;
     }
 }

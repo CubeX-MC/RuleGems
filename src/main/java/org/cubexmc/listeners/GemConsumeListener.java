@@ -339,7 +339,8 @@ public class GemConsumeListener implements Listener {
         UUID gemId;
         long startTime;
         long lastInteractTime;
-        ItemStack itemSnapshot;
+        @SuppressWarnings("unused")
+        ItemStack itemSnapshot; // 保留用于未来的物品比较验证
         int tickCount = 0;
     }
 }

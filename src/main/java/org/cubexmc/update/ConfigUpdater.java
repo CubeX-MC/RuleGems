@@ -21,6 +21,10 @@ public final class ConfigUpdater {
 
     public static void merge(JavaPlugin plugin) {
         merge(plugin, CONFIG_RESOURCE);
+        // 确保 features/appoint.yml 也被更新 (如果存在)
+        merge(plugin, "features/appoint.yml");
+        // 确保 powers/powers.yml 也被更新
+        merge(plugin, "powers/powers.yml");
     }
 
     public static void merge(JavaPlugin plugin, String resourcePath) {

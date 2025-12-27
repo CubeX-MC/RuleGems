@@ -36,6 +36,9 @@ public class RuleGemsTabCompleter implements TabCompleter {
             "history",
             "setaltar",
             "removealtar",
+            "appoint",
+            "dismiss",
+            "appointees",
             "help"
     );
 
@@ -85,6 +88,27 @@ public class RuleGemsTabCompleter implements TabCompleter {
     // /rulegems removealtar <gemKey>
         if (args.length == 2 && args[0].equalsIgnoreCase("removealtar")) {
             return getGemKeySuggestions(args[1]);
+        }
+
+    // /rulegems appoint <perm_set> <player>
+        if (args.length == 2 && args[0].equalsIgnoreCase("appoint")) {
+            return getPermSetSuggestions(sender, args[1]);
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("appoint")) {
+            return getOnlinePlayerNames(args[2]);
+        }
+
+    // /rulegems dismiss <perm_set> <player>
+        if (args.length == 2 && args[0].equalsIgnoreCase("dismiss")) {
+            return getPermSetSuggestions(sender, args[1]);
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("dismiss")) {
+            return getOnlinePlayerNames(args[2]);
+        }
+
+    // /rulegems appointees [perm_set]
+        if (args.length == 2 && args[0].equalsIgnoreCase("appointees")) {
+            return getAllPermSetSuggestions(args[1]);
         }
 
     // /rulegems place <gemKey> <x|~>
@@ -171,6 +195,57 @@ public class RuleGemsTabCompleter implements TabCompleter {
                 suggestions.add(name);
             }
         }
+        return suggestions;
+    }
+
+    /**
+     * 获取玩家有权限任命的权限集
+     */
+    private List<String> getPermSetSuggestions(CommandSender sender, String typed) {
+        String prefix = typed == null ? "" : typed.toLowerCase();
+        List<String> suggestions = new ArrayList<>();
+        
+        // 需要获取 AppointFeature 来获取权限集列表
+        // 这里通过遍历配置来获取
+        org.bukkit.plugin.Plugin plugin = org.bukkit.Bukkit.getPluginManager().getPlugin("RuleGems");
+        if (plugin instanceof org.cubexmc.RuleGems) {
+            org.cubexmc.RuleGems ruleGems = (org.cubexmc.RuleGems) plugin;
+            org.cubexmc.features.appoint.AppointFeature appointFeature = ruleGems.getFeatureManager().getAppointFeature();
+            if (appointFeature != null) {
+                for (String key : appointFeature.getAppointDefinitions().keySet()) {
+                    // 只显示玩家有权限的权限集
+                    if (sender.hasPermission("rulegems.appoint." + key) || sender.hasPermission("rulegems.admin")) {
+                        if (prefix.isEmpty() || key.toLowerCase().startsWith(prefix)) {
+                            suggestions.add(key);
+                        }
+                    }
+                }
+            }
+        }
+        
+        return suggestions;
+    }
+
+    /**
+     * 获取所有权限集（用于 appointees 命令）
+     */
+    private List<String> getAllPermSetSuggestions(String typed) {
+        String prefix = typed == null ? "" : typed.toLowerCase();
+        List<String> suggestions = new ArrayList<>();
+        
+        org.bukkit.plugin.Plugin plugin = org.bukkit.Bukkit.getPluginManager().getPlugin("RuleGems");
+        if (plugin instanceof org.cubexmc.RuleGems) {
+            org.cubexmc.RuleGems ruleGems = (org.cubexmc.RuleGems) plugin;
+            org.cubexmc.features.appoint.AppointFeature appointFeature = ruleGems.getFeatureManager().getAppointFeature();
+            if (appointFeature != null) {
+                for (String key : appointFeature.getAppointDefinitions().keySet()) {
+                    if (prefix.isEmpty() || key.toLowerCase().startsWith(prefix)) {
+                        suggestions.add(key);
+                    }
+                }
+            }
+        }
+        
         return suggestions;
     }
 }

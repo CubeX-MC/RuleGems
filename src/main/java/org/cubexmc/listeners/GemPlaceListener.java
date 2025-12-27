@@ -1,6 +1,7 @@
 package org.cubexmc.listeners;
 
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
@@ -16,12 +17,15 @@ public class GemPlaceListener implements Listener {
         this.gemManager = gemManager;
     }
 
-    @EventHandler
+    // 使用 MONITOR 优先级确保在领地等保护插件处理后执行
+    // ignoreCancelled = true 确保被取消的事件不会触发宝石放置逻辑
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
         gemManager.onGemPlaced(event);
     }
 
-    @EventHandler
+    // 破坏事件同样需要在保护插件之后处理
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         gemManager.onGemBroken(event);
     }

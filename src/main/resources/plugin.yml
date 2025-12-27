@@ -1,5 +1,5 @@
 name: RuleGems
-version: 1.0.5
+version: 1.0.6
 main: org.cubexmc.RuleGems
 author: angushushu
 description: "一个管理 RuleGems（统治宝石）的插件"
@@ -34,3 +34,6 @@ permissions:
   rulegems.help:
     description: Allows using /rulegems help
     default: true
+  rulegems.navigate:
+    description: Allows using compass to navigate to nearest gem
+    default: false
