@@ -33,31 +33,34 @@ import org.cubexmc.model.PowerStructure;
 public class AppointFeature extends Feature {
 
     private static final String PERMISSION_PREFIX = "rulegems.appoint.";
-    
+
     private final Map<String, AppointDefinition> appointDefinitions = new HashMap<>();
-    
+
     // 任命数据: permSetKey -> appointeeUuid -> Appointment
     private final Map<String, Map<UUID, Appointment>> appointments = new HashMap<>();
-    
+
     // 权限附件: playerUuid -> PermissionAttachment
     private final Map<UUID, PermissionAttachment> attachments = new HashMap<>();
-    
+
     // 级联撤销（连坐制）
     private boolean cascadeRevoke = true;
-    
+
     // 配置文件
     private File configFile;
     private YamlConfiguration config;
-    
+
     // 数据文件
     private File dataFile;
     private YamlConfiguration data;
-    
+
     // 定时任务ID
     private int refreshTaskId = -1;
-    
+
     // 条件刷新间隔（秒）
     private int conditionRefreshInterval = 30;
+
+    // 级联撤销时的访问集合（防止环导致的无限递归）
+    private final Set<UUID> cascadeRevokeVisited = new HashSet<>();
 
     public AppointFeature(RuleGems plugin) {
         super(plugin, PERMISSION_PREFIX + "*");
@@ -90,7 +93,8 @@ public class AppointFeature extends Feature {
         for (PermissionAttachment attachment : attachments.values()) {
             try {
                 attachment.remove();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
         attachments.clear();
     }
@@ -118,21 +122,21 @@ public class AppointFeature extends Feature {
         if (!featuresFolder.exists()) {
             featuresFolder.mkdirs();
         }
-        
+
         // 配置文件
         configFile = new File(featuresFolder, "appoint.yml");
         if (!configFile.exists()) {
             plugin.saveResource("features/appoint.yml", false);
         }
         config = YamlConfiguration.loadConfiguration(configFile);
-        
+
         // 数据文件 - 统一放到 data 文件夹
         File dataFolder = new File(plugin.getDataFolder(), "data");
         if (!dataFolder.exists()) {
             dataFolder.mkdirs();
         }
         dataFile = new File(dataFolder, "appoints.yml");
-        
+
         // 迁移旧数据文件
         File oldDataFile = new File(featuresFolder, "appoint_data.yml");
         if (oldDataFile.exists() && !dataFile.exists()) {
@@ -143,7 +147,7 @@ public class AppointFeature extends Feature {
                 plugin.getLogger().warning("Failed to migrate appoint_data.yml: " + e.getMessage());
             }
         }
-        
+
         if (!dataFile.exists()) {
             try {
                 dataFile.createNewFile();
@@ -152,7 +156,7 @@ public class AppointFeature extends Feature {
             }
         }
         data = YamlConfiguration.loadConfiguration(dataFile);
-        
+
         // 加载配置
         loadConfig();
     }
@@ -162,48 +166,50 @@ public class AppointFeature extends Feature {
      */
     private void loadConfig() {
         appointDefinitions.clear();
-        
+
         this.enabled = config.getBoolean("enabled", true);
         this.cascadeRevoke = config.getBoolean("cascade_revoke", true);
         this.conditionRefreshInterval = config.getInt("condition_refresh_interval", 30);
-        
+
         // 从所有已加载的 Gems 中注册 AppointDefinition
         registerAppointDefinitionsFromGems();
-        
+
         plugin.getLogger().info("Loaded " + appointDefinitions.size() + " appoint definitions.");
     }
-    
+
     /**
      * 从 Gems 中注册 AppointDefinition
      */
     private void registerAppointDefinitionsFromGems() {
         List<GemDefinition> gems = plugin.getConfigManager().getGemDefinitions();
-        if (gems == null) return;
-        
+        if (gems == null)
+            return;
+
         for (GemDefinition gem : gems) {
             if (gem.getPowerStructure() != null) {
                 registerAppointsRecursively(gem.getPowerStructure());
             }
         }
-        
+
         // 同时也从 Power Templates 中注册，以防有些模板未被 Gem 使用但被引用
         // ConfigManager 没有直接暴露 templates map，但我们可以通过 parsePowerStructure 间接访问
         // 或者给 ConfigManager 加一个 getter。这里暂时只从 Gems 注册。
         // 如果用户希望定义全局可用的 Appoint，应该在 appoint.yml 定义，或者确保至少有一个 Gem 使用了该模板。
     }
-    
+
     private void registerAppointsRecursively(PowerStructure power) {
-        if (power == null || power.getAppoints() == null) return;
-        
+        if (power == null || power.getAppoints() == null)
+            return;
+
         for (Map.Entry<String, AppointDefinition> entry : power.getAppoints().entrySet()) {
             String key = entry.getKey();
             AppointDefinition def = entry.getValue();
-            
+
             // 注册定义
             if (!appointDefinitions.containsKey(key)) {
                 appointDefinitions.put(key, def);
             }
-            
+
             // 递归注册下级
             if (def.getPowerStructure() != null) {
                 registerAppointsRecursively(def.getPowerStructure());
@@ -216,28 +222,32 @@ public class AppointFeature extends Feature {
      */
     private void loadData() {
         appointments.clear();
-        
+
         ConfigurationSection appointmentsSection = data.getConfigurationSection("appointments");
-        if (appointmentsSection == null) return;
-        
+        if (appointmentsSection == null)
+            return;
+
         for (String permSetKey : appointmentsSection.getKeys(false)) {
             ConfigurationSection setSection = appointmentsSection.getConfigurationSection(permSetKey);
-            if (setSection == null) continue;
-            
+            if (setSection == null)
+                continue;
+
             Map<UUID, Appointment> setAppointments = new HashMap<>();
             for (String uuidStr : setSection.getKeys(false)) {
                 try {
                     UUID appointeeUuid = UUID.fromString(uuidStr);
                     ConfigurationSection appointmentSection = setSection.getConfigurationSection(uuidStr);
-                    if (appointmentSection == null) continue;
-                    
+                    if (appointmentSection == null)
+                        continue;
+
                     String appointerStr = appointmentSection.getString("appointed_by");
                     UUID appointerUuid = appointerStr != null ? UUID.fromString(appointerStr) : null;
                     long appointedAt = appointmentSection.getLong("appointed_at", System.currentTimeMillis());
-                    
+
                     Appointment appointment = new Appointment(appointeeUuid, permSetKey, appointerUuid, appointedAt);
                     setAppointments.put(appointeeUuid, appointment);
-                } catch (IllegalArgumentException ignored) {}
+                } catch (IllegalArgumentException ignored) {
+                }
             }
             appointments.put(permSetKey, setAppointments);
         }
@@ -248,7 +258,7 @@ public class AppointFeature extends Feature {
      */
     public void saveData() {
         data.set("appointments", null);
-        
+
         for (Map.Entry<String, Map<UUID, Appointment>> entry : appointments.entrySet()) {
             String permSetKey = entry.getKey();
             for (Map.Entry<UUID, Appointment> appointEntry : entry.getValue().entrySet()) {
@@ -260,7 +270,7 @@ public class AppointFeature extends Feature {
                 data.set(path + ".appointed_at", appointment.getAppointedAt());
             }
         }
-        
+
         try {
             data.save(dataFile);
         } catch (IOException e) {
@@ -281,11 +291,13 @@ public class AppointFeature extends Feature {
      * 任命玩家
      */
     public boolean appoint(Player appointer, Player appointee, String permSetKey) {
-        if (!enabled) return false;
-        
+        if (!enabled)
+            return false;
+
         AppointDefinition def = appointDefinitions.get(permSetKey);
-        if (def == null) return false;
-        
+        if (def == null)
+            return false;
+
         // 检查任命者权限
         if (!appointer.hasPermission(PERMISSION_PREFIX + permSetKey) && !appointer.hasPermission("rulegems.admin")) {
             // 还要检查任命者是否拥有包含此 appoint 的 Power
@@ -300,12 +312,19 @@ public class AppointFeature extends Feature {
             // 建议：当玩家获得 Gem 时，GemManager 应该给予他所有下级 appoint 的权限节点。
             return false;
         }
-        
+
         // 检查是否已被任命
         if (isAppointed(appointee.getUniqueId(), permSetKey)) {
             return false;
         }
-        
+
+        // 检查是否会形成环（禁止任命自己的"祖先"）
+        if (wouldCreateCycle(appointer.getUniqueId(), appointee.getUniqueId(), permSetKey)) {
+            plugin.getLogger().warning("Prevented appointment cycle: " + appointer.getName() +
+                    " tried to appoint " + appointee.getName() + " for " + permSetKey);
+            return false;
+        }
+
         // 检查任命数量限制
         if (def.getMaxAppointments() > 0) {
             int currentCount = getAppointmentCountBy(appointer.getUniqueId(), permSetKey);
@@ -313,30 +332,29 @@ public class AppointFeature extends Feature {
                 return false;
             }
         }
-        
+
         // 创建任命记录
         Appointment appointment = new Appointment(
-            appointee.getUniqueId(),
-            permSetKey,
-            appointer.getUniqueId(),
-            System.currentTimeMillis()
-        );
-        
+                appointee.getUniqueId(),
+                permSetKey,
+                appointer.getUniqueId(),
+                System.currentTimeMillis());
+
         appointments.computeIfAbsent(permSetKey, k -> new HashMap<>())
-                   .put(appointee.getUniqueId(), appointment);
-        
+                .put(appointee.getUniqueId(), appointment);
+
         // 应用权限
         applyPermissions(appointee);
-        
+
         // 执行任命命令
         executeCommands(def.getOnAppoint(), appointer, appointee, permSetKey);
-        
+
         // 播放音效
         playSound(appointee, def.getAppointSound());
-        
+
         // 保存数据
         saveData();
-        
+
         return true;
     }
 
@@ -344,42 +362,47 @@ public class AppointFeature extends Feature {
      * 撤销任命
      */
     public boolean dismiss(Player dismisser, UUID appointeeUuid, String permSetKey) {
-        if (!enabled) return false;
-        
+        if (!enabled)
+            return false;
+
         AppointDefinition def = appointDefinitions.get(permSetKey);
-        if (def == null) return false;
-        
+        if (def == null)
+            return false;
+
         // 检查是否有权限撤销
         Map<UUID, Appointment> setAppointments = appointments.get(permSetKey);
-        if (setAppointments == null) return false;
-        
+        if (setAppointments == null)
+            return false;
+
         Appointment appointment = setAppointments.get(appointeeUuid);
-        if (appointment == null) return false;
-        
+        if (appointment == null)
+            return false;
+
         boolean canDismiss = dismisser.hasPermission("rulegems.admin") ||
-                            (appointment.getAppointerUuid() != null && 
-                             appointment.getAppointerUuid().equals(dismisser.getUniqueId()));
-        
-        if (!canDismiss) return false;
-        
+                (appointment.getAppointerUuid() != null &&
+                        appointment.getAppointerUuid().equals(dismisser.getUniqueId()));
+
+        if (!canDismiss)
+            return false;
+
         // 移除任命记录
         setAppointments.remove(appointeeUuid);
-        
+
         // 移除权限
         Player appointee = Bukkit.getPlayer(appointeeUuid);
         if (appointee != null) {
             applyPermissions(appointee);
-            
+
             // 执行撤销命令
             executeCommands(def.getOnRevoke(), dismisser, appointee, permSetKey);
-            
+
             // 播放音效
             playSound(appointee, def.getRevokeSound());
         }
-        
+
         // 保存数据
         saveData();
-        
+
         return true;
     }
 
@@ -392,12 +415,59 @@ public class AppointFeature extends Feature {
     }
 
     /**
+     * 检查任命是否会形成环
+     * 如果 appointee 是 appointer 的"祖先"（直接或间接任命者），则会形成环
+     * 
+     * @param appointerUuid 任命者
+     * @param appointeeUuid 被任命者
+     * @param permSetKey    权限集 key（如果为 null，检查所有权限集）
+     * @return 是否会形成环
+     */
+    private boolean wouldCreateCycle(UUID appointerUuid, UUID appointeeUuid, String permSetKey) {
+        Set<UUID> visited = new HashSet<>();
+        return isAncestorOf(appointeeUuid, appointerUuid, visited);
+    }
+
+    /**
+     * 递归检查 potentialAncestor 是否是 descendant 的"祖先"（任命链上游）
+     * 
+     * @param potentialAncestor 可能的祖先
+     * @param descendant        后代
+     * @param visited           已访问集合（防止死循环）
+     * @return 是否是祖先
+     */
+    private boolean isAncestorOf(UUID potentialAncestor, UUID descendant, Set<UUID> visited) {
+        if (potentialAncestor.equals(descendant)) {
+            return true; // 找到了祖先
+        }
+
+        if (visited.contains(descendant)) {
+            return false; // 已经访问过，避免死循环
+        }
+        visited.add(descendant);
+
+        // 查找 descendant 是被谁任命的（在所有权限集中）
+        for (Map<UUID, Appointment> setAppointments : appointments.values()) {
+            Appointment appointment = setAppointments.get(descendant);
+            if (appointment != null && appointment.getAppointerUuid() != null) {
+                // 递归检查任命者
+                if (isAncestorOf(potentialAncestor, appointment.getAppointerUuid(), visited)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * 获取某人任命的数量
      */
     public int getAppointmentCountBy(UUID appointerUuid, String permSetKey) {
         Map<UUID, Appointment> setAppointments = appointments.get(permSetKey);
-        if (setAppointments == null) return 0;
-        
+        if (setAppointments == null)
+            return 0;
+
         int count = 0;
         for (Appointment appointment : setAppointments.values()) {
             if (appointerUuid.equals(appointment.getAppointerUuid())) {
@@ -426,7 +496,8 @@ public class AppointFeature extends Feature {
      */
     public List<Appointment> getAppointees(String permSetKey) {
         Map<UUID, Appointment> setAppointments = appointments.get(permSetKey);
-        if (setAppointments == null) return new ArrayList<>();
+        if (setAppointments == null)
+            return new ArrayList<>();
         return new ArrayList<>(setAppointments.values());
     }
 
@@ -436,42 +507,46 @@ public class AppointFeature extends Feature {
      */
     public void applyPermissions(Player player) {
         org.cubexmc.manager.PowerStructureManager psm = plugin.getPowerStructureManager();
-        
+
         // 先清除该玩家在 appoint 命名空间下的所有权限
         if (psm != null) {
             psm.clearNamespace(player, "appoint");
         }
-        
+
         // 兼容：移除旧的权限附件
         PermissionAttachment oldAttachment = attachments.remove(player.getUniqueId());
         if (oldAttachment != null) {
             try {
                 oldAttachment.remove();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
-        
+
         // 为每个任命应用对应的 PowerStructure
         Set<String> processedSets = new HashSet<>();
         for (Appointment appointment : getPlayerAppointments(player.getUniqueId())) {
             applyAppointmentPowers(appointment.getPermSetKey(), player, processedSets);
         }
-        
+
         player.recalculatePermissions();
     }
-    
+
     /**
      * 递归应用任命的 PowerStructure（处理继承）
      */
     private void applyAppointmentPowers(String permSetKey, Player player, Set<String> processedSets) {
-        if (processedSets.contains(permSetKey)) return;
+        if (processedSets.contains(permSetKey))
+            return;
         processedSets.add(permSetKey);
-        
+
         AppointDefinition def = appointDefinitions.get(permSetKey);
-        if (def == null) return;
-        
+        if (def == null)
+            return;
+
         PowerStructure power = def.getPowerStructure();
-        if (power == null) return;
-        
+        if (power == null)
+            return;
+
         // 使用 PowerStructureManager 应用（会自动检查条件）
         org.cubexmc.manager.PowerStructureManager psm = plugin.getPowerStructureManager();
         if (psm != null) {
@@ -482,7 +557,7 @@ public class AppointFeature extends Feature {
             extendedPower.setEffects(power.getEffects());
             extendedPower.setAllowedCommands(power.getAllowedCommands());
             extendedPower.setCondition(power.getCondition());
-            
+
             // 添加自动授予的下级任命权限
             if (power.getAppoints() != null) {
                 List<String> perms = extendedPower.getPermissions();
@@ -493,23 +568,24 @@ public class AppointFeature extends Feature {
                     }
                 }
             }
-            
+
             psm.applyStructure(player, extendedPower, "appoint", permSetKey, true);
         }
     }
-    
+
     /**
      * 应用委任的药水效果（保留用于兼容）
      */
     private void applyAppointEffects(Player player, List<org.cubexmc.model.EffectConfig> effects) {
-        if (effects == null || effects.isEmpty()) return;
+        if (effects == null || effects.isEmpty())
+            return;
         for (org.cubexmc.model.EffectConfig effect : effects) {
             if (effect != null) {
                 effect.apply(player);
             }
         }
     }
-    
+
     /**
      * 移除所有由委任应用的药水效果（保留用于兼容）
      */
@@ -530,32 +606,35 @@ public class AppointFeature extends Feature {
     /**
      * 递归收集权限和效果（处理继承，带条件检查）
      */
-    private void collectPowersWithCondition(String permSetKey, Player player, 
+    private void collectPowersWithCondition(String permSetKey, Player player,
             Set<String> permissions, List<org.cubexmc.model.EffectConfig> effects, Set<String> processedSets) {
-        if (processedSets.contains(permSetKey)) return;
+        if (processedSets.contains(permSetKey))
+            return;
         processedSets.add(permSetKey);
-        
+
         AppointDefinition def = appointDefinitions.get(permSetKey);
-        if (def == null) return;
-        
+        if (def == null)
+            return;
+
         PowerStructure power = def.getPowerStructure();
-        if (power == null) return;
-        
+        if (power == null)
+            return;
+
         // 检查条件是否满足
         org.cubexmc.model.PowerCondition condition = power.getCondition();
         if (condition != null && !condition.checkConditions(player)) {
             // 条件不满足，跳过此权限集
             return;
         }
-        
+
         // 添加本权限集的权限
         permissions.addAll(power.getPermissions());
-        
+
         // 添加本权限集的药水效果
         if (power.getEffects() != null) {
             effects.addAll(power.getEffects());
         }
-        
+
         // 自动授予下级职位的任命权限
         if (power.getAppoints() != null) {
             for (String appointKey : power.getAppoints().keySet()) {
@@ -563,9 +642,10 @@ public class AppointFeature extends Feature {
             }
         }
     }
-    
+
     // 保留旧方法名的兼容别名
-    private void collectPermissionsWithCondition(String permSetKey, Player player, Set<String> permissions, Set<String> processedSets) {
+    private void collectPermissionsWithCondition(String permSetKey, Player player, Set<String> permissions,
+            Set<String> processedSets) {
         List<org.cubexmc.model.EffectConfig> dummyEffects = new ArrayList<>();
         collectPowersWithCondition(permSetKey, player, permissions, dummyEffects, processedSets);
     }
@@ -574,18 +654,19 @@ public class AppointFeature extends Feature {
      * 执行命令
      */
     private void executeCommands(List<String> commands, Player appointer, Player target, String permSetKey) {
-        if (commands == null || commands.isEmpty()) return;
-        
+        if (commands == null || commands.isEmpty())
+            return;
+
         AppointDefinition def = appointDefinitions.get(permSetKey);
-        String displayName = def != null ? 
-            ChatColor.translateAlternateColorCodes('&', def.getDisplayName()) : permSetKey;
-        
+        String displayName = def != null ? ChatColor.translateAlternateColorCodes('&', def.getDisplayName())
+                : permSetKey;
+
         for (String cmd : commands) {
             String processed = cmd
-                .replace("%player%", appointer.getName())
-                .replace("%target%", target.getName())
-                .replace("%perm_set%", displayName);
-            
+                    .replace("%player%", appointer.getName())
+                    .replace("%target%", target.getName())
+                    .replace("%perm_set%", displayName);
+
             if (processed.startsWith("console: ")) {
                 String consoleCmd = processed.substring(9);
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), consoleCmd);
@@ -602,11 +683,13 @@ public class AppointFeature extends Feature {
      * 播放音效
      */
     private void playSound(Player player, String soundName) {
-        if (soundName == null || soundName.isEmpty()) return;
+        if (soundName == null || soundName.isEmpty())
+            return;
         try {
             Sound sound = Sound.valueOf(soundName.toUpperCase());
             player.playSound(player.getLocation(), sound, 1.0f, 1.0f);
-        } catch (IllegalArgumentException ignored) {}
+        } catch (IllegalArgumentException ignored) {
+        }
     }
 
     /**
@@ -625,27 +708,36 @@ public class AppointFeature extends Feature {
         if (psm != null) {
             psm.clearNamespace(player, "appoint");
         }
-        
+
         // 兼容：移除旧的权限附件
         PermissionAttachment attachment = attachments.remove(player.getUniqueId());
         if (attachment != null) {
             try {
                 attachment.remove();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
     }
 
     /**
      * 当玩家失去某个 appoint 权限时调用（级联撤销检查）
      * 这个方法应该在权限被撤销后调用
+     * 
      * @param appointerUuid 失去权限的玩家 UUID
-     * @param permSetKey 失去的权限集 key（可为 null 表示检查所有权限集）
+     * @param permSetKey    失去的权限集 key（可为 null 表示检查所有权限集）
      */
     public void onAppointerLostPermission(UUID appointerUuid, String permSetKey) {
-        if (!enabled || !cascadeRevoke) return;
-        
+        if (!enabled || !cascadeRevoke)
+            return;
+
+        // 防止环导致的无限递归
+        if (cascadeRevokeVisited.contains(appointerUuid)) {
+            return;
+        }
+        cascadeRevokeVisited.add(appointerUuid);
+
         Player appointer = Bukkit.getPlayer(appointerUuid);
-        
+
         // 如果指定了权限集，只检查该权限集
         if (permSetKey != null) {
             cascadeRevokeForPermSet(appointerUuid, appointer, permSetKey);
@@ -664,47 +756,52 @@ public class AppointFeature extends Feature {
         // 检查该任命者是否仍有权限
         boolean stillHasPermission;
         if (appointer != null && appointer.isOnline()) {
-            stillHasPermission = appointer.hasPermission(PERMISSION_PREFIX + permSetKey) 
-                              || appointer.hasPermission("rulegems.admin");
+            stillHasPermission = appointer.hasPermission(PERMISSION_PREFIX + permSetKey)
+                    || appointer.hasPermission("rulegems.admin");
         } else {
             // 离线玩家，假设已失去权限（因为被撤销了才会调用此方法）
             stillHasPermission = false;
         }
-        
-        if (stillHasPermission) return;
-        
+
+        if (stillHasPermission)
+            return;
+
         // 获取该任命者任命的所有人
         Map<UUID, Appointment> setAppointments = appointments.get(permSetKey);
-        if (setAppointments == null) return;
-        
+        if (setAppointments == null)
+            return;
+
         List<UUID> toRevoke = new ArrayList<>();
         for (Appointment appointment : setAppointments.values()) {
             if (appointerUuid.equals(appointment.getAppointerUuid())) {
                 toRevoke.add(appointment.getAppointeeUuid());
             }
         }
-        
-        if (toRevoke.isEmpty()) return;
-        
+
+        if (toRevoke.isEmpty())
+            return;
+
         AppointDefinition def = appointDefinitions.get(permSetKey);
-        
+
         // 执行级联撤销
         for (UUID appointeeUuid : toRevoke) {
             setAppointments.remove(appointeeUuid);
-            
+
             Player appointee = Bukkit.getPlayer(appointeeUuid);
             if (appointee != null && appointee.isOnline()) {
                 applyPermissions(appointee);
-                
+
                 // 执行撤销命令（使用控制台作为执行者）
                 if (def != null && def.getOnRevoke() != null) {
                     for (String cmd : def.getOnRevoke()) {
                         String processed = cmd
-                            .replace("%player%", appointer != null ? appointer.getName() : "SYSTEM")
-                            .replace("%target%", appointee.getName())
-                            .replace("%perm_set%", def.getDisplayName() != null ? 
-                                ChatColor.translateAlternateColorCodes('&', def.getDisplayName()) : permSetKey);
-                        
+                                .replace("%player%", appointer != null ? appointer.getName() : "SYSTEM")
+                                .replace("%target%", appointee.getName())
+                                .replace("%perm_set%",
+                                        def.getDisplayName() != null
+                                                ? ChatColor.translateAlternateColorCodes('&', def.getDisplayName())
+                                                : permSetKey);
+
                         if (processed.startsWith("console: ")) {
                             Bukkit.dispatchCommand(Bukkit.getConsoleSender(), processed.substring(9));
                         } else if (processed.startsWith("player: ")) {
@@ -714,13 +811,13 @@ public class AppointFeature extends Feature {
                         }
                     }
                 }
-                
+
                 // 播放音效
                 if (def != null) {
                     playSound(appointee, def.getRevokeSound());
                 }
             }
-            
+
             // 递归：如果被撤销的人也有任命权限，他任命的人也应被级联撤销
             // 使用延迟执行避免递归过深
             final UUID finalAppointeeUuid = appointeeUuid;
@@ -728,11 +825,12 @@ public class AppointFeature extends Feature {
                 onAppointerLostPermission(finalAppointeeUuid, null);
             });
         }
-        
+
         // 保存数据
         saveData();
-        
-        plugin.getLogger().info("Cascade revoked " + toRevoke.size() + " appointments for perm set '" + permSetKey + "' due to appointer losing permission.");
+
+        plugin.getLogger().info("Cascade revoked " + toRevoke.size() + " appointments for perm set '" + permSetKey
+                + "' due to appointer losing permission.");
     }
 
     /**
@@ -740,8 +838,12 @@ public class AppointFeature extends Feature {
      * 用于定期检查或在特定事件后调用
      */
     public void checkAllCascadeRevocations() {
-        if (!enabled || !cascadeRevoke) return;
-        
+        if (!enabled || !cascadeRevoke)
+            return;
+
+        // 清除访问集合，开始新一轮级联检查
+        cascadeRevokeVisited.clear();
+
         Set<UUID> allAppointers = new HashSet<>();
         for (Map<UUID, Appointment> setAppointments : appointments.values()) {
             for (Appointment appointment : setAppointments.values()) {
@@ -750,10 +852,13 @@ public class AppointFeature extends Feature {
                 }
             }
         }
-        
+
         for (UUID appointerUuid : allAppointers) {
             onAppointerLostPermission(appointerUuid, null);
         }
+
+        // 清除访问集合
+        cascadeRevokeVisited.clear();
     }
 
     // Getters
@@ -764,13 +869,14 @@ public class AppointFeature extends Feature {
     public AppointDefinition getAppointDefinition(String key) {
         return appointDefinitions.get(key);
     }
-    
+
     public boolean isCascadeRevoke() {
         return cascadeRevoke;
     }
-    
+
     /**
      * 获取某个任命者任命的所有人
+     * 
      * @param appointerUuid 任命者 UUID
      * @return 任命列表
      */
@@ -785,18 +891,20 @@ public class AppointFeature extends Feature {
         }
         return result;
     }
-    
+
     /**
      * 获取某个任命者在特定权限集中任命的所有人
+     * 
      * @param appointerUuid 任命者 UUID
-     * @param permSetKey 权限集 key
+     * @param permSetKey    权限集 key
      * @return 任命列表
      */
     public List<Appointment> getAppointmentsByAppointer(UUID appointerUuid, String permSetKey) {
         List<Appointment> result = new ArrayList<>();
         Map<UUID, Appointment> setAppointments = appointments.get(permSetKey);
-        if (setAppointments == null) return result;
-        
+        if (setAppointments == null)
+            return result;
+
         for (Appointment appointment : setAppointments.values()) {
             if (appointerUuid.equals(appointment.getAppointerUuid())) {
                 result.add(appointment);
@@ -804,25 +912,26 @@ public class AppointFeature extends Feature {
         }
         return result;
     }
-    
+
     /**
      * 启动条件刷新任务
      * 定期检查所有在线玩家的条件并刷新权限
      */
     private void startConditionRefreshTask() {
-        if (!enabled || conditionRefreshInterval <= 0) return;
-        
+        if (!enabled || conditionRefreshInterval <= 0)
+            return;
+
         // 检查是否有任何权限集配置了条件
         boolean hasConditions = appointDefinitions.values().stream()
-            .anyMatch(def -> def.getPowerStructure() != null && 
-                             def.getPowerStructure().getCondition() != null && 
-                             def.getPowerStructure().getCondition().hasAnyCondition());
-        
+                .anyMatch(def -> def.getPowerStructure() != null &&
+                        def.getPowerStructure().getCondition() != null &&
+                        def.getPowerStructure().getCondition().hasAnyCondition());
+
         if (!hasConditions) {
             plugin.getLogger().info("No permission conditions configured, skipping refresh task.");
             return;
         }
-        
+
         long intervalTicks = conditionRefreshInterval * 20L;
         refreshTaskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
@@ -832,10 +941,10 @@ public class AppointFeature extends Feature {
                 }
             }
         }, intervalTicks, intervalTicks).getTaskId();
-        
+
         plugin.getLogger().info("Started condition refresh task (interval: " + conditionRefreshInterval + "s)");
     }
-    
+
     /**
      * 停止条件刷新任务
      */
@@ -845,36 +954,41 @@ public class AppointFeature extends Feature {
             refreshTaskId = -1;
         }
     }
-    
+
     /**
      * 玩家切换世界时刷新权限
      * 应该由外部监听器调用
      */
     public void onPlayerChangeWorld(Player player) {
-        if (!enabled) return;
-        
+        if (!enabled)
+            return;
+
         // 检查玩家是否有任命
         if (!getPlayerAppointments(player.getUniqueId()).isEmpty()) {
             applyPermissions(player);
         }
     }
-    
+
     /**
      * 检查玩家是否满足某个权限集的条件
-     * @param player 玩家
+     * 
+     * @param player     玩家
      * @param permSetKey 权限集 key
      * @return 是否满足条件
      */
     public boolean checkCondition(Player player, String permSetKey) {
         AppointDefinition def = appointDefinitions.get(permSetKey);
-        if (def == null) return false;
-        
+        if (def == null)
+            return false;
+
         PowerStructure power = def.getPowerStructure();
-        if (power == null) return true;
-        
+        if (power == null)
+            return true;
+
         org.cubexmc.model.PowerCondition condition = power.getCondition();
-        if (condition == null) return true;
-        
+        if (condition == null)
+            return true;
+
         return condition.checkConditions(player);
     }
 }
