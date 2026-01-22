@@ -1,5 +1,5 @@
 name: RuleGems
-version: 1.0.7
+version: 1.0.6
 main: org.cubexmc.RuleGems
 author: angushushu
 description: "一个管理 RuleGems（统治宝石）的插件"
@@ -13,7 +13,7 @@ commands:
     usage: /<command> <place|revoke|reload|rulers|gems|scatter|redeem|redeemall|help>
     description: RuleGems plugin command
     aliases: [rg]
-    permission: 
+    permission:
 
 permissions:
   rulegems.admin:

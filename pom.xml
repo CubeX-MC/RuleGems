@@ -6,7 +6,7 @@
 
     <groupId>org.cubexmc</groupId>
     <artifactId>RuleGems</artifactId>
-    <version>1.0.7</version>
+    <version>1.0.6</version>
     <packaging>jar</packaging>
 
     <name>RuleGems</name>
@@ -60,7 +60,7 @@
     <build>
     <finalName>${project.artifactId}-${project.version}</finalName>
         <defaultGoal>clean package</defaultGoal>
-        
+
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
@@ -85,7 +85,7 @@
                     <encoding>UTF-8</encoding>
                 </configuration>
             </plugin>
-            
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
