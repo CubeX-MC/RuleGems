@@ -5,6 +5,12 @@
 # 语言设置 (示例: zh_CN / en_US)
 language: zh_CN
 
+# 安全设置
+# allow_op_escalation: 是否允许使用临时 OP 执行限次命令（不推荐）
+# 设为 false 时，player-op 类型命令将回退为以控制台身份执行
+# 设为 true 时，会临时授予玩家 OP 来执行命令（存在安全风险）
+allow_op_escalation: false
+
 # 宝石随机生成范围（默认）
 # 这是全局默认的生成范围，当宝石没有单独配置生成范围时使用
 # 每个宝石可以在其配置文件中通过 random_place_range 字段设置自己的生成范围

@@ -17,7 +17,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.cubexmc.RuleGems;
-import org.cubexmc.manager.ConfigManager;
+import org.cubexmc.manager.GameplayConfig;
 import org.cubexmc.manager.GemManager;
 import org.cubexmc.manager.LanguageManager;
 import org.cubexmc.utils.SchedulerUtil;
@@ -29,7 +29,7 @@ public class GemConsumeListener implements Listener {
 
     private final RuleGems plugin;
     private final GemManager gemManager;
-    private final ConfigManager configManager;
+    private final GameplayConfig gameplayConfig;
     private final LanguageManager languageManager;
 
     // 玩家正在进行的长按操作
@@ -38,19 +38,20 @@ public class GemConsumeListener implements Listener {
     // 配置常量
     private static final int CHECK_INTERVAL_TICKS = 2;    // 每2tick检查一次
     private static final int PROGRESS_BAR_LENGTH = 20;    // 进度条长度
+    private static final long INTERACT_TIMEOUT_MS = 300;  // 右键释放检测超时
 
     /**
      * 获取配置的长按时长（tick）
      */
     private int getConsumeDurationTicks() {
-        return configManager.getHoldToRedeemDurationTicks();
+        return gameplayConfig.getHoldToRedeemDurationTicks();
     }
 
     public GemConsumeListener(RuleGems plugin, GemManager gemManager, 
-                              ConfigManager configManager, LanguageManager languageManager) {
+                              GameplayConfig gameplayConfig, LanguageManager languageManager) {
         this.plugin = plugin;
         this.gemManager = gemManager;
-        this.configManager = configManager;
+        this.gameplayConfig = gameplayConfig;
         this.languageManager = languageManager;
     }
 
@@ -58,7 +59,7 @@ public class GemConsumeListener implements Listener {
      * 检查功能是否启用
      */
     private boolean isEnabled() {
-        return configManager.isHoldToRedeemEnabled();
+        return gameplayConfig.isHoldToRedeemEnabled();
     }
 
     /**
@@ -84,7 +85,7 @@ public class GemConsumeListener implements Listener {
         if (!gemManager.isRuleGem(item)) return;
 
         // 根据配置检查下蹲状态
-        boolean sneakToRedeem = configManager.isSneakToRedeem();
+        boolean sneakToRedeem = gameplayConfig.isSneakToRedeem();
         boolean isSneaking = player.isSneaking();
         
         // sneakToRedeem=true: 需要下蹲才能兑换，不下蹲则允许放置
@@ -102,7 +103,7 @@ public class GemConsumeListener implements Listener {
         if (!player.hasPermission("rulegems.redeem")) return;
 
         // 检查兑换功能是否启用
-        if (!configManager.isRedeemEnabled()) return;
+        if (!gameplayConfig.isRedeemEnabled()) return;
 
         UUID playerId = player.getUniqueId();
 
@@ -139,7 +140,7 @@ public class GemConsumeListener implements Listener {
         try {
             player.playSound(player.getLocation(), 
                 org.bukkit.Sound.ENTITY_GENERIC_EAT, 0.5f, 0.8f);
-        } catch (Exception ignored) {}
+        } catch (Exception e) { plugin.getLogger().fine("Failed to play consume start sound: " + e.getMessage()); }
 
         // 启动进度检查任务
         scheduleProgressCheck(player);
@@ -164,7 +165,7 @@ public class GemConsumeListener implements Listener {
 
             // 检查是否超时（玩家停止右键）
             long timeSinceLastInteract = System.currentTimeMillis() - progress.lastInteractTime;
-            if (timeSinceLastInteract > 300) { // 300ms 没有新的右键事件
+            if (timeSinceLastInteract > INTERACT_TIMEOUT_MS) {
                 cancelConsuming(player, true);
                 return;
             }
@@ -194,7 +195,7 @@ public class GemConsumeListener implements Listener {
                 try {
                     player.playSound(player.getLocation(),
                         org.bukkit.Sound.ENTITY_GENERIC_EAT, 0.3f, 0.8f + progressPercent * 0.4f);
-                } catch (Exception ignored) {}
+                } catch (Exception e) { plugin.getLogger().fine("Failed to play consume progress sound: " + e.getMessage()); }
             }
             progress.tickCount++;
 
@@ -259,7 +260,7 @@ public class GemConsumeListener implements Listener {
         try {
             player.playSound(player.getLocation(),
                 org.bukkit.Sound.ENTITY_PLAYER_BURP, 1.0f, 1.2f);
-        } catch (Exception ignored) {}
+        } catch (Exception e) { plugin.getLogger().fine("Failed to play consume complete sound: " + e.getMessage()); }
 
         // 触发兑换
         boolean success = gemManager.redeemGemInHand(player);
@@ -269,7 +270,7 @@ public class GemConsumeListener implements Listener {
             try {
                 player.playSound(player.getLocation(),
                     org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
-            } catch (Exception ignored) {}
+            } catch (Exception e) { plugin.getLogger().fine("Failed to play redeem success sound: " + e.getMessage()); }
         }
     }
 

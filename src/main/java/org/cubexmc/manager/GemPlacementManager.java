@@ -1,7 +1,9 @@
 package org.cubexmc.manager;
 
 import java.io.File;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
@@ -13,12 +15,13 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.WorldBorder;
-import org.bukkit.block.Block;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
 import org.cubexmc.RuleGems;
+import org.cubexmc.model.ExecuteConfig;
 import org.cubexmc.model.GemDefinition;
+import org.cubexmc.utils.EffectUtils;
 import org.cubexmc.utils.SchedulerUtil;
 
 /**
@@ -27,81 +30,97 @@ import org.cubexmc.utils.SchedulerUtil;
  */
 public class GemPlacementManager {
 
+    /** Maximum vertical blocks to search upward when placing a gem. */
+    private static final int MAX_VERTICAL_SEARCH = 6;
+    /** Maximum random placement attempts before falling back to center. */
+    private static final int MAX_RANDOM_ATTEMPTS = 12;
+    /** Proximity detection range (blocks) for gem sound notification. */
+    private static final double PROXIMITY_DETECTION_RANGE = 16.0;
+
     private final RuleGems plugin;
-    private final ConfigManager configManager;
+    private final GemDefinitionParser gemParser;
+    private final GameplayConfig gameplayConfig;
     private final LanguageManager languageManager;
     private final GemStateManager stateManager;
+    private EffectUtils effectUtils;
 
     // 逃逸任务
-    private final Map<UUID, Object> gemEscapeTasks = new HashMap<>();
+    private final Map<UUID, Object> gemEscapeTasks = new ConcurrentHashMap<>();
 
-    public GemPlacementManager(RuleGems plugin, ConfigManager configManager, 
+    public GemPlacementManager(RuleGems plugin, GemDefinitionParser gemParser,
+                               GameplayConfig gameplayConfig,
                                LanguageManager languageManager, GemStateManager stateManager) {
         this.plugin = plugin;
-        this.configManager = configManager;
+        this.gemParser = gemParser;
+        this.gameplayConfig = gameplayConfig;
         this.languageManager = languageManager;
         this.stateManager = stateManager;
+    }
+
+    /**
+     * 设置 EffectUtils（延迟注入，避免循环依赖）
+     */
+    public void setEffectUtils(EffectUtils effectUtils) {
+        this.effectUtils = effectUtils;
+    }
+
+    // ==================== 状态访问器 ====================
+
+    public Map<UUID, Object> getGemEscapeTasks() {
+        return gemEscapeTasks;
     }
 
     // ==================== 放置逻辑 ====================
 
     /**
-     * 放置宝石到指定位置
+     * 放置宝石到指定位置（带限制检查）
      */
     public void placeRuleGem(Location loc, UUID gemId) {
-        if (loc == null || gemId == null) return;
-        Location blockLoc = loc.getBlock().getLocation();
-        
-        Material mat = stateManager.getGemMaterial(gemId);
-        stateManager.getLocationToGemUuid().put(blockLoc, gemId);
-        stateManager.getGemUuidToLocation().put(gemId, blockLoc);
-        
-        SchedulerUtil.regionRun(plugin, blockLoc, () -> {
-            blockLoc.getBlock().setType(mat);
-        }, 0L, -1L);
-        
-        // 调度逃逸
-        scheduleEscape(gemId);
+        placeRuleGemInternal(loc, gemId, false);
     }
 
     /**
-     * 内部放置（带完整检查）
+     * 内部放置（带完整检查：数量限制、垂直搜索、WorldBorder 校验、回退机制）
      */
-    public void placeRuleGemInternal(Location loc, UUID gemId) {
-        if (loc == null || gemId == null) return;
-        Location blockLoc = loc.getBlock().getLocation();
-        
-        Material mat = stateManager.getGemMaterial(gemId);
-        stateManager.getLocationToGemUuid().put(blockLoc, gemId);
-        stateManager.getGemUuidToLocation().put(gemId, blockLoc);
-        
-        SchedulerUtil.regionRun(plugin, blockLoc, () -> {
-            Block b = blockLoc.getBlock();
-            if (!b.getChunk().isLoaded()) {
-                b.getChunk().load();
+    private void placeRuleGemInternal(Location loc, UUID gemId, boolean ignoreLimit) {
+        if (loc == null) return;
+        if (!ignoreLimit && stateManager.getTotalGemCount() >= gemParser.getRequiredCount()) {
+            plugin.getLogger().info("Gem limit reached, skipping placement");
+            return;
+        }
+        final Location base = loc.clone();
+        SchedulerUtil.regionRun(plugin, base, () -> {
+            World world = base.getWorld();
+            if (world == null) return;
+            WorldBorder border = world.getWorldBorder();
+            Location target = base.getBlock().getLocation();
+            // 垂直向上寻找空气（最多尝试 MAX_VERTICAL_SEARCH 格）
+            int tries = 0;
+            while (tries < MAX_VERTICAL_SEARCH && target.getBlock().getType().isSolid()) {
+                target.add(0, 1, 0);
+                tries++;
             }
-            b.setType(mat);
+            if (!border.isInside(target) || target.getBlockY() < world.getMinHeight()
+                    || target.getBlockY() > world.getMaxHeight()) {
+                randomPlaceGem(gemId);
+                return;
+            }
+            Material mat = stateManager.getGemMaterial(gemId);
+            target.getBlock().setType(mat);
+            stateManager.bindPlacedGem(target, gemId);
+            scheduleEscape(gemId);
         }, 0L, -1L);
-        
-        // 调度逃逸
-        scheduleEscape(gemId);
     }
 
     /**
      * 取消放置宝石
      */
     public void unplaceRuleGem(Location loc, UUID gemId) {
-        if (loc == null || gemId == null) return;
-        Location blockLoc = loc.getBlock().getLocation();
-        
-        // 取消逃逸
-        cancelEscape(gemId);
-        
-        stateManager.getLocationToGemUuid().remove(blockLoc);
-        stateManager.getGemUuidToLocation().remove(gemId);
-        
-        SchedulerUtil.regionRun(plugin, blockLoc, () -> {
-            blockLoc.getBlock().setType(Material.AIR);
+        if (loc == null) return;
+        final Location fLoc = loc.getBlock().getLocation();
+        SchedulerUtil.regionRun(plugin, fLoc, () -> {
+            fLoc.getBlock().setType(Material.AIR);
+            stateManager.unbindPlacedGem(fLoc, gemId);
         }, 0L, -1L);
     }
 
@@ -130,11 +149,12 @@ public class GemPlacementManager {
             
             try {
                 if (!t.getChunk().isLoaded()) t.getChunk().load();
-            } catch (Throwable ignored) {}
+            } catch (Throwable e) {
+                plugin.getLogger().fine("Failed to load chunk for gem placement: " + e.getMessage());
+            }
             
             t.getBlock().setType(mat);
-            stateManager.getLocationToGemUuid().put(t, gemId);
-            stateManager.getGemUuidToLocation().put(gemId, t);
+            stateManager.bindPlacedGem(t, gemId);
             
             // 清理旧位置
             if (oldLoc != null) {
@@ -149,92 +169,99 @@ public class GemPlacementManager {
     // ==================== 随机放置 ====================
 
     /**
-     * 随机放置宝石
+     * 随机放置宝石（三参数版本，确保 gemKey 已分配后调度）
      */
-    public void randomPlaceGem(UUID gemId) {
-        if (gemId == null) return;
-        
-        String gemKey = stateManager.getGemKey(gemId);
-        Location[] range = getRandomPlaceRange(gemKey);
-        Location corner1 = range[0];
-        Location corner2 = range[1];
-        
-        if (corner1 == null || corner2 == null) return;
-        
-        World world = corner1.getWorld();
-        if (world == null) return;
-        
-        scheduleRandomAttempt(gemId, corner1, corner2, world, 20);
+    public void randomPlaceGem(UUID gemId, Location corner1, Location corner2) {
+        stateManager.ensureGemKeyAssigned(gemId);
+        scheduleRandomAttempt(gemId, corner1, corner2, MAX_RANDOM_ATTEMPTS);
     }
 
     /**
-     * 调度随机放置尝试
+     * 随机放置宝石（自动使用宝石特定或全局默认范围）
      */
-    private void scheduleRandomAttempt(UUID gemId, Location c1, Location c2, World world, int attemptsLeft) {
-        if (attemptsLeft <= 0) return;
-        
-        int minX = Math.min(c1.getBlockX(), c2.getBlockX());
-        int maxX = Math.max(c1.getBlockX(), c2.getBlockX());
-        int minY = Math.min(c1.getBlockY(), c2.getBlockY());
-        int maxY = Math.max(c1.getBlockY(), c2.getBlockY());
-        int minZ = Math.min(c1.getBlockZ(), c2.getBlockZ());
-        int maxZ = Math.max(c1.getBlockZ(), c2.getBlockZ());
-        
+    public void randomPlaceGem(UUID gemId) {
+        if (gemId == null) return;
+        Location[] range = getGemPlaceRange(gemId);
+        if (range != null) {
+            randomPlaceGem(gemId, range[0], range[1]);
+        } else {
+            plugin.getLogger().warning("Cannot place gem " + gemId + ": no spawn range configured, falling back to overworld spawn");
+            World defaultWorld = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+            if (defaultWorld != null) {
+                Location spawnLoc = defaultWorld.getSpawnLocation();
+                placeRuleGem(spawnLoc, gemId);
+            } else {
+                plugin.getLogger().severe("Cannot place gem " + gemId + ": no available world! Gem will be in unknown state");
+            }
+        }
+    }
+
+    /**
+     * Folia 安全的随机放置尝试：每次选择候选坐标，在区域线程中计算最高地面并放置
+     */
+    private void scheduleRandomAttempt(UUID gemId, Location corner1, Location corner2, int attemptsLeft) {
+        if (corner1 == null || corner2 == null) return;
+        if (corner1.getWorld() != corner2.getWorld()) return;
+
+        if (attemptsLeft <= 0) {
+            plugin.getLogger().warning("Random placement failed for gem " + gemId + ", falling back to range center");
+            int centerX = (corner1.getBlockX() + corner2.getBlockX()) / 2;
+            int centerZ = (corner1.getBlockZ() + corner2.getBlockZ()) / 2;
+            World world = corner1.getWorld();
+            int y = world.getHighestBlockYAt(centerX, centerZ) + 1;
+            Location fallback = new Location(world, centerX, y, centerZ);
+            placeRuleGem(fallback, gemId);
+            return;
+        }
+
+        World world = corner1.getWorld();
         Random rand = new Random();
-        int x = minX + rand.nextInt(Math.max(1, maxX - minX + 1));
-        int y = minY + rand.nextInt(Math.max(1, maxY - minY + 1));
-        int z = minZ + rand.nextInt(Math.max(1, maxZ - minZ + 1));
-        
-        Location candidate = new Location(world, x, y, z);
-        
+        int minX = Math.min(corner1.getBlockX(), corner2.getBlockX());
+        int minZ = Math.min(corner1.getBlockZ(), corner2.getBlockZ());
+        int maxX = Math.max(corner1.getBlockX(), corner2.getBlockX());
+        int maxZ = Math.max(corner1.getBlockZ(), corner2.getBlockZ());
+        int x = rand.nextInt(maxX - minX + 1) + minX;
+        int z = rand.nextInt(maxZ - minZ + 1) + minZ;
+        final Location candidate = new Location(world, x, world.getMinHeight() + 1, z);
         SchedulerUtil.regionRun(plugin, candidate, () -> {
-            if (!candidate.getChunk().isLoaded()) {
-                candidate.getChunk().load();
+            try {
+                int y = world.getHighestBlockYAt(x, z) + 1;
+                Location place = new Location(world, x, y, z);
+                WorldBorder border = world.getWorldBorder();
+                if (!border.isInside(place)) {
+                    scheduleRandomAttempt(gemId, corner1, corner2, attemptsLeft - 1);
+                    return;
+                }
+                placeRuleGem(place, gemId);
+            } catch (Throwable t) {
+                scheduleRandomAttempt(gemId, corner1, corner2, attemptsLeft - 1);
             }
-            
-            WorldBorder border = world.getWorldBorder();
-            if (!border.isInside(candidate)) {
-                SchedulerUtil.globalRun(plugin, 
-                    () -> scheduleRandomAttempt(gemId, c1, c2, world, attemptsLeft - 1), 1L, -1L);
-                return;
-            }
-            
-            Material mat = stateManager.getGemMaterial(gemId);
-            if (stateManager.isSupportRequired(mat) && !stateManager.hasBlockSupport(candidate)) {
-                SchedulerUtil.globalRun(plugin, 
-                    () -> scheduleRandomAttempt(gemId, c1, c2, world, attemptsLeft - 1), 1L, -1L);
-                return;
-            }
-            
-            Block b = candidate.getBlock();
-            if (b.getType() != Material.AIR) {
-                SchedulerUtil.globalRun(plugin, 
-                    () -> scheduleRandomAttempt(gemId, c1, c2, world, attemptsLeft - 1), 1L, -1L);
-                return;
-            }
-            
-            placeRuleGemInternal(candidate, gemId);
         }, 0L, -1L);
     }
 
     /**
-     * 获取宝石的随机放置范围
+     * 获取宝石的随机生成范围（优先使用宝石特定的范围，否则使用全局默认）
      */
-    private Location[] getRandomPlaceRange(String gemKey) {
+    private Location[] getGemPlaceRange(UUID gemId) {
+        String gemKey = stateManager.getGemKey(gemId);
         if (gemKey != null) {
-            GemDefinition def = stateManager.findGemDefinition(gemKey);
-            if (def != null) {
-                Location c1 = def.getRandomPlaceCorner1();
-                Location c2 = def.getRandomPlaceCorner2();
-                if (c1 != null && c2 != null) {
-                    return new Location[]{c1, c2};
+            for (GemDefinition def : gemParser.getGemDefinitions()) {
+                if (def.getGemKey().equals(gemKey)) {
+                    Location c1 = def.getRandomPlaceCorner1();
+                    Location c2 = def.getRandomPlaceCorner2();
+                    if (c1 != null && c2 != null) {
+                        return new Location[]{c1, c2};
+                    }
+                    break;
                 }
             }
         }
-        return new Location[]{
-            configManager.getRandomPlaceCorner1(),
-            configManager.getRandomPlaceCorner2()
-        };
+        Location defaultC1 = gameplayConfig.getRandomPlaceCorner1();
+        Location defaultC2 = gameplayConfig.getRandomPlaceCorner2();
+        if (defaultC1 != null && defaultC2 != null) {
+            return new Location[]{defaultC1, defaultC2};
+        }
+        return null;
     }
 
     // ==================== 散落逻辑 ====================
@@ -246,16 +273,15 @@ public class GemPlacementManager {
         cancelAllEscapeTasks();
         
         // 清理所有放置的宝石
-        for (Map.Entry<Location, UUID> entry : 
-                new HashMap<>(stateManager.getLocationToGemUuid()).entrySet()) {
+        for (Map.Entry<Location, UUID> entry :
+                stateManager.snapshotPlacedGems().entrySet()) {
             Location loc = entry.getKey();
             SchedulerUtil.regionRun(plugin, loc, () -> {
                 loc.getBlock().setType(Material.AIR);
             }, 0L, -1L);
         }
-        stateManager.getLocationToGemUuid().clear();
-        stateManager.getGemUuidToLocation().clear();
-        stateManager.getGemUuidToHolder().clear();
+        stateManager.clearPlacedMappings();
+        stateManager.clearHolderMappings();
         
         // 重新随机放置
         for (UUID gemId : stateManager.getAllGemUuids()) {
@@ -269,13 +295,13 @@ public class GemPlacementManager {
      * 调度宝石逃逸任务
      */
     public void scheduleEscape(UUID gemId) {
-        if (!configManager.isGemEscapeEnabled()) return;
+        if (!gameplayConfig.isGemEscapeEnabled()) return;
         if (gemId == null) return;
         
         cancelEscape(gemId);
         
-        long minTicks = configManager.getGemEscapeMinIntervalTicks();
-        long maxTicks = configManager.getGemEscapeMaxIntervalTicks();
+        long minTicks = gameplayConfig.getGemEscapeMinIntervalTicks();
+        long maxTicks = gameplayConfig.getGemEscapeMaxIntervalTicks();
         Random rand = new Random();
         long range = Math.max(1L, maxTicks - minTicks);
         long delayTicks = minTicks + (long) (rand.nextDouble() * range);
@@ -313,7 +339,7 @@ public class GemPlacementManager {
      * 初始化所有已放置宝石的逃逸任务
      */
     public void initializeEscapeTasks() {
-        if (!configManager.isGemEscapeEnabled()) return;
+        if (!gameplayConfig.isGemEscapeEnabled()) return;
         for (UUID gemId : stateManager.getGemUuidToLocation().keySet()) {
             scheduleEscape(gemId);
         }
@@ -333,7 +359,7 @@ public class GemPlacementManager {
         unplaceRuleGem(oldLocation, gemId);
         randomPlaceGem(gemId);
         
-        if (configManager.isGemEscapeBroadcast()) {
+        if (gameplayConfig.isGemEscapeBroadcast()) {
             broadcastEscape(gemId);
         }
     }
@@ -349,20 +375,24 @@ public class GemPlacementManager {
             World world = loc.getWorld();
             if (world == null) return;
             
-            String particleStr = configManager.getGemEscapeParticle();
+            String particleStr = gameplayConfig.getGemEscapeParticle();
             if (particleStr != null && !particleStr.isEmpty()) {
                 try {
                     Particle particle = Particle.valueOf(particleStr.toUpperCase());
                     world.spawnParticle(particle, loc, 50, 0.5, 0.5, 0.5, 0.1);
-                } catch (IllegalArgumentException ignored) {}
+                } catch (IllegalArgumentException e) {
+                    plugin.getLogger().warning("Invalid gem escape particle type '" + particleStr + "': " + e.getMessage());
+                }
             }
             
-            String soundStr = configManager.getGemEscapeSound();
+            String soundStr = gameplayConfig.getGemEscapeSound();
             if (soundStr != null && !soundStr.isEmpty()) {
                 try {
                     Sound sound = Sound.valueOf(soundStr.toUpperCase());
                     world.playSound(loc, sound, 1.0f, 1.0f);
-                } catch (IllegalArgumentException ignored) {}
+                } catch (IllegalArgumentException e) {
+                    plugin.getLogger().warning("Invalid gem escape sound type '" + soundStr + "': " + e.getMessage());
+                }
             }
         }, 0L, -1L);
     }
@@ -430,7 +460,7 @@ public class GemPlacementManager {
                     try {
                         yaml.save(file);
                     } catch (Exception e) {
-                        plugin.getLogger().warning("保存祭坛配置失败: " + e.getMessage());
+                        plugin.getLogger().warning("Failed to save altar config: " + e.getMessage());
                     }
                     return;
                 }
@@ -456,7 +486,7 @@ public class GemPlacementManager {
                     try {
                         yaml.save(file);
                     } catch (Exception e) {
-                        plugin.getLogger().warning("移除祭坛配置失败: " + e.getMessage());
+                        plugin.getLogger().warning("Failed to remove altar config: " + e.getMessage());
                     }
                     return;
                 }
@@ -510,7 +540,9 @@ public class GemPlacementManager {
             SchedulerUtil.regionRun(plugin, f, () -> {
                 try {
                     if (!f.getChunk().isLoaded()) f.getChunk().load();
-                } catch (Throwable ignored) {}
+                } catch (Throwable e) {
+                    plugin.getLogger().fine("Failed to load chunk for gem block restoration: " + e.getMessage());
+                }
                 f.getBlock().setType(m);
             }, 0L, -1L);
         }
@@ -520,7 +552,7 @@ public class GemPlacementManager {
      * 检查放置位置是否为祭坛
      */
     public String checkPlaceRedeem(Location placedLoc, String gemKey) {
-        if (!configManager.isPlaceRedeemEnabled()) return null;
+        if (!gameplayConfig.isPlaceRedeemEnabled()) return null;
         
         GemDefinition def = stateManager.findGemDefinition(gemKey);
         if (def == null) return null;
@@ -530,13 +562,144 @@ public class GemPlacementManager {
         if (altar.getWorld() == null || placedLoc.getWorld() == null) return null;
         if (!altar.getWorld().getName().equals(placedLoc.getWorld().getName())) return null;
         
-        int radius = configManager.getPlaceRedeemRadius();
+        int radius = gameplayConfig.getPlaceRedeemRadius();
         if (Math.abs(placedLoc.getBlockX() - altar.getBlockX()) <= radius &&
             Math.abs(placedLoc.getBlockY() - altar.getBlockY()) <= radius &&
             Math.abs(placedLoc.getBlockZ() - altar.getBlockZ()) <= radius) {
             return gemKey;
         }
         return null;
+    }
+
+    // ==================== 散落特效 ====================
+
+    /**
+     * 触发散落特效（优先使用宝石特定配置，回退到全局配置）
+     */
+    public void triggerScatterEffects(UUID gemId, Location location, String playerName) {
+        triggerScatterEffects(gemId, location, playerName, true);
+    }
+
+    /**
+     * 触发散落特效
+     */
+    public void triggerScatterEffects(UUID gemId, Location location, String playerName, boolean allowFallback) {
+        if (location == null || location.getWorld() == null || effectUtils == null) return;
+        GemDefinition definition = stateManager.findGemDefinition(stateManager.getGemUuidToKey().get(gemId));
+        Map<String, String> placeholders = playerName == null
+                ? Collections.emptyMap()
+                : Collections.singletonMap("%player%", playerName);
+        if (definition != null && definition.getOnScatter() != null) {
+            effectUtils.executeCommands(definition.getOnScatter(), placeholders);
+            effectUtils.playLocalSound(location, definition.getOnScatter(), 1.0f, 1.0f);
+            effectUtils.playParticle(location, definition.getOnScatter());
+            return;
+        }
+        if (allowFallback) {
+            ExecuteConfig fallback = gameplayConfig.getGemScatterExecute();
+            effectUtils.playLocalSound(location, fallback, 1.0f, 1.0f);
+            effectUtils.playParticle(location, fallback);
+        }
+    }
+
+    // ==================== 放置兑换特效 ====================
+
+    /**
+     * 播放放置兑换特效（包括信标光束）
+     */
+    public void playPlaceRedeemEffects(Location location) {
+        if (location == null || location.getWorld() == null) return;
+        final Location loc = location.clone().add(0.5, 0.5, 0.5);
+        SchedulerUtil.regionRun(plugin, loc, () -> {
+            World world = loc.getWorld();
+            if (world == null) return;
+            String particleStr = gameplayConfig.getPlaceRedeemParticle();
+            if (particleStr != null && !particleStr.isEmpty()) {
+                try {
+                    Particle particle = Particle.valueOf(particleStr.toUpperCase());
+                    world.spawnParticle(particle, loc, 100, 1.0, 1.0, 1.0, 0.1);
+                } catch (IllegalArgumentException e) {
+                    plugin.getLogger().warning("Invalid place-redeem particle type '" + particleStr + "': " + e.getMessage());
+                }
+            }
+            String soundStr = gameplayConfig.getPlaceRedeemSound();
+            if (soundStr != null && !soundStr.isEmpty()) {
+                try {
+                    Sound sound = Sound.valueOf(soundStr.toUpperCase());
+                    world.playSound(loc, sound, 1.0f, 1.0f);
+                } catch (IllegalArgumentException e) {
+                    plugin.getLogger().warning("Invalid place-redeem sound type '" + soundStr + "': " + e.getMessage());
+                }
+            }
+            if (gameplayConfig.isPlaceRedeemBeaconBeam()) {
+                playBeaconBeamEffect(loc, gameplayConfig.getPlaceRedeemBeaconDuration());
+            }
+        }, 0L, -1L);
+    }
+
+    /**
+     * 播放信标光束特效
+     */
+    public void playBeaconBeamEffect(Location loc, int durationSeconds) {
+        if (loc == null || loc.getWorld() == null) return;
+        final World world = loc.getWorld();
+        final String worldName = world.getName();
+        final int height = loc.getBlockY() - world.getMinHeight();
+        final long durationTicks = durationSeconds * 20L;
+        final int interval = 2;
+        final Object[] taskHolder = new Object[1];
+        taskHolder[0] = SchedulerUtil.globalRun(plugin, () -> {
+            World currentWorld = Bukkit.getWorld(worldName);
+            if (currentWorld == null) {
+                if (taskHolder[0] != null) SchedulerUtil.cancelTask(taskHolder[0]);
+                return;
+            }
+            for (int y = 0; y < height; y += 3) {
+                Location particleLoc = loc.clone();
+                particleLoc.setY(currentWorld.getMinHeight() + y);
+                currentWorld.spawnParticle(Particle.END_ROD, particleLoc, 2, 0.1, 0, 0.1, 0.01);
+            }
+            currentWorld.spawnParticle(Particle.TOTEM, loc, 5, 0.5, 0.5, 0.5, 0.1);
+        }, 0L, interval);
+        SchedulerUtil.globalRun(plugin, () -> {
+            if (taskHolder[0] != null) SchedulerUtil.cancelTask(taskHolder[0]);
+        }, durationTicks, -1L);
+    }
+
+    // ==================== 近距离检测 ====================
+
+    /**
+     * 检测所有在线玩家附近是否有宝石
+     */
+    public void checkPlayersNearRuleGems() {
+        if (stateManager.getLocationToGemUuid().isEmpty()) return;
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            checkPlayerNearRuleGems(player);
+        }
+    }
+
+    /**
+     * 检查某个玩家附近是否有宝石并播放提示音
+     */
+    public void checkPlayerNearRuleGems(Player player) {
+        if (player == null || stateManager.getLocationToGemUuid().isEmpty()) return;
+        SchedulerUtil.entityRun(plugin, player, () -> doPlayerNearCheck(player), 0L, -1L);
+    }
+
+    private void doPlayerNearCheck(Player player) {
+        if (player == null) return;
+        Location playerLoc = player.getLocation();
+        World playerWorld = playerLoc.getWorld();
+        if (playerWorld == null) return;
+        for (Location blockLoc : stateManager.getLocationToGemUuid().keySet()) {
+            World w = blockLoc.getWorld();
+            if (w == null || !w.equals(playerWorld)) continue;
+            double distance = playerLoc.distance(blockLoc);
+            if (distance < PROXIMITY_DETECTION_RANGE) {
+                float volume = (float) (1.0 - (distance / PROXIMITY_DETECTION_RANGE));
+                player.playSound(playerLoc, Sound.BLOCK_NOTE_BLOCK_PLING, volume, 1.0f);
+            }
+        }
     }
 }
 

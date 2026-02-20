@@ -19,21 +19,24 @@ import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerCommandSendEvent;
 import org.bukkit.event.server.TabCompleteEvent;
 
-import org.cubexmc.manager.GemManager;
+import org.cubexmc.manager.GemAllowanceManager;
 import org.cubexmc.manager.LanguageManager;
 
 public class CommandAllowanceListener implements Listener {
-    private final GemManager gemManager;
+    private final GemAllowanceManager allowanceManager;
     private final LanguageManager languageManager;
     private final org.cubexmc.manager.CustomCommandExecutor customCommandExecutor;
+    private final org.cubexmc.manager.GameplayConfig gameplayConfig;
     private final Set<String> proxyLabels = ConcurrentHashMap.newKeySet();
     private final Set<UUID> bypassPlayers = ConcurrentHashMap.newKeySet();
 
-    public CommandAllowanceListener(GemManager gemManager, LanguageManager languageManager,
-                                   org.cubexmc.manager.CustomCommandExecutor customCommandExecutor) {
-        this.gemManager = gemManager;
+    public CommandAllowanceListener(GemAllowanceManager allowanceManager, LanguageManager languageManager,
+                                   org.cubexmc.manager.CustomCommandExecutor customCommandExecutor,
+                                   org.cubexmc.manager.GameplayConfig gameplayConfig) {
+        this.allowanceManager = allowanceManager;
         this.languageManager = languageManager;
         this.customCommandExecutor = customCommandExecutor;
+        this.gameplayConfig = gameplayConfig;
     }
 
     /**
@@ -54,7 +57,7 @@ public class CommandAllowanceListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onCommandSend(PlayerCommandSendEvent event) {
         Player player = event.getPlayer();
-        Set<String> allowed = gemManager.getAvailableCommandLabels(player.getUniqueId());
+        Set<String> allowed = allowanceManager.getAvailableCommandLabels(player.getUniqueId());
         if (allowed.isEmpty()) {
             return;
         }
@@ -77,7 +80,7 @@ public class CommandAllowanceListener implements Listener {
             return;
         }
         Player player = (Player) event.getSender();
-        Set<String> allowed = gemManager.getAvailableCommandLabels(player.getUniqueId());
+        Set<String> allowed = allowanceManager.getAvailableCommandLabels(player.getUniqueId());
         if (allowed.isEmpty()) {
             return;
         }
@@ -150,7 +153,7 @@ public class CommandAllowanceListener implements Listener {
         if (player == null) {
             return Collections.emptyList();
         }
-        Set<String> allowed = gemManager.getAvailableCommandLabels(player.getUniqueId());
+        Set<String> allowed = allowanceManager.getAvailableCommandLabels(player.getUniqueId());
         if (allowed.isEmpty()) {
             return Collections.emptyList();
         }
@@ -173,8 +176,8 @@ public class CommandAllowanceListener implements Listener {
         String rawLower = raw.toLowerCase(Locale.ROOT);
         String labelLower = baseLabel.toLowerCase(Locale.ROOT);
 
-        boolean fullMatch = gemManager.hasAnyAllowed(uid, rawLower);
-        boolean baseMatch = fullMatch || gemManager.hasAnyAllowed(uid, labelLower);
+        boolean fullMatch = allowanceManager.hasAnyAllowed(uid, rawLower);
+        boolean baseMatch = fullMatch || allowanceManager.hasAnyAllowed(uid, labelLower);
 
         if (!baseMatch) {
             if (!allowDelegate) {
@@ -189,7 +192,7 @@ public class CommandAllowanceListener implements Listener {
         }
 
         String matchedLabel = fullMatch ? rawLower : labelLower;
-        org.cubexmc.model.AllowedCommand allowedCmd = gemManager.getAllowedCommand(uid, matchedLabel);
+        org.cubexmc.model.AllowedCommand allowedCmd = allowanceManager.getAllowedCommand(uid, matchedLabel);
         if (allowedCmd != null && allowedCmd.getCooldown() > 0) {
             if (!customCommandExecutor.checkCooldown(uid, matchedLabel)) {
                 long remainingSeconds = customCommandExecutor.getRemainingCooldown(uid, matchedLabel);
@@ -200,7 +203,7 @@ public class CommandAllowanceListener implements Listener {
             }
         }
 
-        boolean consumed = gemManager.tryConsumeAllowed(uid, matchedLabel);
+        boolean consumed = allowanceManager.tryConsumeAllowed(uid, matchedLabel);
         if (!consumed) {
             languageManager.sendMessage(player, "allowance.none_left");
             return true;
@@ -210,25 +213,32 @@ public class CommandAllowanceListener implements Listener {
         if (allowedCmd != null && !allowedCmd.isSimpleCommand()) {
             ok = customCommandExecutor.executeExtendedCommand(player, allowedCmd, args);
         } else {
-            boolean wasOp = player.isOp();
-            try {
-                if (!wasOp) {
-                    player.setOp(true);
+            boolean useOp = gameplayConfig != null && gameplayConfig.isOpEscalationAllowed();
+            if (useOp) {
+                // OP 提权模式（管理员显式启用）
+                boolean wasOp = player.isOp();
+                try {
+                    if (!wasOp) {
+                        player.setOp(true);
+                    }
+                    bypassPlayers.add(uid);
+                    ok = player.performCommand(raw);
+                } catch (Throwable ignored) {
+                    ok = false;
+                } finally {
+                    bypassPlayers.remove(uid);
+                    if (!wasOp && player.isOp()) {
+                        player.setOp(false);
+                    }
                 }
-                bypassPlayers.add(uid);
-                ok = player.performCommand(raw);
-            } catch (Throwable ignored) {
-                ok = false;
-            } finally {
-                bypassPlayers.remove(uid);
-                if (!wasOp && player.isOp()) {
-                    player.setOp(false);
-                }
+            } else {
+                // 安全模式：以控制台身份在全局线程执行（Folia 安全）
+                ok = customCommandExecutor.dispatchAsConsole(raw);
             }
         }
 
         if (!ok) {
-            gemManager.refundAllowed(uid, matchedLabel);
+            allowanceManager.refundAllowed(uid, matchedLabel);
             languageManager.sendMessage(player, "allowance.execute_failed");
             return true;
         }
@@ -237,7 +247,7 @@ public class CommandAllowanceListener implements Listener {
             customCommandExecutor.setCooldown(uid, matchedLabel, allowedCmd.getCooldown());
         }
 
-        int remain = gemManager.getRemainingAllowed(uid, matchedLabel);
+        int remain = allowanceManager.getRemainingAllowed(uid, matchedLabel);
         String remainShown = remain < 0 ? "∞" : String.valueOf(remain);
         java.util.Map<String, String> placeholders = new java.util.HashMap<>();
         placeholders.put("command", matchedLabel);

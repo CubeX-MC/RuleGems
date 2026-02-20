@@ -22,6 +22,8 @@ import org.cubexmc.listeners.GemInventoryListener;
 import org.cubexmc.listeners.GemPlaceListener;
 import org.cubexmc.listeners.PlayerEventListener;
 import org.cubexmc.manager.ConfigManager;
+import org.cubexmc.manager.GameplayConfig;
+import org.cubexmc.manager.GemDefinitionParser;
 import org.cubexmc.manager.GemManager;
 import org.cubexmc.manager.HistoryLogger;
 import org.cubexmc.manager.LanguageManager;
@@ -36,10 +38,11 @@ import net.milkbowl.vault.permission.Permission;
 /**
  * RuleGems 插件主类
  */
-
 public class RuleGems extends JavaPlugin {
 
     private ConfigManager configManager;
+    private GemDefinitionParser gemParser;
+    private GameplayConfig gameplayConfig;
     private GemManager gemManager;
     private EffectUtils effectUtils;
     private LanguageManager languageManager;
@@ -58,27 +61,29 @@ public class RuleGems extends JavaPlugin {
     @Override
     public void onEnable() {
         // 初始化配置管理器
-
-        this.configManager = new ConfigManager(this);
-    this.languageManager = new LanguageManager(this);
-    this.effectUtils = new EffectUtils(this);
-    this.powerStructureManager = new PowerStructureManager(this);
-    this.historyLogger = new HistoryLogger(this, languageManager);
-    this.customCommandExecutor = new org.cubexmc.manager.CustomCommandExecutor(this, languageManager);
-//        this.configManager.loadConfigs();   // 读 config.yml, data.yml
-        this.gemManager = new GemManager(this, configManager, effectUtils, languageManager);
+        // 初始化配置管理器
+        this.languageManager = new LanguageManager(this);
+        this.configManager = new ConfigManager(this, languageManager);
+        this.gemParser = configManager.getGemParser();
+        this.gameplayConfig = configManager.getGameplayConfig();
+        this.effectUtils = new EffectUtils(this);
+        this.powerStructureManager = new PowerStructureManager(this);
+        this.historyLogger = new HistoryLogger(this, languageManager);
+        this.customCommandExecutor = new org.cubexmc.manager.CustomCommandExecutor(this, languageManager, gameplayConfig);
+        this.gemManager = new GemManager(this, configManager, gemParser, gameplayConfig, effectUtils, languageManager);
         this.gemManager.setHistoryLogger(historyLogger);
         this.guiManager = new GUIManager(this, gemManager, languageManager);
 
-    this.metrics = new Metrics(this, 27483);
-    loadPlugin();
+        this.metrics = new Metrics(this, 27483);
+        loadPlugin();
 
         // 注册命令
-        RuleGemsCommand ruleGemsCommand = new RuleGemsCommand(this, gemManager, configManager, languageManager, guiManager);
+        RuleGemsCommand ruleGemsCommand = new RuleGemsCommand(this, gemManager, gameplayConfig, languageManager,
+                guiManager);
         org.bukkit.command.PluginCommand cmd = getCommand("rulegems");
         if (cmd != null) {
             cmd.setExecutor(ruleGemsCommand);
-            cmd.setTabCompleter(new RuleGemsTabCompleter(configManager, gemManager));
+            cmd.setTabCompleter(new RuleGemsTabCompleter(gemParser, gemManager));
         } else {
             getLogger().warning("Command 'rulegems' not found in plugin.yml");
         }
@@ -86,47 +91,59 @@ public class RuleGems extends JavaPlugin {
         getPluginManager().registerEvents(new GemPlaceListener(this, gemManager), this);
         getPluginManager().registerEvents(new GemInventoryListener(gemManager, languageManager), this);
         getPluginManager().registerEvents(new PlayerEventListener(this, gemManager), this);
-        getPluginManager().registerEvents(new GemConsumeListener(this, gemManager, configManager, languageManager), this);
-        this.commandAllowanceListener = new CommandAllowanceListener(gemManager, languageManager, customCommandExecutor);
+        getPluginManager().registerEvents(new GemConsumeListener(this, gemManager, gameplayConfig, languageManager),
+                this);
+        this.commandAllowanceListener = new CommandAllowanceListener(gemManager.getAllowanceManager(), languageManager,
+                customCommandExecutor, gameplayConfig);
         getPluginManager().registerEvents(commandAllowanceListener, this);
-        
+
+        // 安全警告
+        if (gameplayConfig.isOpEscalationAllowed()) {
+            getLogger().warning("========================================");
+            getLogger().warning("allow_op_escalation is ENABLED!");
+            getLogger().warning("This temporarily grants OP to players when executing allowed commands.");
+            getLogger().warning("This is a security risk. Consider using 'console:' executor prefix instead.");
+            getLogger().warning("========================================");
+        }
+
         // 初始化功能管理器
         this.featureManager = new FeatureManager(this, gemManager);
         featureManager.registerFeatures();
-        
+
         // Setup Vault permissions (optional)
         if (getServer().getPluginManager().getPlugin("Vault") != null) {
             try {
-                org.bukkit.plugin.RegisteredServiceProvider<Permission> rsp = getServer().getServicesManager().getRegistration(Permission.class);
+                org.bukkit.plugin.RegisteredServiceProvider<Permission> rsp = getServer().getServicesManager()
+                        .getRegistration(Permission.class);
                 if (rsp != null) {
                     this.vaultPerms = rsp.getProvider();
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                getLogger().warning("Failed to initialize Vault permissions: " + e.getMessage());
+            }
         }
 
         SchedulerUtil.globalRun(
                 this,
                 () -> gemManager.checkPlayersNearRuleGems(),
                 20L,
-                20L
-        );
+                20L);
 
-    // Start per-gem particle task (uses per-gem definitions internally)
-    gemManager.startParticleEffectTask(org.bukkit.Particle.FLAME);
+        // Start per-gem particle task (uses per-gem definitions internally)
+        gemManager.startParticleEffectTask(org.bukkit.Particle.FLAME);
 
         // store gemData per hour
         SchedulerUtil.globalRun(
                 this,
                 () -> gemManager.saveGems(),
                 20L * 60 * 60,
-                20L * 60 * 60
-        );
+                20L * 60 * 60);
 
-    // 取消依赖全局粒子设置；如需粒子展示可在 GemManager 内按 per-gem 自行实现
+        // 取消依赖全局粒子设置；如需粒子展示可在 GemManager 内按 per-gem 自行实现
 
-    refreshAllowedCommandProxies();
+        refreshAllowedCommandProxies();
 
-    languageManager.logMessage("plugin_enabled");
+        languageManager.logMessage("plugin_enabled");
     }
 
     @Override
@@ -135,7 +152,7 @@ public class RuleGems extends JavaPlugin {
         if (featureManager != null) {
             featureManager.shutdownAll();
         }
-        
+
         CommandMap map = getCommandMapSafely();
         if (map != null) {
             unregisterProxyCommands(map);
@@ -149,30 +166,69 @@ public class RuleGems extends JavaPlugin {
      */
     public void loadPlugin() {
         saveDefaultConfig();
-        configManager.initGemFile();
-        configManager.loadConfigs();
+        reloadConfig(); // Ensure config is loaded for LanguageManager
         languageManager.updateBundledLanguages();
         languageManager.loadLanguage();
+        configManager.initGemFile();
+        configManager.loadConfigs();
         configManager.getGemsData();
         gemManager.loadGems();
         // 恢复已记录坐标的宝石方块材质，确保首次启动即可看到实体方块
         gemManager.initializePlacedGemBlocks();
         // 补齐配置定义但当前不存在的宝石，保证“服务器里永远有配置中的所有 gems”
-        gemManager.ensureConfiguredGemsPresent();        // 重载功能配置
+        gemManager.ensureConfiguredGemsPresent(); // 重载功能配置
         if (featureManager != null) {
             featureManager.reloadAll();
-        }    }
+        }
+    }
 
-    public ConfigManager getConfigManager() { return configManager; }
-    public GemManager getGemManager() { return gemManager; }
-    public EffectUtils getEffectUtils() { return effectUtils; }
-    public LanguageManager getLanguageManager() { return languageManager; }
-    public HistoryLogger getHistoryLogger() { return historyLogger; }
-    public org.cubexmc.manager.CustomCommandExecutor getCustomCommandExecutor() { return customCommandExecutor; }
-    public GUIManager getGUIManager() { return guiManager; }
-    public FeatureManager getFeatureManager() { return featureManager; }
-    public Permission getVaultPerms() { return vaultPerms; }
-    public PowerStructureManager getPowerStructureManager() { return powerStructureManager; }
+    public ConfigManager getConfigManager() {
+        return configManager;
+    }
+
+    public GemDefinitionParser getGemParser() {
+        return gemParser;
+    }
+
+    public GameplayConfig getGameplayConfig() {
+        return gameplayConfig;
+    }
+
+    public GemManager getGemManager() {
+        return gemManager;
+    }
+
+    public EffectUtils getEffectUtils() {
+        return effectUtils;
+    }
+
+    public LanguageManager getLanguageManager() {
+        return languageManager;
+    }
+
+    public HistoryLogger getHistoryLogger() {
+        return historyLogger;
+    }
+
+    public org.cubexmc.manager.CustomCommandExecutor getCustomCommandExecutor() {
+        return customCommandExecutor;
+    }
+
+    public GUIManager getGUIManager() {
+        return guiManager;
+    }
+
+    public FeatureManager getFeatureManager() {
+        return featureManager;
+    }
+
+    public Permission getVaultPerms() {
+        return vaultPerms;
+    }
+
+    public PowerStructureManager getPowerStructureManager() {
+        return powerStructureManager;
+    }
 
     public void refreshAllowedCommandProxies() {
         CommandMap map = getCommandMapSafely();
@@ -194,11 +250,13 @@ public class RuleGems extends JavaPlugin {
             String normalized = label.toLowerCase(Locale.ROOT);
             Command existing = map.getCommand(normalized);
             if (existing != null && !(existing instanceof org.cubexmc.commands.AllowedCommandProxy)) {
-                getLogger().warning("Skipping proxy registration for /" + normalized + " because another plugin already provides it.");
+                getLogger().warning("Skipping proxy registration for /" + normalized
+                        + " because another plugin already provides it.");
                 continue;
             }
 
-            org.cubexmc.commands.AllowedCommandProxy proxy = new org.cubexmc.commands.AllowedCommandProxy(normalized, this, commandAllowanceListener);
+            org.cubexmc.commands.AllowedCommandProxy proxy = new org.cubexmc.commands.AllowedCommandProxy(normalized,
+                    this, commandAllowanceListener);
             map.register("rulegems", proxy);
             proxyCommands.put(normalized, proxy);
             registered.add(normalized);

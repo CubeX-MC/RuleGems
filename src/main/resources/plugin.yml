@@ -1,5 +1,5 @@
 name: RuleGems
-version: 1.0.6
+version: 1.0.7
 main: org.cubexmc.RuleGems
 author: angushushu
 description: "一个管理 RuleGems（统治宝石）的插件"
@@ -7,10 +7,10 @@ description: "一个管理 RuleGems（统治宝石）的插件"
 # 如果你的插件需要在更高版本的 Spigot/Paper 运行，可以指定 api-version
 api-version: "1.16"
 folia-supported: true
-depend: [Vault]
+softdepend: [Vault]
 commands:
   rulegems:
-    usage: /<command> <place|revoke|reload|rulers|gems|scatter|redeem|redeemall|help>
+    usage: /<command> <gui|place|tp|revoke|reload|rulers|gems|scatter|redeem|redeemall|history|setaltar|removealtar|appoint|dismiss|appointees|help>
     description: RuleGems plugin command
     aliases: [rg]
     permission:

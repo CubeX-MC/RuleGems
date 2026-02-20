@@ -15,19 +15,27 @@ import org.bukkit.scheduler.BukkitTask;
  * 调度器工具类，用于兼容Bukkit和Folia调度器
  */
 public class SchedulerUtil {
-    
+
+    /** 缓存 Folia 检测结果，避免每次调度都做反射 */
+    private static final boolean IS_FOLIA;
+    static {
+        boolean folia;
+        try {
+            Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
+            folia = true;
+        } catch (ClassNotFoundException e) {
+            folia = false;
+        }
+        IS_FOLIA = folia;
+    }
+
     /**
      * 判断服务器是否运行在Folia上
      * 
      * @return 是否为Folia服务器
      */
     public static boolean isFolia() {
-        try {
-            Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
+        return IS_FOLIA;
     }
       /**
      * 延迟执行任务（全局调度）
@@ -60,27 +68,14 @@ public class SchedulerUtil {
                     return runAtFixedRate.invoke(globalScheduler, plugin, foliaTask, Math.max(1, delay), period);
                 }
             } catch (Throwable t) {
-                // 回退到 Bukkit 调度器
-            }
-        } else {
-            if (period < 0) {
-                // 只执行一次的任务
-                if (delay == 0) {
-                    if (Bukkit.isPrimaryThread()) {
-                        task.run();
-                        return null; // ran inline, no handle
-                    } else {
-                        return Bukkit.getScheduler().runTask(plugin, task);
-                    }
-                } else {
-                    return Bukkit.getScheduler().runTaskLater(plugin, task, delay);
+                try {
+                    plugin.getLogger().fine("Folia global scheduler unavailable, fallback to Bukkit scheduler: " + t.getMessage());
+                } catch (Throwable ignored) {
+                    // no-op
                 }
-            } else {
-                // 重复执行的任务
-                return Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period);
             }
         }
-        return null;
+        return runBukkitGlobal(plugin, task, delay, period);
     }
     
     /**
@@ -139,27 +134,14 @@ public class SchedulerUtil {
                     return runAtFixedRate.invoke(entityScheduler, plugin, foliaTask, retiredCallback, Math.max(1, delay), period);
                 }
             } catch (Throwable t) {
-                // 回退到 Bukkit 调度器
-            }
-        } else {
-            if (period <= 0) {
-                // 只执行一次的任务
-                if (delay == 0) {
-                    if (Bukkit.isPrimaryThread()) {
-                        task.run();
-                        return null;
-                    } else {
-                        return Bukkit.getScheduler().runTask(plugin, task);
-                    }
-                } else {
-                    return Bukkit.getScheduler().runTaskLater(plugin, task, delay);
+                try {
+                    plugin.getLogger().fine("Folia entity scheduler unavailable, fallback to Bukkit scheduler: " + t.getMessage());
+                } catch (Throwable ignored) {
+                    // no-op
                 }
-            } else {
-                // 重复执行的任务
-                return Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period);
             }
         }
-        return null;
+        return runBukkitEntityFallback(plugin, task, delay, period);
     }
       /**
      * 在指定位置区域延迟执行任务
@@ -193,27 +175,14 @@ public class SchedulerUtil {
                     return runAtFixedRate.invoke(regionScheduler, plugin, location, foliaTask, Math.max(1, delay), period);
                 }
             } catch (Throwable t) {
-                // 回退到 Bukkit 调度器
-            }
-        } else {
-            if (period <= 0) {
-                // 只执行一次的任务
-                if (delay == 0) {
-                    if (Bukkit.isPrimaryThread()) {
-                        task.run();
-                        return null;
-                    } else {
-                        return Bukkit.getScheduler().runTask(plugin, task);
-                    }
-                } else {
-                    return Bukkit.getScheduler().runTaskLater(plugin, task, delay);
+                try {
+                    plugin.getLogger().fine("Folia region scheduler unavailable, fallback to Bukkit scheduler: " + t.getMessage());
+                } catch (Throwable ignored) {
+                    // no-op
                 }
-            } else {
-                // 重复执行的任务
-                return Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period);
             }
         }
-        return null;
+        return runBukkitRegionFallback(plugin, task, delay, period);
     }
     /**
      * 在异步线程延迟执行任务（统一使用 tick 作为时间单位）
@@ -270,7 +239,7 @@ public class SchedulerUtil {
         if (isFolia()) {
             // Execute on player's region thread; some Folia builds still allow sync teleport from scheduler
             entityRun(plugin, player, () -> {
-                try { player.teleport(dest); } catch (Throwable ignored) {}
+                try { player.teleport(dest); } catch (Throwable e) { Bukkit.getLogger().fine("Failed to teleport player in Folia fallback: " + e.getMessage()); }
             }, 0L, -1L);
         } else {
             if (org.bukkit.Bukkit.isPrimaryThread()) {
@@ -279,5 +248,37 @@ public class SchedulerUtil {
                 org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> player.teleport(dest));
             }
         }
+    }
+
+    private static Object runBukkitGlobal(Plugin plugin, Runnable task, long delay, long period) {
+        if (period < 0) {
+            if (delay == 0) {
+                if (Bukkit.isPrimaryThread()) {
+                    task.run();
+                    return null;
+                }
+                return Bukkit.getScheduler().runTask(plugin, task);
+            }
+            return Bukkit.getScheduler().runTaskLater(plugin, task, delay);
+        }
+        return Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period);
+    }
+
+    private static Object runBukkitEntityFallback(Plugin plugin, Runnable task, long delay, long period) {
+        if (period <= 0) {
+            if (delay == 0) {
+                if (Bukkit.isPrimaryThread()) {
+                    task.run();
+                    return null;
+                }
+                return Bukkit.getScheduler().runTask(plugin, task);
+            }
+            return Bukkit.getScheduler().runTaskLater(plugin, task, delay);
+        }
+        return Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period);
+    }
+
+    private static Object runBukkitRegionFallback(Plugin plugin, Runnable task, long delay, long period) {
+        return runBukkitEntityFallback(plugin, task, delay, period);
     }
 } 

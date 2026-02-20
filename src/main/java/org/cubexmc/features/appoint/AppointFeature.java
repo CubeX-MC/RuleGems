@@ -22,6 +22,7 @@ import org.bukkit.permissions.PermissionAttachment;
 import org.cubexmc.RuleGems;
 import org.cubexmc.features.Feature;
 import org.cubexmc.model.AppointDefinition;
+import org.cubexmc.utils.SchedulerUtil;
 // Removed unused import: EffectConfig
 import org.cubexmc.model.GemDefinition;
 import org.cubexmc.model.PowerStructure;
@@ -53,14 +54,11 @@ public class AppointFeature extends Feature {
     private File dataFile;
     private YamlConfiguration data;
 
-    // 定时任务ID
-    private int refreshTaskId = -1;
+    // 定时任务句柄（Folia 返回 ScheduledTask，Bukkit 返回 BukkitTask）
+    private Object refreshTaskHandle = null;
 
     // 条件刷新间隔（秒）
     private int conditionRefreshInterval = 30;
-
-    // 级联撤销时的访问集合（防止环导致的无限递归）
-    private final Set<UUID> cascadeRevokeVisited = new HashSet<>();
 
     public AppointFeature(RuleGems plugin) {
         super(plugin, PERMISSION_PREFIX + "*");
@@ -181,7 +179,7 @@ public class AppointFeature extends Feature {
      * 从 Gems 中注册 AppointDefinition
      */
     private void registerAppointDefinitionsFromGems() {
-        List<GemDefinition> gems = plugin.getConfigManager().getGemDefinitions();
+        List<GemDefinition> gems = plugin.getGemParser().getGemDefinitions();
         if (gems == null)
             return;
 
@@ -246,7 +244,9 @@ public class AppointFeature extends Feature {
 
                     Appointment appointment = new Appointment(appointeeUuid, permSetKey, appointerUuid, appointedAt);
                     setAppointments.put(appointeeUuid, appointment);
-                } catch (IllegalArgumentException ignored) {
+                } catch (IllegalArgumentException e) {
+                    plugin.getLogger().warning("Invalid UUID in appoint data for perm set '" + permSetKey
+                            + "': " + uuidStr + " — skipping entry");
                 }
             }
             appointments.put(permSetKey, setAppointments);
@@ -669,12 +669,13 @@ public class AppointFeature extends Feature {
 
             if (processed.startsWith("console: ")) {
                 String consoleCmd = processed.substring(9);
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), consoleCmd);
+                SchedulerUtil.globalRun(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), consoleCmd), 0L, -1L);
             } else if (processed.startsWith("player: ")) {
                 String playerCmd = processed.substring(8);
                 appointer.performCommand(playerCmd);
             } else {
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), processed);
+                final String finalProcessed = processed;
+                SchedulerUtil.globalRun(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalProcessed), 0L, -1L);
             }
         }
     }
@@ -730,21 +731,33 @@ public class AppointFeature extends Feature {
         if (!enabled || !cascadeRevoke)
             return;
 
+        // 每次外部调用创建新的访问集合，通过参数传递，避免实例字段共享状态
+        Set<UUID> visited = new HashSet<>();
+        onAppointerLostPermissionInternal(appointerUuid, permSetKey, visited);
+    }
+
+    /**
+     * 级联撤销的内部递归实现
+     */
+    private void onAppointerLostPermissionInternal(UUID appointerUuid, String permSetKey, Set<UUID> visited) {
+        if (!enabled || !cascadeRevoke)
+            return;
+
         // 防止环导致的无限递归
-        if (cascadeRevokeVisited.contains(appointerUuid)) {
+        if (visited.contains(appointerUuid)) {
             return;
         }
-        cascadeRevokeVisited.add(appointerUuid);
+        visited.add(appointerUuid);
 
         Player appointer = Bukkit.getPlayer(appointerUuid);
 
         // 如果指定了权限集，只检查该权限集
         if (permSetKey != null) {
-            cascadeRevokeForPermSet(appointerUuid, appointer, permSetKey);
+            cascadeRevokeForPermSet(appointerUuid, appointer, permSetKey, visited);
         } else {
             // 检查所有权限集
             for (String key : appointDefinitions.keySet()) {
-                cascadeRevokeForPermSet(appointerUuid, appointer, key);
+                cascadeRevokeForPermSet(appointerUuid, appointer, key, visited);
             }
         }
     }
@@ -752,7 +765,7 @@ public class AppointFeature extends Feature {
     /**
      * 对特定权限集执行级联撤销
      */
-    private void cascadeRevokeForPermSet(UUID appointerUuid, Player appointer, String permSetKey) {
+    private void cascadeRevokeForPermSet(UUID appointerUuid, Player appointer, String permSetKey, Set<UUID> visited) {
         // 检查该任命者是否仍有权限
         boolean stillHasPermission;
         if (appointer != null && appointer.isOnline()) {
@@ -789,41 +802,14 @@ public class AppointFeature extends Feature {
 
             Player appointee = Bukkit.getPlayer(appointeeUuid);
             if (appointee != null && appointee.isOnline()) {
-                applyPermissions(appointee);
-
-                // 执行撤销命令（使用控制台作为执行者）
-                if (def != null && def.getOnRevoke() != null) {
-                    for (String cmd : def.getOnRevoke()) {
-                        String processed = cmd
-                                .replace("%player%", appointer != null ? appointer.getName() : "SYSTEM")
-                                .replace("%target%", appointee.getName())
-                                .replace("%perm_set%",
-                                        def.getDisplayName() != null
-                                                ? ChatColor.translateAlternateColorCodes('&', def.getDisplayName())
-                                                : permSetKey);
-
-                        if (processed.startsWith("console: ")) {
-                            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), processed.substring(9));
-                        } else if (processed.startsWith("player: ")) {
-                            // 跳过玩家命令，因为任命者可能不在线
-                        } else {
-                            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), processed);
-                        }
-                    }
-                }
-
-                // 播放音效
-                if (def != null) {
-                    playSound(appointee, def.getRevokeSound());
-                }
+                revokeOnlineAppointee(appointee, appointer, def, permSetKey);
+            } else {
+                queueOfflineAppointeeRevoke(appointeeUuid, def);
             }
 
             // 递归：如果被撤销的人也有任命权限，他任命的人也应被级联撤销
-            // 使用延迟执行避免递归过深
-            final UUID finalAppointeeUuid = appointeeUuid;
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                onAppointerLostPermission(finalAppointeeUuid, null);
-            });
+            // 同步递归（使用 visited 集合防止无限递归，不再延迟执行）
+            onAppointerLostPermissionInternal(appointeeUuid, null, visited);
         }
 
         // 保存数据
@@ -834,15 +820,66 @@ public class AppointFeature extends Feature {
     }
 
     /**
+     * 撤销在线被任命者的权限、执行撤销命令、播放音效
+     */
+    private void revokeOnlineAppointee(Player appointee, Player appointer, AppointDefinition def, String permSetKey) {
+        applyPermissions(appointee);
+
+        if (def != null && def.getOnRevoke() != null) {
+            for (String cmd : def.getOnRevoke()) {
+                String processed = cmd
+                        .replace("%player%", appointer != null ? appointer.getName() : "SYSTEM")
+                        .replace("%target%", appointee.getName())
+                        .replace("%perm_set%",
+                                def.getDisplayName() != null
+                                        ? ChatColor.translateAlternateColorCodes('&', def.getDisplayName())
+                                        : permSetKey);
+
+                if (processed.startsWith("console: ")) {
+                    final String consoleCmd = processed.substring(9);
+                    SchedulerUtil.globalRun(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), consoleCmd), 0L, -1L);
+                } else if (processed.startsWith("player: ")) {
+                    // 跳过玩家命令，因为任命者可能不在线
+                } else {
+                    final String finalProcessed = processed;
+                    SchedulerUtil.globalRun(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalProcessed), 0L, -1L);
+                }
+            }
+        }
+
+        if (def != null) {
+            playSound(appointee, def.getRevokeSound());
+        }
+    }
+
+    /**
+     * 将离线被任命者的待撤销权限/Vault组/药水效果入队
+     */
+    private void queueOfflineAppointeeRevoke(UUID appointeeUuid, AppointDefinition def) {
+        if (def == null || def.getPowerStructure() == null) return;
+        org.cubexmc.manager.GemManager gm = plugin.getGemManager();
+        if (gm == null) return;
+
+        PowerStructure power = def.getPowerStructure();
+        java.util.List<String> permsToRevoke = new java.util.ArrayList<>(power.getPermissions());
+        if (power.getAppoints() != null) {
+            for (String appointKey : power.getAppoints().keySet()) {
+                permsToRevoke.add(PERMISSION_PREFIX + appointKey);
+            }
+        }
+        gm.queueOfflineRevokes(appointeeUuid, permsToRevoke,
+                power.getVaultGroups() != null ? power.getVaultGroups()
+                        : java.util.Collections.emptyList());
+        gm.queueOfflineEffectRevokes(appointeeUuid, power.getEffects());
+    }
+
+    /**
      * 检查并执行所有必要的级联撤销
      * 用于定期检查或在特定事件后调用
      */
     public void checkAllCascadeRevocations() {
         if (!enabled || !cascadeRevoke)
             return;
-
-        // 清除访问集合，开始新一轮级联检查
-        cascadeRevokeVisited.clear();
 
         Set<UUID> allAppointers = new HashSet<>();
         for (Map<UUID, Appointment> setAppointments : appointments.values()) {
@@ -856,9 +893,6 @@ public class AppointFeature extends Feature {
         for (UUID appointerUuid : allAppointers) {
             onAppointerLostPermission(appointerUuid, null);
         }
-
-        // 清除访问集合
-        cascadeRevokeVisited.clear();
     }
 
     // Getters
@@ -933,14 +967,14 @@ public class AppointFeature extends Feature {
         }
 
         long intervalTicks = conditionRefreshInterval * 20L;
-        refreshTaskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+        refreshTaskHandle = org.cubexmc.utils.SchedulerUtil.globalRun(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 // 检查玩家是否有任命
                 if (!getPlayerAppointments(player.getUniqueId()).isEmpty()) {
                     applyPermissions(player);
                 }
             }
-        }, intervalTicks, intervalTicks).getTaskId();
+        }, intervalTicks, intervalTicks);
 
         plugin.getLogger().info("Started condition refresh task (interval: " + conditionRefreshInterval + "s)");
     }
@@ -949,9 +983,9 @@ public class AppointFeature extends Feature {
      * 停止条件刷新任务
      */
     private void stopConditionRefreshTask() {
-        if (refreshTaskId != -1) {
-            Bukkit.getScheduler().cancelTask(refreshTaskId);
-            refreshTaskId = -1;
+        if (refreshTaskHandle != null) {
+            org.cubexmc.utils.SchedulerUtil.cancelTask(refreshTaskHandle);
+            refreshTaskHandle = null;
         }
     }
 

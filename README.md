@@ -8,7 +8,7 @@
 ## 安装
 1. 将 JAR 放入 `plugins` 目录
 2. 启动服务器自动生成配置
-3. 在 `config.yml` / `rulegems.yml` 中按需调整
+3. 在 `config.yml` 与 `gems/`、`powers/`、`features/` 目录配置中按需调整
 
 ## 命令
 - 所有 `/rulegems ...` 命令均可用别名 `/rg ...`（见 plugin.yml 的 `aliases: [rg]`）
@@ -23,6 +23,8 @@
 - `/rulegems redeem` 主手持宝石时兑换单颗
 - `/rulegems redeemall` 集齐所有种类后一次性兑换
 - `/rulegems history [行数] [玩家名]` 查看宝石历史记录，可选过滤玩家
+- `/rulegems setaltar <gemKey>` 在当前位置设置该宝石的祭坛坐标
+- `/rulegems removealtar <gemKey>` 移除该宝石的祭坛坐标
 - `/rulegems appoint <权限集> <玩家>` 任命玩家获得指定权限集
 - `/rulegems dismiss <权限集> <玩家>` 撤销玩家的权限集任命
 - `/rulegems appointees [权限集]` 查看被任命者列表
@@ -32,6 +34,8 @@
 - `rulegems.redeem` 兑换单颗（默认 true）
 - `rulegems.redeemall` 兑换全部（默认 true）
 - `rulegems.rulers` 查看当前持有者（默认 true）
+- `rulegems.gems` 查看宝石列表（默认 true）
+- `rulegems.help` 查看帮助信息（默认 true）
 - `rulegems.navigate` 使用指南针导航到最近宝石（默认 false）
 - `rulegems.appoint.<权限集>` 任命其他玩家获得指定权限集
 
@@ -41,12 +45,14 @@
 
 ## 逻辑
 该插件允许服务器定制不同种类的权力宝石，每一种可以有指定数量和指定的权限与指令（指令可以限制次数）。每颗宝石都是唯一的。每颗宝石都随时存在于服务器中，意味着它只能处于以下状态之一：被放置或处于线上玩家的背包中。
-插件有三种应用宝石的模式：
+插件有五种应用宝石的模式：
 1. inventory_grants
 2. redeem_enabled
 3. full_set_grants_all
+4. place_redeem_enabled
+5. hold_to_redeem_enabled
 
-这三种模式并不互斥，可以搭配组合。
+以上模式并不互斥，可以搭配组合。
 
 ### inventory_grants
 玩家破坏并获得宝石（自动放入背包）即可获得该宝石的权限与限次指令使用权。玩家下线/被杀死/或将宝石放置，这些特权自动消失。
@@ -84,6 +90,9 @@
   - `permissions`: `redeemall` 成功时的额外权限
   - `command_allows`: `redeemall` 成功时的额外限次指令（语法同上）
 - 与 Vault 配合时，权限组的授予 / 撤销通过当前权限后端执行。
+- 额外兑换方式：
+  - `grant_policy.place_redeem_enabled: true` 启用祭坛放置兑换（配合 `/rulegems setaltar`）
+  - `grant_policy.hold_to_redeem_enabled: true` 启用长按右键兑换（`hold_to_redeem` 配置）
 
 ## 扩展功能
 

@@ -4,6 +4,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
+import java.util.Objects;
+
 /**
  * 药水效果配置
  * 用于 PowerStructure 中的效果管理
@@ -158,15 +160,16 @@ public class EffectConfig {
         if (obj == null || getClass() != obj.getClass()) return false;
         
         EffectConfig other = (EffectConfig) obj;
-        if (effectType == null) {
-            return other.effectType == null;
-        }
-        return effectType.equals(other.effectType);
+        return amplifier == other.amplifier
+                && ambient == other.ambient
+                && particles == other.particles
+                && icon == other.icon
+                && Objects.equals(effectType, other.effectType);
     }
 
     @Override
     public int hashCode() {
-        return effectType != null ? effectType.hashCode() : 0;
+        return Objects.hash(effectType, amplifier, ambient, particles, icon);
     }
 
     @Override

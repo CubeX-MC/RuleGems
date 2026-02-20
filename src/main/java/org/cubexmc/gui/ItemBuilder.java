@@ -3,6 +3,7 @@ package org.cubexmc.gui;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -144,14 +145,36 @@ public class ItemBuilder {
      */
     public ItemBuilder glow() {
         if (meta != null) {
-            try {
-                meta.addEnchant(Enchantment.LUCK, 1, true);
-            } catch (Throwable ignored) {
-                // 某些服务端可能不支持
-            }
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            applyGlowEffect(meta);
         }
         return this;
+    }
+
+    /**
+     * 版本兼容的发光效果工具方法。
+     * 1.20.5+ 优先使用 setEnchantmentGlintOverride(true)，
+     * 低版本回退到隐藏附魔 + HIDE_ENCHANTS。
+     * 
+     * @param meta 物品 Meta
+     */
+    public static void applyGlowEffect(ItemMeta meta) {
+        if (meta == null) return;
+        // 1.20.5+ API: setEnchantmentGlintOverride
+        try {
+            java.lang.reflect.Method glintMethod = meta.getClass().getMethod("setEnchantmentGlintOverride", boolean.class);
+            glintMethod.invoke(meta, true);
+            return;
+        } catch (Throwable ignored) {
+            // 旧版本不支持，回退
+        }
+        // 回退：使用任意附魔 + HIDE_ENCHANTS
+        try {
+            Enchantment glintEnchant = Enchantment.getByKey(NamespacedKey.minecraft("luck_of_the_sea"));
+            if (glintEnchant != null) {
+                meta.addEnchant(glintEnchant, 1, true);
+            }
+        } catch (Throwable e) { Bukkit.getLogger().fine("Failed to apply enchantment glint fallback: " + e.getMessage()); }
+        meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
     }
 
     /**
@@ -176,7 +199,7 @@ public class ItemBuilder {
             meta.addItemFlags(ItemFlag.HIDE_UNBREAKABLE);
             try {
                 meta.addItemFlags(ItemFlag.valueOf("HIDE_POTION_EFFECTS"));
-            } catch (Throwable ignored) {}
+            } catch (Throwable e) { Bukkit.getLogger().fine("HIDE_POTION_EFFECTS not available on this server version: " + e.getMessage()); }
         }
         return this;
     }

@@ -8,7 +8,7 @@ A lightweight plugin that passes player power around through collectible "rule g
 ## Installation
 1. Put the JAR into the `plugins` folder
 2. Start the server to generate configs
-3. Adjust `config.yml` / `rulegems.yml` as needed
+3. Adjust `config.yml` and files under `gems/`, `powers/`, and `features/` as needed
 
 ## Commands
 - All `/rulegems ...` commands have the alias `/rg ...` (see `aliases: [rg]` in plugin.yml)
@@ -23,6 +23,8 @@ A lightweight plugin that passes player power around through collectible "rule g
 - `/rulegems redeem` Redeem the gem held in main hand
 - `/rulegems redeemall` Redeem all gem types once the player has at least one of each
 - `/rulegems history [lines] [player]` View recent history records, optionally filtered by player
+- `/rulegems setaltar <gemKey>` Set the altar location for a gem at your current position
+- `/rulegems removealtar <gemKey>` Remove the altar location for a gem
 - `/rulegems appoint <perm_set> <player>` Appoint a player to a permission set
 - `/rulegems dismiss <perm_set> <player>` Dismiss a player's appointment
 - `/rulegems appointees [perm_set]` View list of appointees
@@ -32,6 +34,8 @@ A lightweight plugin that passes player power around through collectible "rule g
 - `rulegems.redeem` Redeem single (default true)
 - `rulegems.redeemall` Redeem all (default true)
 - `rulegems.rulers` View current holder (default true)
+- `rulegems.gems` View gem list (default true)
+- `rulegems.help` View command help (default true)
 - `rulegems.navigate` Use compass to navigate to the nearest gem (default false)
 - `rulegems.appoint.<perm_set>` Appoint other players to the specified permission set
 
@@ -40,11 +44,13 @@ A lightweight plugin that passes player power around through collectible "rule g
 - Optional dependency: Vault (permission backend)
 
 ## Mechanics
-Each gem type can grant permissions, Vault groups and limited-use commands. Every gem instance is unique and permanently exists somewhere on the server (either placed in the world or held in a player inventory). Three application modes can be combined:
+Each gem type can grant permissions, Vault groups and limited-use commands. Every gem instance is unique and permanently exists somewhere on the server (either placed in the world or held in a player inventory). Five application modes can be combined:
 
 1. **inventory_grants** – breaking a gem block puts the gem into the player inventory and immediately grants the corresponding permissions and limited commands. When the gem leaves the inventory (logout, death, placement, etc.) these perks are removed. Limited-command usage attaches to the most recent holder: a returning holder keeps remaining uses; a new holder inherits the remaining uses once the old owner no longer owns that gem type.
 2. **redeem_enabled** – `/rg redeem` while holding a gem consumes that specific instance (it respawns elsewhere) and grants its rewards. Ownership tracking is per gem instance (UUID). Permissions and allowances are only revoked once the previous owner no longer owns any instance of that gem type. Mutual exclusions are respected during redemption.
 3. **full_set_grants_all** – once a player has at least one instance of every gem type, `/rg redeemall` grants every gem reward (ignoring mutual exclusions) plus extra perks defined under `redeem_all`. The previous full-set holder keeps everything until another player successfully `redeemall`s.
+4. **place_redeem_enabled** – placing a gem near its configured altar redeems that gem directly.
+5. **hold_to_redeem_enabled** – redeem by holding right-click for the configured duration.
 
 ## Features & Configuration Notes
 - Every gem instance has its own UUID; use `/rulegems place <gemId> ...` for precise placement.

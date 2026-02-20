@@ -148,7 +148,7 @@ public class RulersGUI {
             // 离线玩家尝试获取
             try {
                 builder.skullOwner(Bukkit.getOfflinePlayer(playerUuid));
-            } catch (Exception ignored) {}
+            } catch (Exception e) { Bukkit.getLogger().fine("Failed to set skull owner for offline ruler: " + e.getMessage()); }
         }
         
         // ID 信息

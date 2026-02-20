@@ -151,7 +151,7 @@ public class PowerStructureManager {
             if (attachment != null) {
                 try {
                     attachment.remove();
-                } catch (Exception ignored) {}
+                } catch (Exception e) { plugin.getLogger().fine("Failed to remove permission attachment: " + e.getMessage()); }
             }
         }
         
@@ -175,7 +175,7 @@ public class PowerStructureManager {
             for (PermissionAttachment attachment : namespaceAttachments.values()) {
                 try {
                     attachment.remove();
-                } catch (Exception ignored) {}
+                } catch (Exception e) { plugin.getLogger().fine("Failed to remove permission attachment in namespace cleanup: " + e.getMessage()); }
             }
         }
         
@@ -207,7 +207,7 @@ public class PowerStructureManager {
             if (group != null && !group.trim().isEmpty()) {
                 try {
                     plugin.getVaultPerms().playerAddGroup(player, group);
-                } catch (Exception ignored) {}
+                } catch (Exception e) { plugin.getLogger().fine("Failed to add vault group '" + group + "': " + e.getMessage()); }
             }
         }
     }
@@ -220,7 +220,7 @@ public class PowerStructureManager {
             if (group != null && !group.trim().isEmpty()) {
                 try {
                     plugin.getVaultPerms().playerRemoveGroup(player, group);
-                } catch (Exception ignored) {}
+                } catch (Exception e) { plugin.getLogger().fine("Failed to remove vault group '" + group + "': " + e.getMessage()); }
             }
         }
     }
@@ -425,7 +425,7 @@ public class PowerStructureManager {
             for (PermissionAttachment attachment : namespaceAttachments.values()) {
                 try {
                     attachment.remove();
-                } catch (Exception ignored) {}
+                } catch (Exception e) { plugin.getLogger().fine("Failed to remove permission attachment during cleanup: " + e.getMessage()); }
             }
         }
         attachmentsByNamespace.clear();

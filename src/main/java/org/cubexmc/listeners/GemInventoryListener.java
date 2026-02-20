@@ -34,7 +34,7 @@ public class GemInventoryListener implements Listener {
             }
         }
         // 背包即生效：实时重算
-        if (gemManager.getConfigManager().isInventoryGrantsEnabled() && event.getWhoClicked() instanceof org.bukkit.entity.Player) {
+        if (gemManager.isInventoryGrantsEnabled() && event.getWhoClicked() instanceof org.bukkit.entity.Player) {
             gemManager.recalculateGrants((org.bukkit.entity.Player) event.getWhoClicked());
         }
     }
@@ -85,14 +85,14 @@ public class GemInventoryListener implements Listener {
         }
         
         // 背包即生效：实时重算
-        if (gemManager.getConfigManager().isInventoryGrantsEnabled()) {
+        if (gemManager.isInventoryGrantsEnabled()) {
             gemManager.recalculateGrants(player);
         }
     }
 
     @EventHandler
     public void onItemHeld(PlayerItemHeldEvent event) {
-        if (gemManager.getConfigManager().isInventoryGrantsEnabled()) {
+        if (gemManager.isInventoryGrantsEnabled()) {
             gemManager.recalculateGrants(event.getPlayer());
         }
     }

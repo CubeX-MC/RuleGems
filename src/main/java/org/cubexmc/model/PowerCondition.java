@@ -111,36 +111,53 @@ public class PowerCondition {
     }
 
     /**
-     * 获取条件描述（用于显示）
+     * 获取条件描述（用于显示，支持 i18n）
+     * 
+     * @param lang 语言管理器，可为 null（回退为英文默认值）
      */
-    public String getConditionDescription() {
+    public String getConditionDescription(org.cubexmc.manager.LanguageManager lang) {
         StringBuilder sb = new StringBuilder();
         
         if (timeEnabled && timeType != TimeType.ALWAYS) {
             switch (timeType) {
                 case DAY:
-                    sb.append("白天生效");
+                    sb.append(msg(lang, "condition.time_day", "Day only"));
                     break;
                 case NIGHT:
-                    sb.append("夜晚生效");
+                    sb.append(msg(lang, "condition.time_night", "Night only"));
                     break;
                 case CUSTOM:
-                    sb.append("时间 ").append(timeFrom).append("-").append(timeTo);
+                    sb.append(msg(lang, "condition.time_custom", "Time"))
+                      .append(" ").append(timeFrom).append("-").append(timeTo);
                     break;
                 case ALWAYS:
                 default:
-                    // 无时间限制
                     break;
             }
         }
         
         if (worldEnabled && !worldList.isEmpty()) {
             if (sb.length() > 0) sb.append(", ");
-            sb.append(worldMode == WorldMode.WHITELIST ? "仅在: " : "排除: ");
+            sb.append(worldMode == WorldMode.WHITELIST
+                    ? msg(lang, "condition.world_whitelist", "Only in: ")
+                    : msg(lang, "condition.world_blacklist", "Except: "));
             sb.append(String.join(", ", worldList));
         }
         
-        return sb.length() > 0 ? sb.toString() : "无限制";
+        return sb.length() > 0 ? sb.toString() : msg(lang, "condition.no_limit", "No restrictions");
+    }
+
+    /**
+     * 获取条件描述（向后兼容无参版本，使用英文默认值）
+     */
+    public String getConditionDescription() {
+        return getConditionDescription(null);
+    }
+
+    private static String msg(org.cubexmc.manager.LanguageManager lang, String key, String fallback) {
+        if (lang == null) return fallback;
+        String val = lang.getMessage(key);
+        return (val != null && !val.startsWith("Missing message")) ? val : fallback;
     }
 
     /**

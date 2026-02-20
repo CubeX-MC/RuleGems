@@ -7,17 +7,17 @@ import java.util.List;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
-import org.cubexmc.manager.ConfigManager;
+import org.cubexmc.manager.GemDefinitionParser;
 import org.cubexmc.manager.GemManager;
 import org.cubexmc.model.GemDefinition;
 
 public class RuleGemsTabCompleter implements TabCompleter {
 
-    private final ConfigManager configManager;
+    private final GemDefinitionParser gemParser;
     private final GemManager gemManager;
 
-    public RuleGemsTabCompleter(ConfigManager configManager, GemManager gemManager) {
-        this.configManager = configManager;
+    public RuleGemsTabCompleter(GemDefinitionParser gemParser, GemManager gemManager) {
+        this.gemParser = gemParser;
         this.gemManager = gemManager;
     }
 
@@ -136,12 +136,12 @@ public class RuleGemsTabCompleter implements TabCompleter {
     }
 
     private List<String> getGemKeySuggestions(String typed) {
-        if (configManager == null || configManager.getGemDefinitions() == null) {
+        if (gemParser == null || gemParser.getGemDefinitions() == null) {
             return java.util.Collections.emptyList();
         }
         String prefix = typed == null ? "" : typed.toLowerCase();
         List<String> suggestions = new ArrayList<>();
-        for (GemDefinition definition : configManager.getGemDefinitions()) {
+        for (GemDefinition definition : gemParser.getGemDefinitions()) {
             if (definition == null || definition.getGemKey() == null) {
                 continue;
             }

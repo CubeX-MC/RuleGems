@@ -5,12 +5,12 @@ messages:
     default_display_name: "&cRule Gem"
   command:
     no_permission: "&c%prefix% You don't have permission to execute this command!"
-    usage: "&e%prefix% Usage: /rulegems <place|revoke|reload|rulers|gems|scatter|redeem|redeemall|help>"
+    usage: "&e%prefix% Usage: /rulegems <gui|place|tp|revoke|reload|rulers|gems|scatter|redeem|redeemall|history|setaltar|removealtar|appoint|dismiss|appointees|help>"
     reload_success: "&a%prefix% Configuration reloaded!"
     rulers_status: "&a%prefix% Current ruler is: &e%player%"
     no_rulers: "&c%prefix% No ruler online!"
     scatter_success: "&a%prefix% Power revoked, gems have been scattered!"
-    unknown_subcommand: "&e%prefix% Unknown subcommand. Usage: /rulegems <place|revoke|reload|rulers|gems|scatter|redeem|redeemall|help>"
+    unknown_subcommand: "&e%prefix% Unknown subcommand. Usage: /rulegems <gui|place|tp|revoke|reload|rulers|gems|scatter|redeem|redeemall|history|setaltar|removealtar|appoint|dismiss|appointees|help>"
     redeem:
       usage: "&c%prefix% Usage: /rulegems redeem (hold gem in main hand)"
       player_only: "&c%prefix% Only players can execute this command!"
@@ -152,6 +152,7 @@ feature:
       southeast: "Southeast"
       southwest: "Southwest"
 gui:
+  no_more_info: "No more info"
   # Control bar buttons
   control:
     prev: "Previous"
@@ -276,6 +277,11 @@ logger:
   plugin_disabled: "%prefix% &cPlugin disabled!"
   gem_escape: "%prefix% &eGem &f%gem_name% &ehas escaped to a new location!"
   place_redeem: "%prefix% &a%player% sacrificed %gem_name% at the altar"
+  config:
+    missing_random_place: "%prefix% &cConfiguration file missing random_place_range section."
+    missing_world_name: "%prefix% &crandom_place_range section missing world name."
+    world_not_found: "%prefix% &cWorld not found: %world%"
+    invalid_corners: "%prefix% &crandom_place_range section has invalid corner1 or corner2 configuration."
 
 history:
   redeem:
@@ -296,3 +302,20 @@ history:
     entry: "&a[Gem Placed] Player: %player% | Gem: %gem_key% | Location: %location%"
   break:
     entry: "&c[Gem Broken] Player: %player% | Gem: %gem_key% | Location: %location%"
+
+condition:
+  time_day: "Day only"
+  time_night: "Night only"
+  time_custom: "Time"
+  world_whitelist: "Only in: "
+  world_blacklist: "Except: "
+  no_limit: "No restrictions"
+
+player:
+  unknown_offline: "Unknown (offline)"
+
+history_reason:
+  ownership_lost: "Ownership change: lost last gem of this type"
+  ownership_lost_offline: "Ownership change: lost last gem of this type (offline revoke)"
+  admin_revoke: "Admin forced revoke"
+  all_permissions: "All gem permissions"

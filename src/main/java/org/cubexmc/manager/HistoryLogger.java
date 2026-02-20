@@ -84,7 +84,7 @@ public class HistoryLogger {
             sectionPlaceholders.put("permissions", joined);
             permissionsSection = formatHistoryMessage("history.redeem.permissions", sectionPlaceholders);
             if (permissionsSection.isEmpty()) {
-                permissionsSection = " | 权限: [" + joined + "]";
+                permissionsSection = " | Permissions: [" + joined + "]";
             }
         }
 
@@ -94,7 +94,7 @@ public class HistoryLogger {
             sectionPlaceholders.put("vault_group", vaultGroup);
             vaultGroupSection = formatHistoryMessage("history.redeem.vault_group", sectionPlaceholders);
             if (vaultGroupSection.isEmpty()) {
-                vaultGroupSection = " | 权限组: " + vaultGroup;
+                vaultGroupSection = " | Vault group: " + vaultGroup;
             }
         }
 
@@ -132,7 +132,7 @@ public class HistoryLogger {
         logEntry.append("[").append(timestamp).append("] ");
 
         Map<String, String> placeholders = new HashMap<>();
-        placeholders.put("player_name", playerName != null ? playerName : "未知");
+        placeholders.put("player_name", playerName != null ? playerName : "Unknown");
         placeholders.put("player_uuid", playerUuid);
         String gemName = gemDisplayName != null ? gemDisplayName : gemKey;
         placeholders.put("gem_name", gemName);
@@ -155,7 +155,7 @@ public class HistoryLogger {
             sectionPlaceholders.put("permissions", joined);
             permissionsSection = formatHistoryMessage("history.revoke.permissions", sectionPlaceholders);
             if (permissionsSection.isEmpty()) {
-                permissionsSection = " | 撤销权限: [" + joined + "]";
+                permissionsSection = " | Revoked permissions: [" + joined + "]";
             }
         }
 
@@ -165,7 +165,7 @@ public class HistoryLogger {
             sectionPlaceholders.put("vault_group", vaultGroup);
             vaultGroupSection = formatHistoryMessage("history.revoke.vault_group", sectionPlaceholders);
             if (vaultGroupSection.isEmpty()) {
-                vaultGroupSection = " | 撤销权限组: " + vaultGroup;
+                vaultGroupSection = " | Revoked group: " + vaultGroup;
             }
         }
 
@@ -219,7 +219,7 @@ public class HistoryLogger {
             sectionPlaceholders.put("permissions", joined);
             permissionsSection = formatHistoryMessage("history.full_set.permissions", sectionPlaceholders);
             if (permissionsSection.isEmpty()) {
-                permissionsSection = " | 总权限: [" + joined + "]";
+                permissionsSection = " | Total permissions: [" + joined + "]";
             }
         }
 
@@ -308,57 +308,57 @@ public class HistoryLogger {
 
     private String buildFallbackRedeem(Player player, String gemKey, String gemDisplayName,
                                        List<String> permissions, String vaultGroup, String previousOwner) {
-        StringBuilder builder = new StringBuilder("§e【宝石兑换】 ");
-        builder.append("玩家: ").append(player.getName()).append(" (").append(player.getUniqueId()).append(") ");
-        builder.append("| 宝石: ").append(gemDisplayName != null ? gemDisplayName : gemKey).append(" (").append(gemKey).append(")");
+        StringBuilder builder = new StringBuilder("§e[Gem Redeem] ");
+        builder.append("Player: ").append(player.getName()).append(" (").append(player.getUniqueId()).append(") ");
+        builder.append("| Gem: ").append(gemDisplayName != null ? gemDisplayName : gemKey).append(" (").append(gemKey).append(")");
         if (previousOwner != null && !previousOwner.isEmpty()) {
-            builder.append(" | 前任: ").append(previousOwner);
+            builder.append(" | Previous: ").append(previousOwner);
         }
         if (permissions != null && !permissions.isEmpty()) {
-            builder.append(" | 权限: [").append(String.join(", ", permissions)).append("]");
+            builder.append(" | Permissions: [").append(String.join(", ", permissions)).append("]");
         }
         if (vaultGroup != null && !vaultGroup.isEmpty()) {
-            builder.append(" | 权限组: ").append(vaultGroup);
+            builder.append(" | Vault group: ").append(vaultGroup);
         }
         return builder.toString();
     }
 
     private String buildFallbackRevoke(String playerUuid, String playerName, String gemKey, String gemDisplayName,
                                        List<String> permissions, String vaultGroup, String reason) {
-        StringBuilder builder = new StringBuilder("§c【权限撤销】 ");
-        builder.append("玩家: ").append(playerName != null ? playerName : "未知").append(" (").append(playerUuid).append(") ");
-        builder.append("| 宝石: ").append(gemDisplayName != null ? gemDisplayName : gemKey).append(" (").append(gemKey).append(")");
+        StringBuilder builder = new StringBuilder("§c[Permission Revoke] ");
+        builder.append("Player: ").append(playerName != null ? playerName : "Unknown").append(" (").append(playerUuid).append(") ");
+        builder.append("| Gem: ").append(gemDisplayName != null ? gemDisplayName : gemKey).append(" (").append(gemKey).append(")");
         if (reason != null && !reason.isEmpty()) {
-            builder.append(" | 原因: ").append(reason);
+            builder.append(" | Reason: ").append(reason);
         }
         if (permissions != null && !permissions.isEmpty()) {
-            builder.append(" | 撤销权限: [").append(String.join(", ", permissions)).append("]");
+            builder.append(" | Revoked permissions: [").append(String.join(", ", permissions)).append("]");
         }
         if (vaultGroup != null && !vaultGroup.isEmpty()) {
-            builder.append(" | 撤销权限组: ").append(vaultGroup);
+            builder.append(" | Revoked group: ").append(vaultGroup);
         }
         return builder.toString();
     }
 
     private String buildFallbackFullSet(Player player, int gemCount, List<String> permissions, String previousFullSetOwner) {
-        StringBuilder builder = new StringBuilder("§6【集齐全套】 ");
-        builder.append("玩家: ").append(player.getName()).append(" (").append(player.getUniqueId()).append(") ");
-        builder.append("| 宝石数量: ").append(gemCount);
+        StringBuilder builder = new StringBuilder("§6[Full Set Redeem] ");
+        builder.append("Player: ").append(player.getName()).append(" (").append(player.getUniqueId()).append(") ");
+        builder.append("| Gem count: ").append(gemCount);
         if (previousFullSetOwner != null && !previousFullSetOwner.isEmpty()) {
-            builder.append(" | 前任统治者: ").append(previousFullSetOwner);
+            builder.append(" | Previous ruler: ").append(previousFullSetOwner);
         }
         if (permissions != null && !permissions.isEmpty()) {
-            builder.append(" | 总权限: [").append(String.join(", ", permissions)).append("]");
+            builder.append(" | Total permissions: [").append(String.join(", ", permissions)).append("]");
         }
         return builder.toString();
     }
 
     private String buildFallbackPlace(Player player, String gemKey, String location) {
-        return "§a【宝石放置】 玩家: " + player.getName() + " | 宝石: " + gemKey + " | 位置: " + location;
+        return "§a[Gem Placed] Player: " + player.getName() + " | Gem: " + gemKey + " | Location: " + location;
     }
 
     private String buildFallbackBreak(Player player, String gemKey, String location) {
-        return "§c【宝石破坏】 玩家: " + player.getName() + " | 宝石: " + gemKey + " | 位置: " + location;
+        return "§c[Gem Broken] Player: " + player.getName() + " | Gem: " + gemKey + " | Location: " + location;
     }
     
     /**
@@ -375,7 +375,7 @@ public class HistoryLogger {
             writer.write(cleanEntry);
             writer.newLine();
         } catch (IOException e) {
-            plugin.getLogger().warning("无法写入历史日志: " + e.getMessage());
+            plugin.getLogger().warning("Failed to write history log: " + e.getMessage());
         }
     }
     
@@ -404,7 +404,7 @@ public class HistoryLogger {
                 try (Stream<String> stream = Files.lines(logFile.toPath())) {
                     fileLines = stream.collect(Collectors.toList());
                 } catch (IOException e) {
-                    plugin.getLogger().warning("读取日志文件失败: " + logFile.getName());
+                    plugin.getLogger().warning("Failed to read log file: " + logFile.getName());
                     continue;
                 }
 
@@ -417,7 +417,7 @@ public class HistoryLogger {
                 }
             }
         } catch (Exception e) {
-            plugin.getLogger().warning("读取历史记录失败: " + e.getMessage());
+            plugin.getLogger().warning("Failed to read history: " + e.getMessage());
         }
 
         return new HistoryPage(entries, total);
@@ -450,7 +450,7 @@ public class HistoryLogger {
                 try (Stream<String> stream = Files.lines(logFile.toPath())) {
                     fileLines = stream.collect(Collectors.toList());
                 } catch (IOException e) {
-                    plugin.getLogger().warning("读取日志文件失败: " + logFile.getName());
+                    plugin.getLogger().warning("Failed to read log file: " + logFile.getName());
                     continue;
                 }
 
@@ -466,7 +466,7 @@ public class HistoryLogger {
                 }
             }
         } catch (Exception e) {
-            plugin.getLogger().warning("读取玩家历史记录失败: " + e.getMessage());
+            plugin.getLogger().warning("Failed to read player history: " + e.getMessage());
         }
 
         return new HistoryPage(entries, total);
@@ -506,9 +506,9 @@ public class HistoryLogger {
         }
         String lowerLine = line.toLowerCase(java.util.Locale.ROOT);
         return lowerLine.contains("player: " + lowerPlayer)
-                || lowerLine.contains("玩家: " + lowerPlayer)
                 || lowerLine.contains(lowerPlayer + " (")
-                || lowerLine.contains("| " + lowerPlayer + " |");
+                || lowerLine.contains("| " + lowerPlayer + " |")
+                || lowerLine.contains("\u73a9\u5bb6: " + lowerPlayer); // 兼容旧中文日志
     }
     
 }

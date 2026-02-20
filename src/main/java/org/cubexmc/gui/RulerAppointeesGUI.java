@@ -160,7 +160,7 @@ public class RulerAppointeesGUI {
         } else {
             try {
                 builder.skullOwner(Bukkit.getOfflinePlayer(appointeeUuid));
-            } catch (Exception ignored) {}
+            } catch (Exception e) { plugin.getLogger().fine("Failed to set skull owner for offline appointee: " + e.getMessage()); }
         }
         
         // 职位/权限集名称

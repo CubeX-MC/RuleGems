@@ -325,7 +325,7 @@ public class GUIManager implements Listener {
                     try {
                         UUID rulerUuid = UUID.fromString(holder.getFilter());
                         openRulerAppointeesGUI(player, rulerUuid, holder.isAdmin(), newPage);
-                    } catch (Exception ignored) {}
+                    } catch (Exception e) { plugin.getLogger().fine("Failed to parse ruler UUID for page navigation: " + e.getMessage()); }
                 }
                 break;
             default:
@@ -352,7 +352,7 @@ public class GUIManager implements Listener {
                     try {
                         UUID rulerUuid = UUID.fromString(holder.getFilter());
                         openRulerAppointeesGUI(player, rulerUuid, holder.isAdmin(), holder.getPage());
-                    } catch (Exception ignored) {}
+                    } catch (Exception e) { plugin.getLogger().fine("Failed to parse ruler UUID for GUI refresh: " + e.getMessage()); }
                 }
                 break;
             default:
@@ -386,7 +386,7 @@ public class GUIManager implements Listener {
                     player.sendMessage(msg("gems.teleported_to_location"));
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) { plugin.getLogger().fine("Failed to handle gems GUI click: " + e.getMessage()); }
     }
 
     /**
@@ -417,7 +417,7 @@ public class GUIManager implements Listener {
                     player.sendMessage(msg("rulers.teleported_to_player").replace("%player%", target.getName()));
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) { plugin.getLogger().fine("Failed to handle rulers GUI click: " + e.getMessage()); }
     }
 
     /**
@@ -455,7 +455,7 @@ public class GUIManager implements Listener {
                 SchedulerUtil.safeTeleport(plugin, player, target.getLocation());
                 player.sendMessage(msg("appointees.teleported_to_player").replace("%player%", target.getName()));
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) { plugin.getLogger().fine("Failed to handle appointees GUI click: " + e.getMessage()); }
     }
 
     /**

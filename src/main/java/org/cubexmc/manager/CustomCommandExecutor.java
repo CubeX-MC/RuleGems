@@ -7,6 +7,7 @@ import org.cubexmc.utils.SchedulerUtil;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 自定义命令执行器
@@ -15,15 +16,27 @@ import java.util.UUID;
 public class CustomCommandExecutor {
     private final org.cubexmc.RuleGems plugin;
     private final LanguageManager languageManager;
+    private final GameplayConfig gameplayConfig;
 
     // 冷却时间管理: 玩家UUID -> (命令名 -> 过期时间戳)
-    private final Map<UUID, Map<String, Long>> playerCooldowns = new HashMap<>();
+    private final Map<UUID, Map<String, Long>> playerCooldowns = new ConcurrentHashMap<>();
 
-    public CustomCommandExecutor(org.cubexmc.RuleGems plugin, LanguageManager languageManager) {
+    public CustomCommandExecutor(org.cubexmc.RuleGems plugin, LanguageManager languageManager, GameplayConfig gameplayConfig) {
         this.plugin = plugin;
         this.languageManager = languageManager;
+        this.gameplayConfig = gameplayConfig;
     }
 
+    /**
+     * 以控制台身份调度命令（Folia 安全，fire-and-forget）。
+     * 供外部调用（如 CommandAllowanceListener）在全局线程上执行命令。
+     *
+     * @param command 不含前导 / 的命令字符串
+     * @return 调度是否成功（不代表命令本身成功）
+     */
+    public boolean dispatchAsConsole(String command) {
+        return executeAsConsole(command, null);
+    }
 
     /**
      * 以后台身份执行命令
@@ -35,36 +48,41 @@ public class CustomCommandExecutor {
             SchedulerUtil.globalRun(plugin, () -> {
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
             }, 0L, -1L);
-            plugin.getLogger().info("[调试] 后台命令已提交执行: " + command);
+            plugin.getLogger().fine("[Debug] Console command submitted: " + command);
             return true;
         } catch (Exception e) {
-            plugin.getLogger().warning("后台执行命令失败: " + command);
-            e.printStackTrace();
+            plugin.getLogger().warning("Failed to execute console command: " + command);
+            plugin.getLogger().log(java.util.logging.Level.SEVERE, "Console command execution failed", e);
             return false;
         }
     }
 
     /**
-     * 以玩家临时OP身份执行命令
+     * 以玩家身份执行命令（安全方式）
+     * 如果配置允许 OP 提权则临时授予 OP，否则回退为控制台执行。
      */
     private boolean executeAsPlayerOp(String command, Player player) {
+        boolean useOp = gameplayConfig != null && gameplayConfig.isOpEscalationAllowed();
+        
+        if (!useOp) {
+            // 安全回退：以控制台身份执行，保留 %player% 替换
+            plugin.getLogger().fine("[Safe mode] player-op command falling back to console execution: " + command);
+            return executeAsConsole(command, player);
+        }
+
+        // OP 提权模式（管理员显式启用）
         boolean wasOp = player.isOp();
         try {
-            // 临时授予 OP
             if (!wasOp) {
                 player.setOp(true);
             }
-            
-            // 执行命令
             boolean result = player.performCommand(command);
-            
             return result;
         } catch (Exception e) {
-            plugin.getLogger().warning("玩家执行命令失败: " + command);
-            e.printStackTrace();
+            plugin.getLogger().warning("Failed to execute player command: " + command);
+            plugin.getLogger().log(java.util.logging.Level.SEVERE, "Player command execution failed", e);
             return false;
         } finally {
-            // 恢复原始 OP 状态
             if (!wasOp && player.isOp()) {
                 player.setOp(false);
             }
@@ -114,36 +132,36 @@ public class CustomCommandExecutor {
         }
         
         // 调试日志
-        plugin.getLogger().info("[调试] 执行扩展命令，玩家: " + player.getName());
-        plugin.getLogger().info("[调试] 占位符: " + placeholders);
-        plugin.getLogger().info("[调试] 参数: " + java.util.Arrays.toString(args));
-        plugin.getLogger().info("[调试] 命令列表: " + allowedCmd.getCommands());
+        plugin.getLogger().fine("[Debug] Executing extended command, player: " + player.getName());
+        plugin.getLogger().fine("[Debug] Placeholders: " + placeholders);
+        plugin.getLogger().fine("[Debug] Args: " + java.util.Arrays.toString(args));
+        plugin.getLogger().fine("[Debug] Command list: " + allowedCmd.getCommands());
         
         // 执行所有命令
         boolean allSuccess = true;
         for (String commandLine : allowedCmd.getCommands()) {
             if (commandLine == null || commandLine.trim().isEmpty()) continue;
             
-            plugin.getLogger().info("[调试] 原始命令行: " + commandLine);
+            plugin.getLogger().fine("[Debug] Raw command line: " + commandLine);
             
             // 解析执行者和命令
             String[] parsed = org.cubexmc.model.AllowedCommand.parseExecutor(commandLine);
             String executor = parsed[0];  // "console" 或 "player-op"
             String actualCommand = parsed[1];
             
-            plugin.getLogger().info("[调试] 执行者: " + executor + ", 实际命令: " + actualCommand);
+            plugin.getLogger().fine("[Debug] Executor: " + executor + ", actual command: " + actualCommand);
             
             // 替换占位符（包括默认值支持）
             String finalCommand = replacePlaceholders(actualCommand, placeholders, args);
             
-            plugin.getLogger().info("[调试] 替换后命令: " + finalCommand);
+            plugin.getLogger().fine("[Debug] Command after substitution: " + finalCommand);
             
             // 移除开头的斜杠（如果有）
             if (finalCommand.startsWith("/")) {
                 finalCommand = finalCommand.substring(1);
             }
             
-            plugin.getLogger().info("[调试] 最终执行命令: " + finalCommand);
+            plugin.getLogger().fine("[Debug] Final command: " + finalCommand);
             
             // 根据执行者类型执行命令
             boolean success = false;
@@ -161,7 +179,7 @@ public class CustomCommandExecutor {
                     messagePlaceholders.put("command", finalCommand);
                     languageManager.sendMessage(player, "allowance.command_failed_detail", messagePlaceholders);
                 } else {
-                    player.sendMessage("§c命令执行失败: " + finalCommand);
+                    player.sendMessage("§cCommand execution failed: " + finalCommand);
                 }
             }
         }
