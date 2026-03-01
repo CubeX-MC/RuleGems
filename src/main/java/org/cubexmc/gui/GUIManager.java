@@ -4,7 +4,6 @@ import java.util.UUID;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
@@ -20,7 +19,6 @@ import org.bukkit.persistence.PersistentDataType;
 import org.cubexmc.RuleGems;
 import org.cubexmc.manager.GemManager;
 import org.cubexmc.manager.LanguageManager;
-import org.cubexmc.utils.SchedulerUtil;
 
 /**
  * GUI 管理器 - 统一管理所有 GUI 相关功能
@@ -33,23 +31,23 @@ import org.cubexmc.utils.SchedulerUtil;
 public class GUIManager implements Listener {
 
     // 布局常量
-    public static final int GUI_SIZE = 54;           // 总槽位数
-    public static final int CONTENT_ROWS = 4;        // 内容行数
-    public static final int ITEMS_PER_PAGE = 36;     // 每页内容数 (4行 x 9列)
-    
+    public static final int GUI_SIZE = 54; // 总槽位数
+    public static final int CONTENT_ROWS = 4; // 内容行数
+    public static final int ITEMS_PER_PAGE = 36; // 每页内容数 (4行 x 9列)
+
     // 控制栏槽位
-    public static final int SLOT_PREV = 45;          // 上一页
-    public static final int SLOT_BACK = 46;          // 返回
-    public static final int SLOT_FILTER = 47;        // 筛选
-    public static final int SLOT_INFO = 49;          // 页码信息
-    public static final int SLOT_REFRESH = 51;       // 刷新
-    public static final int SLOT_CLOSE = 52;         // 关闭
-    public static final int SLOT_NEXT = 53;          // 下一页
+    public static final int SLOT_PREV = 45; // 上一页
+    public static final int SLOT_BACK = 46; // 返回
+    public static final int SLOT_FILTER = 47; // 筛选
+    public static final int SLOT_INFO = 49; // 页码信息
+    public static final int SLOT_REFRESH = 51; // 刷新
+    public static final int SLOT_CLOSE = 52; // 关闭
+    public static final int SLOT_NEXT = 53; // 下一页
 
     private final RuleGems plugin;
     private final GemManager gemManager;
     private final LanguageManager lang;
-    
+
     // 持久化数据键
     private final NamespacedKey gemIdKey;
     private final NamespacedKey navActionKey;
@@ -64,7 +62,7 @@ public class GUIManager implements Listener {
         this.plugin = plugin;
         this.gemManager = gemManager;
         this.lang = languageManager;
-        
+
         this.gemIdKey = new NamespacedKey(plugin, "gem_id");
         this.navActionKey = new NamespacedKey(plugin, "nav_action");
         this.playerUuidKey = new NamespacedKey(plugin, "player_uuid");
@@ -80,11 +78,22 @@ public class GUIManager implements Listener {
     }
 
     // ========== Getter 方法 ==========
-    
-    public NamespacedKey getGemIdKey() { return gemIdKey; }
-    public NamespacedKey getNavActionKey() { return navActionKey; }
-    public NamespacedKey getPlayerUuidKey() { return playerUuidKey; }
-    public RuleGems getPlugin() { return plugin; }
+
+    public NamespacedKey getGemIdKey() {
+        return gemIdKey;
+    }
+
+    public NamespacedKey getNavActionKey() {
+        return navActionKey;
+    }
+
+    public NamespacedKey getPlayerUuidKey() {
+        return playerUuidKey;
+    }
+
+    public RuleGems getPlugin() {
+        return plugin;
+    }
 
     /**
      * 获取语言消息（带颜色转换）
@@ -158,14 +167,14 @@ public class GUIManager implements Listener {
      */
     public void fillDecoration(Inventory gui) {
         ItemStack filler = ItemBuilder.filler();
-        
+
         // 第5行装饰 (36-44)
         for (int i = 36; i <= 44; i++) {
             gui.setItem(i, filler);
         }
-        
+
         // 控制栏空位填充 (45-53 中未使用的)
-        int[] decorSlots = {48, 50};
+        int[] decorSlots = { 48, 50 };
         for (int slot : decorSlots) {
             gui.setItem(slot, filler);
         }
@@ -175,19 +184,19 @@ public class GUIManager implements Listener {
      * 添加标准控制栏
      */
     public void addControlBar(Inventory gui, int currentPage, int totalPages, int totalItems,
-                               boolean showFilter, boolean showBack) {
+            boolean showFilter, boolean showBack) {
         // 上一页
         gui.setItem(SLOT_PREV, ItemBuilder.prevButton(
-                currentPage, navActionKey, 
+                currentPage, navActionKey,
                 rawMsg("control.prev"), rawMsg("control.page")));
-        
+
         // 返回按钮（可选）
         if (showBack) {
             gui.setItem(SLOT_BACK, ItemBuilder.backButton(navActionKey, rawMsg("control.back")));
         } else {
             gui.setItem(SLOT_BACK, ItemBuilder.filler());
         }
-        
+
         // 筛选按钮（可选）
         if (showFilter) {
             gui.setItem(SLOT_FILTER, new ItemBuilder(Material.HOPPER)
@@ -199,18 +208,18 @@ public class GUIManager implements Listener {
         } else {
             gui.setItem(SLOT_FILTER, ItemBuilder.filler());
         }
-        
+
         // 页码信息
         gui.setItem(SLOT_INFO, ItemBuilder.pageInfo(
                 currentPage, totalPages, totalItems,
                 rawMsg("control.page"), rawMsg("control.total")));
-        
+
         // 刷新按钮
         gui.setItem(SLOT_REFRESH, ItemBuilder.refreshButton(navActionKey, rawMsg("control.refresh")));
-        
+
         // 关闭按钮
         gui.setItem(SLOT_CLOSE, ItemBuilder.closeButton(navActionKey, rawMsg("control.close")));
-        
+
         // 下一页
         gui.setItem(SLOT_NEXT, ItemBuilder.nextButton(
                 currentPage, totalPages, navActionKey,
@@ -221,48 +230,62 @@ public class GUIManager implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) return;
-        
+        if (!(event.getWhoClicked() instanceof Player))
+            return;
+
         Inventory inventory = event.getInventory();
         GUIHolder holder = GUIHolder.getHolder(inventory);
-        
+
         // 不是我们的 GUI
-        if (holder == null) return;
-        
+        if (holder == null)
+            return;
+
         // 阻止物品移动
         event.setCancelled(true);
-        
+
         Player player = (Player) event.getWhoClicked();
         ItemStack clicked = event.getCurrentItem();
-        
-        if (clicked == null || clicked.getType() == Material.AIR) return;
-        if (clicked.getType() == Material.GRAY_STAINED_GLASS_PANE) return; // 忽略填充物
-        
+
+        if (clicked == null || clicked.getType() == Material.AIR)
+            return;
+        if (clicked.getType() == Material.GRAY_STAINED_GLASS_PANE)
+            return; // 忽略填充物
+
         ItemMeta meta = clicked.getItemMeta();
-        if (meta == null) return;
-        
+        if (meta == null)
+            return;
+
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        
+
         // 处理导航操作
         String navAction = pdc.get(navActionKey, PersistentDataType.STRING);
         if (navAction != null) {
             handleNavigation(player, holder, navAction);
             return;
         }
-        
-        // 根据 GUI 类型处理点击
+
+        // 根据 GUI 类型委托给对应的 ChestMenu
+        ChestMenu menu = getMenuForHolder(holder);
+        if (menu != null) {
+            menu.onClick(player, holder, event.getSlot(), clicked, pdc, event.isShiftClick());
+        }
+    }
+
+    /**
+     * Maps a GUIHolder type to its corresponding ChestMenu instance.
+     */
+    private ChestMenu getMenuForHolder(GUIHolder holder) {
         switch (holder.getType()) {
             case GEMS:
-                handleGemsClick(player, holder, pdc);
-                break;
+                return gemsGUI;
             case RULERS:
-                handleRulersClick(player, holder, pdc, clicked, event.isShiftClick());
-                break;
+                return rulersGUI;
             case RULER_APPOINTEES:
-                handleAppointeesClick(player, holder, pdc, clicked, event.isShiftClick());
-                break;
+                return rulerAppointeesGUI;
+            case MAIN_MENU:
+                return mainMenuGUI;
             default:
-                break;
+                return null;
         }
     }
 
@@ -312,7 +335,7 @@ public class GUIManager implements Listener {
      */
     private void navigatePage(Player player, GUIHolder holder, int delta) {
         int newPage = Math.max(0, holder.getPage() + delta);
-        
+
         switch (holder.getType()) {
             case GEMS:
                 openGemsGUI(player, holder.isAdmin(), newPage, holder.getFilter());
@@ -325,7 +348,9 @@ public class GUIManager implements Listener {
                     try {
                         UUID rulerUuid = UUID.fromString(holder.getFilter());
                         openRulerAppointeesGUI(player, rulerUuid, holder.isAdmin(), newPage);
-                    } catch (Exception e) { plugin.getLogger().fine("Failed to parse ruler UUID for page navigation: " + e.getMessage()); }
+                    } catch (Exception e) {
+                        plugin.getLogger().fine("Failed to parse ruler UUID for page navigation: " + e.getMessage());
+                    }
                 }
                 break;
             default:
@@ -352,7 +377,9 @@ public class GUIManager implements Listener {
                     try {
                         UUID rulerUuid = UUID.fromString(holder.getFilter());
                         openRulerAppointeesGUI(player, rulerUuid, holder.isAdmin(), holder.getPage());
-                    } catch (Exception e) { plugin.getLogger().fine("Failed to parse ruler UUID for GUI refresh: " + e.getMessage()); }
+                    } catch (Exception e) {
+                        plugin.getLogger().fine("Failed to parse ruler UUID for GUI refresh: " + e.getMessage());
+                    }
                 }
                 break;
             default:
@@ -360,138 +387,11 @@ public class GUIManager implements Listener {
         }
     }
 
-    /**
-     * 处理宝石 GUI 点击
-     */
-    private void handleGemsClick(Player player, GUIHolder holder, PersistentDataContainer pdc) {
-        // 只有管理员可以传送
-        if (!holder.isAdmin()) return;
-        
-        String gemIdStr = pdc.get(gemIdKey, PersistentDataType.STRING);
-        if (gemIdStr == null) return;
-        
-        try {
-            UUID gemId = UUID.fromString(gemIdStr);
-            Player gemHolder = gemManager.getGemHolder(gemId);
-            
-            if (gemHolder != null && gemHolder.isOnline()) {
-                player.closeInventory();
-                SchedulerUtil.safeTeleport(plugin, player, gemHolder.getLocation());
-                player.sendMessage(msg("gems.teleported_to_holder").replace("%player%", gemHolder.getName()));
-            } else {
-                Location loc = gemManager.getGemLocation(gemId);
-                if (loc != null) {
-                    player.closeInventory();
-                    SchedulerUtil.safeTeleport(plugin, player, loc.clone().add(0.5, 1, 0.5));
-                    player.sendMessage(msg("gems.teleported_to_location"));
-                }
-            }
-        } catch (Exception e) { plugin.getLogger().fine("Failed to handle gems GUI click: " + e.getMessage()); }
-    }
-
-    /**
-     * 处理统治者 GUI 点击
-     */
-    private void handleRulersClick(Player player, GUIHolder holder, PersistentDataContainer pdc, ItemStack clicked, boolean shiftClick) {
-        // 检查是否点击了玩家头颅
-        if (clicked.getType() != Material.PLAYER_HEAD) return;
-        
-        String playerUuidStr = pdc.get(playerUuidKey, PersistentDataType.STRING);
-        if (playerUuidStr == null) return;
-        
-        try {
-            UUID targetUuid = UUID.fromString(playerUuidStr);
-            
-            // 左键点击 - 查看任命详情
-            if (!shiftClick) {
-                openRulerAppointeesGUI(player, targetUuid, holder.isAdmin());
-                return;
-            }
-            
-            // Shift+左键点击 - 管理员传送
-            if (holder.isAdmin()) {
-                Player target = Bukkit.getPlayer(targetUuid);
-                if (target != null && target.isOnline()) {
-                    player.closeInventory();
-                    SchedulerUtil.safeTeleport(plugin, player, target.getLocation());
-                    player.sendMessage(msg("rulers.teleported_to_player").replace("%player%", target.getName()));
-                }
-            }
-        } catch (Exception e) { plugin.getLogger().fine("Failed to handle rulers GUI click: " + e.getMessage()); }
-    }
-
-    /**
-     * 处理被任命者 GUI 点击
-     */
-    private void handleAppointeesClick(Player player, GUIHolder holder, PersistentDataContainer pdc, ItemStack clicked, boolean shiftClick) {
-        // 检查是否点击了玩家头颅
-        if (clicked.getType() != Material.PLAYER_HEAD) return;
-        
-        String playerUuidStr = pdc.get(playerUuidKey, PersistentDataType.STRING);
-        if (playerUuidStr == null) return;
-        
-        try {
-            UUID targetUuid = UUID.fromString(playerUuidStr);
-            Player target = Bukkit.getPlayer(targetUuid);
-            
-            // Shift+点击 - 管理员撤销任命
-            if (shiftClick && holder.isAdmin()) {
-                // 获取统治者 UUID
-                String rulerUuidStr = holder.getFilter();
-                if (rulerUuidStr != null) {
-                    UUID rulerUuid = UUID.fromString(rulerUuidStr);
-                    // 调用撤销逻辑
-                    if (dismissAppointee(player, rulerUuid, targetUuid)) {
-                        // 刷新 GUI
-                        openRulerAppointeesGUI(player, rulerUuid, holder.isAdmin(), holder.getPage());
-                    }
-                }
-                return;
-            }
-            
-            // 普通点击 - 管理员传送到被任命者
-            if (holder.isAdmin() && target != null && target.isOnline()) {
-                player.closeInventory();
-                SchedulerUtil.safeTeleport(plugin, player, target.getLocation());
-                player.sendMessage(msg("appointees.teleported_to_player").replace("%player%", target.getName()));
-            }
-        } catch (Exception e) { plugin.getLogger().fine("Failed to handle appointees GUI click: " + e.getMessage()); }
-    }
-
-    /**
-     * 撤销任命
-     */
-    private boolean dismissAppointee(Player admin, UUID rulerUuid, UUID appointeeUuid) {
-        if (plugin.getFeatureManager() == null) return false;
-        
-        org.cubexmc.features.appoint.AppointFeature appointFeature = 
-            plugin.getFeatureManager().getAppointFeature();
-        if (appointFeature == null || !appointFeature.isEnabled()) return false;
-        
-        // 获取被任命者的任命信息
-        java.util.List<org.cubexmc.features.appoint.Appointment> appointments = 
-            appointFeature.getAppointmentsByAppointer(rulerUuid);
-        
-        for (org.cubexmc.features.appoint.Appointment appointment : appointments) {
-            if (appointment.getAppointeeUuid().equals(appointeeUuid)) {
-                // 执行撤销
-                boolean result = appointFeature.dismiss(admin, appointeeUuid, appointment.getPermSetKey());
-                if (result) {
-                    String appointeeName = gemManager.getCachedPlayerName(appointeeUuid);
-                    admin.sendMessage(msg("appointees.dismissed").replace("%player%", appointeeName));
-                    return true;
-                }
-            }
-        }
-        
-        return false;
-    }
-
     @EventHandler
     public void onInventoryDrag(InventoryDragEvent event) {
         Inventory inventory = event.getInventory();
         GUIHolder holder = GUIHolder.getHolder(inventory);
-        
+
         if (holder != null) {
             event.setCancelled(true);
         }

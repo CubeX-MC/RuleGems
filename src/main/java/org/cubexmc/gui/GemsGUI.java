@@ -26,17 +26,35 @@ import java.util.stream.Collectors;
  * - 第 5 行: 装饰分隔行
  * - 第 6 行: 控制栏（翻页、筛选、关闭等）
  */
-public class GemsGUI {
+public class GemsGUI extends ChestMenu {
 
-    private final GUIManager guiManager;
     private final GemManager gemManager;
     private final LanguageManager lang;
 
     public GemsGUI(GUIManager guiManager, GemManager gemManager, LanguageManager languageManager) {
-        this.guiManager = guiManager;
+        super(guiManager);
         this.gemManager = gemManager;
         this.lang = languageManager;
     }
+
+    @Override
+    protected String getTitle() {
+        return msg("gems.title_player");
+    } // overridden per-open
+
+    @Override
+    protected int getSize() {
+        return manager.GUI_SIZE;
+    }
+
+    @Override
+    protected GUIHolder.GUIType getHolderType() {
+        return GUIHolder.GUIType.GEMS;
+    }
+
+    @Override
+    protected void populate(org.bukkit.inventory.Inventory inv, GUIHolder holder) {
+        /* used via open() */ }
 
     private String msg(String path) {
         return ChatColor.translateAlternateColorCodes('&', lang.getMessage("gui." + path));
@@ -46,55 +64,85 @@ public class GemsGUI {
         return lang.getMessage("gui." + path);
     }
 
+    @Override
+    public void onClick(org.bukkit.entity.Player player, GUIHolder holder, int slot,
+            org.bukkit.inventory.ItemStack clicked,
+            org.bukkit.persistence.PersistentDataContainer pdc,
+            boolean shiftClick) {
+        if (!holder.isAdmin())
+            return;
+        String gemIdStr = pdc.get(manager.getGemIdKey(), org.bukkit.persistence.PersistentDataType.STRING);
+        if (gemIdStr == null)
+            return;
+        try {
+            UUID gemId = UUID.fromString(gemIdStr);
+            org.bukkit.entity.Player gemHolder = gemManager.getGemHolder(gemId);
+            if (gemHolder != null && gemHolder.isOnline()) {
+                player.closeInventory();
+                org.cubexmc.utils.SchedulerUtil.safeTeleport(manager.getPlugin(), player, gemHolder.getLocation());
+                player.sendMessage(msg("gems.teleported_to_holder").replace("%player%", gemHolder.getName()));
+            } else {
+                org.bukkit.Location loc = gemManager.getGemLocation(gemId);
+                if (loc != null) {
+                    player.closeInventory();
+                    org.cubexmc.utils.SchedulerUtil.safeTeleport(manager.getPlugin(), player,
+                            loc.clone().add(0.5, 1, 0.5));
+                    player.sendMessage(msg("gems.teleported_to_location"));
+                }
+            }
+        } catch (Exception e) {
+            manager.getPlugin().getLogger().fine("GemsGUI click error: " + e.getMessage());
+        }
+    }
+
     /**
      * 打开宝石列表 GUI
      */
     public void open(Player player, boolean isAdmin, int page, String filter) {
         // 获取所有宝石并应用筛选
         List<UUID> allGemIds = new ArrayList<>(gemManager.getAllGemUuids());
-        
+
         // 应用筛选条件
         if (filter != null && !filter.isEmpty()) {
             allGemIds = filterGems(allGemIds, filter);
         }
-        
+
         int totalItems = allGemIds.size();
-        int totalPages = Math.max(1, (int) Math.ceil((double) totalItems / GUIManager.ITEMS_PER_PAGE));
+        int totalPages = Math.max(1, (int) Math.ceil((double) totalItems / manager.ITEMS_PER_PAGE));
         page = Math.max(0, Math.min(page, totalPages - 1));
-        
+
         // 创建 GUI
         String title = isAdmin ? msg("gems.title_admin") : msg("gems.title_player");
         if (totalPages > 1) {
             title += " &8(" + (page + 1) + "/" + totalPages + ")";
         }
         title = ChatColor.translateAlternateColorCodes('&', title);
-        
+
         GUIHolder holder = new GUIHolder(
-                GUIHolder.GUIType.GEMS, 
-                player.getUniqueId(), 
-                isAdmin, 
-                page, 
-                filter
-        );
-        
-        Inventory gui = Bukkit.createInventory(holder, GUIManager.GUI_SIZE, title);
+                GUIHolder.GUIType.GEMS,
+                player.getUniqueId(),
+                isAdmin,
+                page,
+                filter);
+
+        Inventory gui = Bukkit.createInventory(holder, manager.GUI_SIZE, title);
         holder.setInventory(gui);
-        
+
         // 填充装饰和控制栏（启用返回按钮）
-        guiManager.fillDecoration(gui);
-        guiManager.addControlBar(gui, page, totalPages, totalItems, true, true);
-        
+        manager.fillDecoration(gui);
+        manager.addControlBar(gui, page, totalPages, totalItems, true, true);
+
         // 填充宝石内容
-        int startIndex = page * GUIManager.ITEMS_PER_PAGE;
-        int endIndex = Math.min(startIndex + GUIManager.ITEMS_PER_PAGE, totalItems);
-        
+        int startIndex = page * manager.ITEMS_PER_PAGE;
+        int endIndex = Math.min(startIndex + manager.ITEMS_PER_PAGE, totalItems);
+
         for (int i = startIndex; i < endIndex; i++) {
             int slot = i - startIndex;
             UUID gemId = allGemIds.get(i);
             ItemStack item = createGemItem(gemId, isAdmin);
             gui.setItem(slot, item);
         }
-        
+
         player.openInventory(gui);
     }
 
@@ -103,13 +151,13 @@ public class GemsGUI {
      */
     private List<UUID> filterGems(List<UUID> gems, String filter) {
         String lowerFilter = filter.toLowerCase(Locale.ROOT);
-        
+
         return gems.stream().filter(gemId -> {
             String gemKey = gemManager.getGemKey(gemId);
             if (gemKey != null && gemKey.toLowerCase(Locale.ROOT).contains(lowerFilter)) {
                 return true;
             }
-            
+
             GemDefinition def = gemKey != null ? gemManager.findGemDefinitionByKey(gemKey) : null;
             if (def != null && def.getDisplayName() != null) {
                 String stripped = ChatColor.stripColor(
@@ -118,7 +166,7 @@ public class GemsGUI {
                     return true;
                 }
             }
-            
+
             // 筛选状态
             if ("held".equals(lowerFilter) || "持有".equals(lowerFilter)) {
                 return gemManager.getGemHolder(gemId) != null;
@@ -126,7 +174,7 @@ public class GemsGUI {
             if ("placed".equals(lowerFilter) || "放置".equals(lowerFilter)) {
                 return gemManager.getGemLocation(gemId) != null;
             }
-            
+
             return false;
         }).collect(Collectors.toList());
     }
@@ -137,68 +185,70 @@ public class GemsGUI {
     private ItemStack createGemItem(UUID gemId, boolean isAdmin) {
         String gemKey = gemManager.getGemKey(gemId);
         GemDefinition def = gemKey != null ? gemManager.findGemDefinitionByKey(gemKey) : null;
-        
-        Material material = def != null && def.getMaterial() != null 
-                ? def.getMaterial() : Material.RED_STAINED_GLASS;
-        String displayName = def != null && def.getDisplayName() != null 
-                ? def.getDisplayName() : rawMsg("gems.default_name");
-        
+
+        Material material = def != null && def.getMaterial() != null
+                ? def.getMaterial()
+                : Material.RED_STAINED_GLASS;
+        String displayName = def != null && def.getDisplayName() != null
+                ? def.getDisplayName()
+                : rawMsg("gems.default_name");
+
         ItemBuilder builder = new ItemBuilder(material)
                 .name(displayName)
-                .data(guiManager.getGemIdKey(), gemId.toString());
-        
+                .data(manager.getGemIdKey(), gemId.toString());
+
         // 获取状态
         Player holder = gemManager.getGemHolder(gemId);
         Location location = gemManager.getGemLocation(gemId);
-        
+
         if (isAdmin) {
             buildAdminLore(builder, gemId, gemKey, def, holder, location);
         } else {
             buildPlayerLore(builder, def, holder, location);
         }
-        
+
         // 附魔效果
         if (def != null && def.isEnchanted()) {
             builder.glow();
         }
-        
+
         return builder.hideAttributes().build();
     }
 
     /**
      * 构建管理员视图 Lore
      */
-    private void buildAdminLore(ItemBuilder builder, UUID gemId, String gemKey, 
-                                 GemDefinition def, Player holder, Location location) {
+    private void buildAdminLore(ItemBuilder builder, UUID gemId, String gemKey,
+            GemDefinition def, Player holder, Location location) {
         // ID 信息
         builder.addEmptyLore()
-               .addLore("&e▸ " + rawMsg("gems.section_id"))
-               .addLore("&8  Key: &f" + (gemKey != null ? gemKey : "N/A"))
-               .addLore("&8  UUID: &7" + gemId.toString().substring(0, 8) + "...");
-        
+                .addLore("&e▸ " + rawMsg("gems.section_id"))
+                .addLore("&8  Key: &f" + (gemKey != null ? gemKey : "N/A"))
+                .addLore("&8  UUID: &7" + gemId.toString().substring(0, 8) + "...");
+
         // 状态信息
         builder.addEmptyLore()
-               .addLore("&e▸ " + rawMsg("gems.section_status"));
-        
+                .addLore("&e▸ " + rawMsg("gems.section_status"));
+
         if (holder != null) {
             builder.addLore("&a  ● " + rawMsg("gems.status_held"))
-                   .addLore("&8  → &b" + holder.getName());
+                    .addLore("&8  → &b" + holder.getName());
         } else if (location != null) {
             builder.addLore("&6  ● " + rawMsg("gems.status_placed"))
-                   .addLore("&8  → &f" + formatLocation(location));
+                    .addLore("&8  → &f" + formatLocation(location));
         } else {
             builder.addLore("&c  ● " + rawMsg("gems.status_unknown"));
         }
-        
+
         // 权限信息
         if (def != null) {
             boolean hasPerms = (def.getPermissions() != null && !def.getPermissions().isEmpty())
                     || (def.getVaultGroup() != null && !def.getVaultGroup().isEmpty());
-            
+
             if (hasPerms) {
                 builder.addEmptyLore()
-                       .addLore("&e▸ " + rawMsg("gems.section_permissions"));
-                
+                        .addLore("&e▸ " + rawMsg("gems.section_permissions"));
+
                 if (def.getPermissions() != null) {
                     for (String perm : def.getPermissions()) {
                         builder.addLore("&8  • &a" + perm);
@@ -208,27 +258,27 @@ public class GemsGUI {
                     builder.addLore("&8  Group: &d" + def.getVaultGroup());
                 }
             }
-            
+
             // 命令信息
             if (def.getAllowedCommands() != null && !def.getAllowedCommands().isEmpty()) {
                 builder.addEmptyLore()
-                       .addLore("&e▸ " + rawMsg("gems.section_commands"));
-                
+                        .addLore("&e▸ " + rawMsg("gems.section_commands"));
+
                 for (AllowedCommand cmd : def.getAllowedCommands()) {
                     String uses = cmd.getUses() < 0 ? rawMsg("gems.uses_unlimited") : String.valueOf(cmd.getUses());
                     builder.addLore("&8  • &b/" + cmd.getLabel() + " &7(" + uses + ")");
                 }
             }
-            
+
             // 祭坛位置
             Location altar = def.getAltarLocation();
             if (altar != null) {
                 builder.addEmptyLore()
-                       .addLore("&e▸ " + rawMsg("gems.section_altar"))
-                       .addLore("&8  → &d" + formatLocation(altar));
+                        .addLore("&e▸ " + rawMsg("gems.section_altar"))
+                        .addLore("&8  → &d" + formatLocation(altar));
             }
         }
-        
+
         // 操作提示
         builder.addEmptyLore();
         if (holder != null) {
@@ -241,8 +291,8 @@ public class GemsGUI {
     /**
      * 构建玩家视图 Lore
      */
-    private void buildPlayerLore(ItemBuilder builder, GemDefinition def, 
-                                  Player holder, Location location) {
+    private void buildPlayerLore(ItemBuilder builder, GemDefinition def,
+            Player holder, Location location) {
         // 宝石描述
         if (def != null && def.getLore() != null && !def.getLore().isEmpty()) {
             builder.addEmptyLore();
@@ -250,7 +300,7 @@ public class GemsGUI {
                 builder.addLore(line);
             }
         }
-        
+
         // 状态
         builder.addEmptyLore();
         if (holder != null) {
@@ -267,7 +317,7 @@ public class GemsGUI {
      */
     private String formatLocation(Location loc) {
         String world = loc.getWorld() != null ? loc.getWorld().getName() : "?";
-        return String.format("%d, %d, %d (%s)", 
+        return String.format("%d, %d, %d (%s)",
                 loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(), world);
     }
 }

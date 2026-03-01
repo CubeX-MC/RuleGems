@@ -39,7 +39,8 @@ public class EffectUtils {
             for (Map.Entry<String, String> entry : ph.entrySet()) {
                 String key = entry.getKey();
                 String value = entry.getValue();
-                if (key == null || value == null) continue;
+                if (key == null || value == null)
+                    continue;
                 // 如果键不是包裹过的，占位符两种形式都尝试
                 if (!(key.startsWith("%") && key.endsWith("%"))) {
                     replaced = replaced.replace("%" + key + "%", value);
@@ -48,7 +49,8 @@ public class EffectUtils {
             }
             // 若仍存在未解析的 %...% 占位符，则跳过执行以避免错误
             if (replaced.matches(".*%[A-Za-z0-9_]+%.*")) {
-                plugin.getLogger().log(Level.WARNING, "[RuleGems] Skipping command execution, unresolved placeholder: {0}", replaced);
+                plugin.getLogger().log(Level.WARNING,
+                        "[RuleGems] Skipping command execution, unresolved placeholder: {0}", replaced);
                 continue;
             }
             // 以控制台身份执行命令：统一通过 SchedulerUtil 调度，内部已根据服务端类型与线程处理
@@ -65,7 +67,8 @@ public class EffectUtils {
             try {
                 Sound sound = Sound.valueOf(execCfg.getSound());
                 for (Player p : Bukkit.getOnlinePlayers()) {
-                    SchedulerUtil.entityRun(plugin, p, () -> p.playSound(p.getLocation(), sound, volume, pitch), 0L, -1L);
+                    SchedulerUtil.entityRun(plugin, p, () -> p.playSound(p.getLocation(), sound, volume, pitch), 0L,
+                            -1L);
                 }
             } catch (Exception ex) {
                 plugin.getLogger().log(Level.WARNING, "[RuleGems] Invalid sound name: {0}", execCfg.getSound());
@@ -100,7 +103,13 @@ public class EffectUtils {
                 Particle particle = Particle.valueOf(execCfg.getParticle());
                 SchedulerUtil.regionRun(plugin, location, () -> {
                     if (location.getWorld() != null) {
-                        location.getWorld().spawnParticle(particle, location, 1);
+                        try {
+                            location.getWorld().spawnParticle(particle, location, 1);
+                        } catch (IllegalArgumentException e) {
+                            plugin.getLogger().log(Level.WARNING,
+                                    "[RuleGems] Cannot spawn particle {0} because it requires missing BlockData. ({1})",
+                                    new Object[] { particle, e.getMessage() });
+                        }
                     }
                 }, 0L, -1L);
             } catch (Exception ex) {

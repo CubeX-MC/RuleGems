@@ -33,9 +33,9 @@ import static org.cubexmc.utils.ConfigParseUtils.*;
  * <p>
  * 职责：
  * <ul>
- *   <li>加载 gems/ 文件夹（及旧版 config.yml 格式的）宝石定义</li>
- *   <li>加载 powers/ 文件夹中的 PowerStructure 模板</li>
- *   <li>提供 {@link #parsePowerStructure(Object)} 供其他模块引用</li>
+ * <li>加载 gems/ 文件夹（及旧版 config.yml 格式的）宝石定义</li>
+ * <li>加载 powers/ 文件夹中的 PowerStructure 模板</li>
+ * <li>提供 {@link #parsePowerStructure(Object)} 供其他模块引用</li>
  * </ul>
  */
 public class GemDefinitionParser {
@@ -45,6 +45,7 @@ public class GemDefinitionParser {
 
     // 权力结构模板
     private final Map<String, PowerStructure> powerTemplates = new HashMap<>();
+    private final Map<String, Object> rawPowerTemplates = new HashMap<>();
 
     // 解析结果
     private List<GemDefinition> gemDefinitions = new ArrayList<>();
@@ -78,6 +79,7 @@ public class GemDefinitionParser {
      */
     public void loadPowerTemplates(File dataFolder) {
         powerTemplates.clear();
+        rawPowerTemplates.clear();
 
         File powersFolder = new File(dataFolder, "powers");
         if (!powersFolder.exists()) {
@@ -88,6 +90,16 @@ public class GemDefinitionParser {
         if (powersFolder.isDirectory()) {
             loadPowerTemplatesFromFolder(powersFolder);
         }
+
+        for (String key : new java.util.ArrayList<>(rawPowerTemplates.keySet())) {
+            if (!powerTemplates.containsKey(key)) {
+                Object raw = rawPowerTemplates.remove(key);
+                if (raw != null) {
+                    powerTemplates.put(key, parsePowerStructure(raw));
+                }
+            }
+        }
+        rawPowerTemplates.clear();
 
         logger.info("Loaded " + powerTemplates.size() + " power templates.");
     }
@@ -115,8 +127,7 @@ public class GemDefinitionParser {
                 for (String key : templatesSection.getKeys(false)) {
                     Object templateObj = templatesSection.get(key);
                     if (templateObj instanceof ConfigurationSection || templateObj instanceof Map) {
-                        PowerStructure structure = parsePowerStructure(templateObj);
-                        powerTemplates.put(key, structure);
+                        rawPowerTemplates.put(key, templateObj);
                     }
                 }
             } else {
@@ -250,10 +261,10 @@ public class GemDefinitionParser {
     // ==================== 核心解析方法 ====================
 
     private GemDefinition buildGemDefinitionFromMap(String gemKey, Map<?, ?> map) {
-        Material material = parseEnum(Material.class, stringOf(map.get("material")), Material.RED_STAINED_GLASS);
+        Material material = parseMaterial(stringOf(map.get("material")), Material.RED_STAINED_GLASS);
         String displayName = parseDisplayName(map);
-        Particle particle = parseEnum(Particle.class, stringOf(map.get("particle")), Particle.FLAME);
-        Sound sound = parseEnum(Sound.class, stringOf(map.get("sound")), Sound.ENTITY_EXPERIENCE_ORB_PICKUP);
+        Particle particle = parseParticle(stringOf(map.get("particle")), Particle.FLAME);
+        Sound sound = parseSound(stringOf(map.get("sound")), Sound.ENTITY_EXPERIENCE_ORB_PICKUP);
 
         // per-gem 事件覆盖（可选）
         ExecuteConfig onPickup = parseExecuteConfig(map.get("on_pickup"));
@@ -271,24 +282,56 @@ public class GemDefinitionParser {
         Location altarLocation = parseAltarLocation(map, gemKey);
         PowerStructure powerStructure = resolveGemPower(map);
 
-        return new GemDefinition(gemKey, material, displayName, particle, sound, onPickup, onScatter,
-                onRedeem, powerStructure, lore, redeemTitle, enchanted, mutex, count, range[0], range[1], altarLocation);
+        return new GemDefinition.Builder(gemKey)
+                .material(material).displayName(displayName).particle(particle).sound(sound)
+                .onPickup(onPickup).onScatter(onScatter).onRedeem(onRedeem)
+                .powerStructure(powerStructure).lore(lore).redeemTitle(redeemTitle)
+                .enchanted(enchanted).mutualExclusive(mutex).count(count)
+                .randomPlaceCorner1(range[0]).randomPlaceCorner2(range[1])
+                .altarLocation(altarLocation).build();
     }
 
-    private <E extends Enum<E>> E parseEnum(Class<E> cls, String value, E fallback) {
-        if (value == null || value.isEmpty()) return fallback;
-        try { return Enum.valueOf(cls, value.toUpperCase()); } catch (IllegalArgumentException ignored) { return fallback; }
+    private Material parseMaterial(String value, Material fallback) {
+        if (value == null || value.isEmpty())
+            return fallback;
+        try {
+            return Material.valueOf(value.toUpperCase());
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private Particle parseParticle(String value, Particle fallback) {
+        if (value == null || value.isEmpty())
+            return fallback;
+        try {
+            return Particle.valueOf(value.toUpperCase());
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private Sound parseSound(String value, Sound fallback) {
+        if (value == null || value.isEmpty())
+            return fallback;
+        try {
+            return Sound.valueOf(value.toUpperCase());
+        } catch (Exception ignored) {
+            return fallback;
+        }
     }
 
     private String parseDisplayName(Map<?, ?> map) {
         String nameStr = stringOf(map.get("name"));
-        String fallback = languageManager != null ? languageManager.getMessage("messages.gem.default_display_name") : "&cRule Gem";
+        String fallback = languageManager != null ? languageManager.getMessage("messages.gem.default_display_name")
+                : "&cRule Gem";
         String raw = (nameStr != null && !nameStr.isEmpty()) ? nameStr : fallback;
         return ChatColor.translateAlternateColorCodes('&', raw);
     }
 
     private ExecuteConfig parseExecuteConfig(Object obj) {
-        if (!(obj instanceof Map)) return null;
+        if (!(obj instanceof Map))
+            return null;
         Map<?, ?> m = (Map<?, ?>) obj;
         return new ExecuteConfig(
                 toStringList(m.get("commands")),
@@ -297,15 +340,22 @@ public class GemDefinitionParser {
     }
 
     private boolean parseBooleanLenient(Object obj) {
-        if (obj instanceof Boolean) return (Boolean) obj;
-        if (obj == null) return false;
+        if (obj instanceof Boolean)
+            return (Boolean) obj;
+        if (obj == null)
+            return false;
         String s = String.valueOf(obj).trim();
         return s.equalsIgnoreCase("true") || s.equalsIgnoreCase("yes") || s.equalsIgnoreCase("on");
     }
 
     private int parseIntSafe(Object obj, int fallback) {
-        if (obj == null) return fallback;
-        try { return Integer.parseInt(String.valueOf(obj)); } catch (Exception ignored) { return fallback; }
+        if (obj == null)
+            return fallback;
+        try {
+            return Integer.parseInt(String.valueOf(obj));
+        } catch (Exception ignored) {
+            return fallback;
+        }
     }
 
     private Location[] parseRandomPlaceRange(Map<?, ?> map, String gemKey) {
@@ -328,15 +378,17 @@ public class GemDefinitionParser {
                 }
             }
         }
-        return new Location[]{corner1, corner2};
+        return new Location[] { corner1, corner2 };
     }
 
     private Location parseAltarLocation(Map<?, ?> map, String gemKey) {
         Object altarObj = map.get("altar");
-        if (!(altarObj instanceof Map)) return null;
+        if (!(altarObj instanceof Map))
+            return null;
         Map<?, ?> altarMap = (Map<?, ?>) altarObj;
         String altarWorldName = stringOf(altarMap.get("world"));
-        if (altarWorldName == null || altarWorldName.isEmpty()) return null;
+        if (altarWorldName == null || altarWorldName.isEmpty())
+            return null;
         World altarWorld = Bukkit.getWorld(altarWorldName);
         if (altarWorld == null) {
             logger.warning("World not found in altar config for gem " + gemKey + ": " + altarWorldName);
@@ -525,6 +577,15 @@ public class GemDefinitionParser {
         if (obj instanceof String) {
             String templateName = (String) obj;
             PowerStructure template = powerTemplates.get(templateName);
+
+            if (template == null && rawPowerTemplates.containsKey(templateName)) {
+                Object raw = rawPowerTemplates.remove(templateName);
+                if (raw != null) {
+                    template = parsePowerStructure(raw);
+                    powerTemplates.put(templateName, template);
+                }
+            }
+
             if (template != null) {
                 return template.copy();
             } else {
@@ -572,21 +633,17 @@ public class GemDefinitionParser {
                 baseObj = map.get("template");
 
             if (baseObj instanceof String) {
-                PowerStructure template = powerTemplates.get((String) baseObj);
-                if (template != null) {
-                    structure = template.copy();
-                } else {
-                    logger.warning("Unknown base power template: " + baseObj);
+                PowerStructure template = parsePowerStructure((String) baseObj);
+                if (template.hasAnyContent()) {
+                    structure = template;
                 }
             } else if (baseObj instanceof List) {
                 // 支持多重继承
                 for (Object item : (List<?>) baseObj) {
                     if (item instanceof String) {
-                        PowerStructure template = powerTemplates.get((String) item);
-                        if (template != null) {
+                        PowerStructure template = parsePowerStructure((String) item);
+                        if (template.hasAnyContent()) {
                             structure.merge(template);
-                        } else {
-                            logger.warning("Unknown base power template in list: " + item);
                         }
                     }
                 }

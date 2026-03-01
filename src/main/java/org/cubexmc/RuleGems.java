@@ -13,8 +13,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandMap;
 import org.bukkit.command.SimpleCommandMap;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.cubexmc.commands.RuleGemsCommand;
-import org.cubexmc.commands.RuleGemsTabCompleter;
+import org.cubexmc.commands.CloudCommandManager;
 import org.cubexmc.features.FeatureManager;
 import org.cubexmc.listeners.CommandAllowanceListener;
 import org.cubexmc.listeners.GemConsumeListener;
@@ -51,12 +50,18 @@ public class RuleGems extends JavaPlugin {
     private GUIManager guiManager;
     private FeatureManager featureManager;
     private PowerStructureManager powerStructureManager;
-    private Permission vaultPerms;
+    private org.cubexmc.provider.PermissionProvider permissionProvider;
     @SuppressWarnings("unused")
     private Metrics metrics;
     private CommandAllowanceListener commandAllowanceListener;
+    private GemConsumeListener gemConsumeListener;
     private final Map<String, org.cubexmc.commands.AllowedCommandProxy> proxyCommands = new HashMap<>();
     private CommandMap cachedCommandMap;
+
+    // ========== Scheduling constants ==========
+    private static final long TICKS_PER_SECOND = 20L;
+    private static final long PROXIMITY_CHECK_INTERVAL = TICKS_PER_SECOND; // 1 second
+    private static final long AUTO_SAVE_INTERVAL = TICKS_PER_SECOND * 60 * 60; // 1 hour
 
     @Override
     public void onEnable() {
@@ -69,7 +74,8 @@ public class RuleGems extends JavaPlugin {
         this.effectUtils = new EffectUtils(this);
         this.powerStructureManager = new PowerStructureManager(this);
         this.historyLogger = new HistoryLogger(this, languageManager);
-        this.customCommandExecutor = new org.cubexmc.manager.CustomCommandExecutor(this, languageManager, gameplayConfig);
+        this.customCommandExecutor = new org.cubexmc.manager.CustomCommandExecutor(this, languageManager,
+                gameplayConfig);
         this.gemManager = new GemManager(this, configManager, gemParser, gameplayConfig, effectUtils, languageManager);
         this.gemManager.setHistoryLogger(historyLogger);
         this.guiManager = new GUIManager(this, gemManager, languageManager);
@@ -77,22 +83,18 @@ public class RuleGems extends JavaPlugin {
         this.metrics = new Metrics(this, 27483);
         loadPlugin();
 
-        // 注册命令
-        RuleGemsCommand ruleGemsCommand = new RuleGemsCommand(this, gemManager, gameplayConfig, languageManager,
-                guiManager);
-        org.bukkit.command.PluginCommand cmd = getCommand("rulegems");
-        if (cmd != null) {
-            cmd.setExecutor(ruleGemsCommand);
-            cmd.setTabCompleter(new RuleGemsTabCompleter(gemParser, gemManager));
-        } else {
-            getLogger().warning("Command 'rulegems' not found in plugin.yml");
-        }
+        // 注册命令 (Cloud framework)
+        new CloudCommandManager(this, gemManager, gameplayConfig, languageManager, guiManager).registerAll();
         // 注册监听器
         getPluginManager().registerEvents(new GemPlaceListener(this, gemManager), this);
         getPluginManager().registerEvents(new GemInventoryListener(gemManager, languageManager), this);
         getPluginManager().registerEvents(new PlayerEventListener(this, gemManager), this);
-        getPluginManager().registerEvents(new GemConsumeListener(this, gemManager, gameplayConfig, languageManager),
-                this);
+
+        this.gemConsumeListener = new GemConsumeListener(this, gemManager, gameplayConfig, languageManager);
+        if (gameplayConfig.isHoldToRedeemEnabled()) {
+            getPluginManager().registerEvents(gemConsumeListener, this);
+        }
+
         this.commandAllowanceListener = new CommandAllowanceListener(gemManager.getAllowanceManager(), languageManager,
                 customCommandExecutor, gameplayConfig);
         getPluginManager().registerEvents(commandAllowanceListener, this);
@@ -110,24 +112,30 @@ public class RuleGems extends JavaPlugin {
         this.featureManager = new FeatureManager(this, gemManager);
         featureManager.registerFeatures();
 
-        // Setup Vault permissions (optional)
+        // Setup permissions provider (Vault or Fallback)
         if (getServer().getPluginManager().getPlugin("Vault") != null) {
             try {
                 org.bukkit.plugin.RegisteredServiceProvider<Permission> rsp = getServer().getServicesManager()
                         .getRegistration(Permission.class);
                 if (rsp != null) {
-                    this.vaultPerms = rsp.getProvider();
+                    this.permissionProvider = new org.cubexmc.provider.VaultPermissionProvider(this, rsp.getProvider());
+                    getLogger().info("Successfully hooked into Vault for permissions.");
                 }
             } catch (Exception e) {
-                getLogger().warning("Failed to initialize Vault permissions: " + e.getMessage());
+                getLogger().warning("Failed to initialize Vault permissions (will use fallback): " + e.getMessage());
             }
+        }
+
+        if (this.permissionProvider == null) {
+            this.permissionProvider = new org.cubexmc.provider.FallbackPermissionProvider();
+            getLogger().info("Vault not found or failed to load. Using FallbackPermissionProvider.");
         }
 
         SchedulerUtil.globalRun(
                 this,
                 () -> gemManager.checkPlayersNearRuleGems(),
-                20L,
-                20L);
+                PROXIMITY_CHECK_INTERVAL,
+                PROXIMITY_CHECK_INTERVAL);
 
         // Start per-gem particle task (uses per-gem definitions internally)
         gemManager.startParticleEffectTask(org.bukkit.Particle.FLAME);
@@ -136,8 +144,8 @@ public class RuleGems extends JavaPlugin {
         SchedulerUtil.globalRun(
                 this,
                 () -> gemManager.saveGems(),
-                20L * 60 * 60,
-                20L * 60 * 60);
+                AUTO_SAVE_INTERVAL,
+                AUTO_SAVE_INTERVAL);
 
         // 取消依赖全局粒子设置；如需粒子展示可在 GemManager 内按 per-gem 自行实现
 
@@ -157,8 +165,12 @@ public class RuleGems extends JavaPlugin {
         if (map != null) {
             unregisterProxyCommands(map);
         }
-        gemManager.saveGems();
-        languageManager.logMessage("plugin_disabled");
+        if (gemManager != null) {
+            gemManager.saveGems();
+        }
+        if (languageManager != null) {
+            languageManager.logMessage("plugin_disabled");
+        }
     }
 
     /**
@@ -177,6 +189,15 @@ public class RuleGems extends JavaPlugin {
         gemManager.initializePlacedGemBlocks();
         // 补齐配置定义但当前不存在的宝石，保证“服务器里永远有配置中的所有 gems”
         gemManager.ensureConfiguredGemsPresent(); // 重载功能配置
+
+        // Refresh GemConsumeListener
+        if (gemConsumeListener != null) {
+            org.bukkit.event.HandlerList.unregisterAll(gemConsumeListener);
+            if (gameplayConfig.isHoldToRedeemEnabled()) {
+                getPluginManager().registerEvents(gemConsumeListener, this);
+            }
+        }
+
         if (featureManager != null) {
             featureManager.reloadAll();
         }
@@ -222,8 +243,8 @@ public class RuleGems extends JavaPlugin {
         return featureManager;
     }
 
-    public Permission getVaultPerms() {
-        return vaultPerms;
+    public org.cubexmc.provider.PermissionProvider getPermissionProvider() {
+        return permissionProvider;
     }
 
     public PowerStructureManager getPowerStructureManager() {
@@ -287,6 +308,17 @@ public class RuleGems extends JavaPlugin {
         if (cachedCommandMap != null) {
             return cachedCommandMap;
         }
+        // Paper API (1.13+) — prefer this over reflection
+        try {
+            cachedCommandMap = (CommandMap) org.bukkit.Bukkit.class
+                    .getMethod("getCommandMap").invoke(null);
+            return cachedCommandMap;
+        } catch (NoSuchMethodException ignored) {
+            // Not Paper, fall through to reflection
+        } catch (Exception e) {
+            getLogger().fine("Bukkit.getCommandMap() failed: " + e.getMessage());
+        }
+        // Reflection fallback (Spigot / CraftBukkit)
         try {
             Field field = getServer().getClass().getDeclaredField("commandMap");
             field.setAccessible(true);

@@ -1,0 +1,124 @@
+# ==========================================
+# RuleGems 插件配置
+# ==========================================
+
+# Language setup (Example: zh_CN / en_US)
+language: en_US
+
+# 安全设置
+# allow_op_escalation: 是否允许使用临时 OP 执行限次命令（不推荐）
+# 设为 false 时，player-op 类型命令将回退为以控制台身份执行
+# 设为 true 时，会临时授予玩家 OP 来执行命令（存在安全风险）
+allow_op_escalation: false
+
+# 宝石随机生成范围（默认）
+# 这是全局默认的生成范围，当宝石没有单独配置生成范围时使用
+# 每个宝石可以在其配置文件中通过 random_place_range 字段设置自己的生成范围
+random_place_range:
+  world: world
+  corner1: { x: -100, y: 160, z: -100 }
+  corner2: { x: 100, y: 30, z: 100 }
+
+# 全局设置
+toggles:
+  broadcast_redeem_title: true  # 兑换后是否向全服广播
+
+# Reward for collecting all gems
+redeem_all:
+  broadcast: true
+  titles:
+    - "&a%player% has collected all the gems!"
+    - "&eAchieved supreme power!"
+  sound: ENTITY_ENDER_DRAGON_GROWL
+  permissions: []  # 额外授予的永久权限
+  # 集齐后额外授予的限次自定义指令
+  # command_allows 格式说明：
+  #   - command: 玩家输入的命令
+  #     execute: 实际执行的命令列表（支持 console: 或 player-op: 前缀）
+  #     time_limit: 可用次数（-1=无限）
+  #     cooldown: 冷却时间（秒）
+  # 占位符：%player%=玩家名, %arg1%=第1个参数, %arg2|默认%=第2个参数或默认值
+  command_allows: []
+
+# ==========================================
+# 全局事件配置
+# ==========================================
+
+# Force revoke power
+revoke_power:
+  commands:
+    - "say §c%player%'s power was forcibly revoked!"
+  sound: ENTITY_ENDERMAN_TELEPORT
+  particle: FLAME
+
+# Triggered when all gems are collected
+gem_union_execute:
+  commands:
+    - "say §a%player% has collected all the gems!"
+  sound: ENTITY_PLAYER_LEVELUP
+  particle: TOTEM
+
+# Triggered when gems are scattered
+gem_scatter_execute:
+  commands:
+    - "say §cThe gems of power have been scattered!"
+  sound: ENTITY_WITHER_SPAWN
+  particle: EXPLOSION
+
+# 授权策略（五种兑换方式）
+grant_policy:
+  inventory_grants: false      # 方式1: 拾取后立即生效
+  redeem_enabled: true         # 方式2: 允许使用 /rulegems redeem 兑换
+  full_set_grants_all: true    # 方式3: 允许使用 /rulegems redeemall 一次性兑换全部
+  place_redeem_enabled: false  # 方式4: 在祭坛位置放置宝石兑换（每颗宝石的祭坛位置在gems配置中设置）
+  hold_to_redeem_enabled: true # 方式5: 手持宝石长按右键3秒"吃掉"宝石进行兑换（更有仪式感）
+
+# ==========================================
+# 放置兑换（祭坛模式）全局设置
+# ==========================================
+# 每颗宝石的祭坛位置在 gems/*.yml 中通过 altar 字段设置
+# 或使用命令 /rulegems setaltar <宝石key> 来设置
+place_redeem:
+  # 允许的放置半径（方块数），0 表示必须精确放置在祭坛坐标
+  radius: 1
+  # 兑换时播放的音效
+  sound: BLOCK_BEACON_ACTIVATE
+  # 兑换时的粒子效果
+  particle: TOTEM
+  # 是否播放信标光束特效
+  beacon_beam: true
+  # 信标光束持续时间（秒）
+  beacon_beam_duration: 5
+
+# ==========================================
+# 长按右键兑换设置
+# ==========================================
+# 手持宝石长按右键"吃掉"宝石进行兑换
+hold_to_redeem:
+  # 长按时长（秒），默认3秒
+  duration: 3
+  # 下蹲行为设置
+  # sneak_to_redeem: true  - 下蹲+长按右键兑换，普通右键可放置宝石（默认，推荐）
+  # sneak_to_redeem: false - 普通长按右键兑换，下蹲+右键可放置宝石
+  sneak_to_redeem: true
+
+# ==========================================
+# 宝石逃逸机制
+# ==========================================
+# 防止统治者将宝石永久藏起来导致权力无法流转
+gem_escape:
+  # 是否启用逃逸功能
+  enabled: false
+  # 最小逃逸间隔 - 宝石放置后至少等待这么久
+  # 支持的单位: s(秒), m(分钟), h(小时), d(天)
+  # 示例: "30m", "2h", "1d", "90s"
+  # 也可以直接写数字，默认单位为分钟
+  min_interval: "30m"
+  # 最大逃逸间隔 - 宝石放置后最多等待这么久
+  max_interval: "2h"
+  # 是否广播逃逸消息
+  broadcast: true
+  # 逃逸时播放的音效（留空则不播放）
+  sound: ENTITY_ENDERMAN_TELEPORT
+  # 逃逸时的粒子效果（留空则不播放）
+  particle: PORTAL

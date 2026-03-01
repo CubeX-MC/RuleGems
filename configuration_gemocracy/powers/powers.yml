@@ -1,0 +1,186 @@
+# ==========================================
+# RuleGems - Power Templates
+# ==========================================
+
+# ==========================================
+# Level 2 Powers (Sub-appointments)
+# Must be defined BEFORE Level 1 Powers
+# ==========================================
+
+police_power:
+  command_allows:
+    - command: "/rgjail"
+      execute:
+        - "console:cmi jail %arg1% %arg2|jailed% 5m"
+      time_limit: 3
+      cooldown: 600
+  effects:
+    - "SPEED"
+
+investigator_power:
+  permissions:
+    - "coreprotect.inspect"
+  effects:
+    - "NIGHT_VISION"
+
+scout_power:
+  command_allows:
+    - command: "/tempfly"
+      execute:
+        - "console:cmi tfly %player% 30"
+      time_limit: 3
+      cooldown: 600
+  effects:
+    - "SPEED"
+
+medic_power:
+  command_allows:
+    - command: "/heal"
+      execute:
+        - "console:cmi heal %target|%player%%"
+      time_limit: 5
+      cooldown: 300
+  effects:
+    - type: "REGENERATION"
+      amplifier: 0
+
+assassin_power:
+  effects:
+    - "INVISIBILITY"
+    - "SPEED"
+
+land_warden_power:
+  effects:
+    - type: "FAST_DIGGING"
+      amplifier: 0
+  permissions:
+    - "lands.command.info"
+
+navigator_power:
+  permissions:
+    - "rulegems.navigate"
+
+# ==========================================
+# Level 1 Powers (Main Gems)
+# ==========================================
+
+justice_gem:
+  command_allows:
+    - command: "/rgjail"
+      execute:
+        - "console:cmi jail %arg1% %arg2|jailed% %arg3|10m%"
+      time_limit: 10
+      cooldown: 300
+    - command: "/mute"
+      execute:
+        - "console:cmi mute %arg1% %arg2|10m%"
+      time_limit: 10
+      cooldown: 300
+  effects:
+    - type: "DAMAGE_RESISTANCE"
+      amplifier: 1
+  appoints:
+    police:
+      display_name: "&9Police"
+      max_count: 3
+      power: police_power
+      on_appoint:
+        - "console:broadcast &e%player% &bappointed &e%target% &bas a Police Officer!"
+      on_revoke:
+        - "console:broadcast &e%target% &cwas dismissed from the Police Force!"
+
+truth_gem:
+  permissions:
+    - "coreprotect.inspect"
+    - "coreprotect.lookup"
+    - "cmi.command.inv"
+  effects:
+    - "NIGHT_VISION"
+  appoints:
+    investigator:
+      display_name: "&bInvestigator"
+      max_count: 3
+      power: investigator_power
+      on_appoint:
+        - "console:broadcast &e%player% &bappointed &e%target% &bas an Investigator!"
+
+flight_gem:
+  command_allows:
+    - command: "/tempfly"
+      execute:
+        - "console:cmi tfly %player% 120"
+        - "console:tellraw %player% {\"text\":\"✈ You received 120 seconds of flight time!\",\"color\":\"green\"}"
+      time_limit: 5
+      cooldown: 300
+  effects:
+    - type: "SLOW_FALLING"
+      amplifier: 0
+    - type: "JUMP"
+      amplifier: 1
+  appoints:
+    scout:
+      display_name: "&eScout"
+      max_count: 3
+      power: scout_power
+      on_appoint:
+        - "console:broadcast &e%player% &bappointed &e%target% &bas an Aerial Scout!"
+
+life_gem:
+  permissions:
+    - "cmi.command.heal"
+  effects:
+    - type: "REGENERATION"
+      amplifier: 1
+    - type: "HEALTH_BOOST"
+      amplifier: 0
+  appoints:
+    medic:
+      display_name: "&cMedic"
+      max_count: 5
+      power: medic_power
+      on_appoint:
+        - "console:broadcast &e%player% &bappointed &e%target% &bas a Medic!"
+
+lead_assassin_gem:
+  effects:
+    - "INVISIBILITY"
+    - type: "SPEED"
+      amplifier: 1
+    - type: "INCREASE_DAMAGE"
+      amplifier: 0
+  appoints:
+    assassin:
+      display_name: "&8Assassin"
+      max_count: 3
+      power: assassin_power
+      on_appoint:
+        - "console:broadcast &8%target% was recruited into the Brotherhood of Shadows..."
+
+land_gem:
+  permissions:
+    - "lands.admin.command.bypass"
+    - "lands.admin.command.edit"
+  effects:
+    - type: "FAST_DIGGING"
+      amplifier: 1
+  appoints:
+    land_warden:
+      display_name: "&6Land Warden"
+      max_count: 2
+      power: land_warden_power
+      on_appoint:
+        - "console:broadcast &e%player% &bappointed &e%target% &bas a Land Warden!"
+
+navigation_gem:
+  permissions:
+    - "rulegems.navigate"
+  effects:
+    - type: "SPEED"
+      amplifier: 1
+  appoints:
+    navigator:
+      display_name: "&aNavigator"
+      max_count: 4
+      power: navigator_power
+      on_appoint:
+        - "console:broadcast &e%player% &bappointed &e%target% &bas a Navigator!"

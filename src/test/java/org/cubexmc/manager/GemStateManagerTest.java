@@ -36,9 +36,12 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class GemStateManagerTest {
 
-    @Mock private RuleGems plugin;
-    @Mock private GemDefinitionParser gemParser;
-    @Mock private LanguageManager languageManager;
+    @Mock
+    private RuleGems plugin;
+    @Mock
+    private GemDefinitionParser gemParser;
+    @Mock
+    private LanguageManager languageManager;
 
     private GemStateManager manager;
 
@@ -75,8 +78,9 @@ class GemStateManagerTest {
 
     private GemDefinition createSimpleDef(String key, String displayName) {
         PowerStructure ps = new PowerStructure();
-        return new GemDefinition(key, Material.DIAMOND_BLOCK, displayName, null, null,
-                null, null, null, ps, null, null, false, null, 1, null, null, null);
+        return new GemDefinition.Builder(key)
+                .material(Material.DIAMOND_BLOCK).displayName(displayName)
+                .powerStructure(ps).build();
     }
 
     // ==================== Mapping Consistency ====================

@@ -25,13 +25,13 @@ import org.cubexmc.model.PowerStructure;
 public class PowerStructureManager {
 
     private final RuleGems plugin;
-    
+
     // 权限附件缓存（按命名空间分组）
     private final Map<String, Map<UUID, PermissionAttachment>> attachmentsByNamespace = new HashMap<>();
-    
+
     // 已应用的权力结构（用于追踪和撤销）
     private final Map<String, Map<UUID, Set<String>>> appliedStructures = new HashMap<>();
-    
+
     // 已应用的药水效果（用于追踪和撤销）: namespace -> playerUuid -> sourceId -> List<EffectConfig>
     private final Map<String, Map<UUID, Map<String, List<EffectConfig>>>> appliedEffects = new HashMap<>();
 
@@ -44,17 +44,18 @@ public class PowerStructureManager {
     /**
      * 应用权力结构给玩家
      * 
-     * @param player 目标玩家
-     * @param structure 权力结构
-     * @param namespace 命名空间（如 "gem", "appoint"）
-     * @param sourceId 来源 ID（如宝石 key, 权限集 key）
+     * @param player         目标玩家
+     * @param structure      权力结构
+     * @param namespace      命名空间（如 "gem", "appoint"）
+     * @param sourceId       来源 ID（如宝石 key, 权限集 key）
      * @param checkCondition 是否检查条件
      * @return 是否成功应用
      */
-    public boolean applyStructure(Player player, PowerStructure structure, 
-                                   String namespace, String sourceId, boolean checkCondition) {
-        if (player == null || structure == null) return false;
-        
+    public boolean applyStructure(Player player, PowerStructure structure,
+            String namespace, String sourceId, boolean checkCondition) {
+        if (player == null || structure == null)
+            return false;
+
         // 检查条件
         if (checkCondition && structure.hasConditions()) {
             PowerCondition condition = structure.getCondition();
@@ -62,36 +63,35 @@ public class PowerStructureManager {
                 return false;
             }
         }
-        
+
         UUID playerId = player.getUniqueId();
-        
+
         // 获取或创建权限附件
-        Map<UUID, PermissionAttachment> namespaceAttachments = 
-            attachmentsByNamespace.computeIfAbsent(namespace, k -> new HashMap<>());
+        Map<UUID, PermissionAttachment> namespaceAttachments = attachmentsByNamespace.computeIfAbsent(namespace,
+                k -> new HashMap<>());
         PermissionAttachment attachment = namespaceAttachments.get(playerId);
         if (attachment == null) {
             attachment = player.addAttachment(plugin);
             namespaceAttachments.put(playerId, attachment);
         }
-        
+
         // 应用权限
         for (String perm : structure.getPermissions()) {
             if (perm != null && !perm.trim().isEmpty()) {
                 attachment.setPermission(perm, true);
             }
         }
-        
+
         // 应用 Vault 组
         applyVaultGroups(player, structure.getVaultGroups());
-        
+
         // 应用药水效果
         applyEffects(player, structure.getEffects(), namespace, sourceId);
-        
+
         // 记录已应用的结构
-        Map<UUID, Set<String>> namespaceApplied = 
-            appliedStructures.computeIfAbsent(namespace, k -> new HashMap<>());
+        Map<UUID, Set<String>> namespaceApplied = appliedStructures.computeIfAbsent(namespace, k -> new HashMap<>());
         namespaceApplied.computeIfAbsent(playerId, k -> new HashSet<>()).add(sourceId);
-        
+
         player.recalculatePermissions();
         return true;
     }
@@ -99,12 +99,13 @@ public class PowerStructureManager {
     /**
      * 移除玩家的权力结构
      */
-    public void removeStructure(Player player, PowerStructure structure, 
-                                 String namespace, String sourceId) {
-        if (player == null || structure == null) return;
-        
+    public void removeStructure(Player player, PowerStructure structure,
+            String namespace, String sourceId) {
+        if (player == null || structure == null)
+            return;
+
         UUID playerId = player.getUniqueId();
-        
+
         // 获取权限附件
         Map<UUID, PermissionAttachment> namespaceAttachments = attachmentsByNamespace.get(namespace);
         if (namespaceAttachments != null) {
@@ -118,13 +119,13 @@ public class PowerStructureManager {
                 }
             }
         }
-        
+
         // 移除 Vault 组
         removeVaultGroups(player, structure.getVaultGroups());
-        
+
         // 移除药水效果
         removeEffects(player, structure.getEffects(), namespace, sourceId);
-        
+
         // 更新记录
         Map<UUID, Set<String>> namespaceApplied = appliedStructures.get(namespace);
         if (namespaceApplied != null) {
@@ -133,7 +134,7 @@ public class PowerStructureManager {
                 playerApplied.remove(sourceId);
             }
         }
-        
+
         player.recalculatePermissions();
     }
 
@@ -141,28 +142,31 @@ public class PowerStructureManager {
      * 清除玩家在某命名空间下的所有权限附件
      */
     public void clearNamespace(Player player, String namespace) {
-        if (player == null) return;
-        
+        if (player == null)
+            return;
+
         UUID playerId = player.getUniqueId();
-        
+
         Map<UUID, PermissionAttachment> namespaceAttachments = attachmentsByNamespace.get(namespace);
         if (namespaceAttachments != null) {
             PermissionAttachment attachment = namespaceAttachments.remove(playerId);
             if (attachment != null) {
                 try {
                     attachment.remove();
-                } catch (Exception e) { plugin.getLogger().fine("Failed to remove permission attachment: " + e.getMessage()); }
+                } catch (Exception e) {
+                    plugin.getLogger().fine("Failed to remove permission attachment: " + e.getMessage());
+                }
             }
         }
-        
+
         // 清除所有药水效果
         clearEffectsForPlayer(player, namespace);
-        
+
         Map<UUID, Set<String>> namespaceApplied = appliedStructures.get(namespace);
         if (namespaceApplied != null) {
             namespaceApplied.remove(playerId);
         }
-        
+
         player.recalculatePermissions();
     }
 
@@ -175,10 +179,13 @@ public class PowerStructureManager {
             for (PermissionAttachment attachment : namespaceAttachments.values()) {
                 try {
                     attachment.remove();
-                } catch (Exception e) { plugin.getLogger().fine("Failed to remove permission attachment in namespace cleanup: " + e.getMessage()); }
+                } catch (Exception e) {
+                    plugin.getLogger()
+                            .fine("Failed to remove permission attachment in namespace cleanup: " + e.getMessage());
+                }
             }
         }
-        
+
         // 清除所有药水效果
         Map<UUID, Map<String, List<EffectConfig>>> namespaceEffects = appliedEffects.remove(namespace);
         if (namespaceEffects != null) {
@@ -193,34 +200,30 @@ public class PowerStructureManager {
                 }
             }
         }
-        
+
         appliedStructures.remove(namespace);
     }
 
     // ==================== Vault 集成 ====================
 
     private void applyVaultGroups(Player player, List<String> groups) {
-        if (groups == null || groups.isEmpty()) return;
-        if (plugin.getVaultPerms() == null) return;
-        
+        if (groups == null || groups.isEmpty())
+            return;
+
         for (String group : groups) {
             if (group != null && !group.trim().isEmpty()) {
-                try {
-                    plugin.getVaultPerms().playerAddGroup(player, group);
-                } catch (Exception e) { plugin.getLogger().fine("Failed to add vault group '" + group + "': " + e.getMessage()); }
+                plugin.getPermissionProvider().addGroup(player, group);
             }
         }
     }
 
     private void removeVaultGroups(Player player, List<String> groups) {
-        if (groups == null || groups.isEmpty()) return;
-        if (plugin.getVaultPerms() == null) return;
-        
+        if (groups == null || groups.isEmpty())
+            return;
+
         for (String group : groups) {
             if (group != null && !group.trim().isEmpty()) {
-                try {
-                    plugin.getVaultPerms().playerRemoveGroup(player, group);
-                } catch (Exception e) { plugin.getLogger().fine("Failed to remove vault group '" + group + "': " + e.getMessage()); }
+                plugin.getPermissionProvider().removeGroup(player, group);
             }
         }
     }
@@ -231,17 +234,18 @@ public class PowerStructureManager {
      * 应用药水效果
      */
     private void applyEffects(Player player, List<EffectConfig> effects, String namespace, String sourceId) {
-        if (effects == null || effects.isEmpty()) return;
-        
+        if (effects == null || effects.isEmpty())
+            return;
+
         UUID playerId = player.getUniqueId();
-        
+
         // 记录已应用的效果
-        Map<UUID, Map<String, List<EffectConfig>>> namespaceEffects = 
-            appliedEffects.computeIfAbsent(namespace, k -> new HashMap<>());
-        Map<String, List<EffectConfig>> playerEffects = 
-            namespaceEffects.computeIfAbsent(playerId, k -> new HashMap<>());
+        Map<UUID, Map<String, List<EffectConfig>>> namespaceEffects = appliedEffects.computeIfAbsent(namespace,
+                k -> new HashMap<>());
+        Map<String, List<EffectConfig>> playerEffects = namespaceEffects.computeIfAbsent(playerId,
+                k -> new HashMap<>());
         playerEffects.put(sourceId, new ArrayList<>(effects));
-        
+
         // 应用效果
         for (EffectConfig effect : effects) {
             if (effect != null) {
@@ -254,10 +258,11 @@ public class PowerStructureManager {
      * 移除药水效果
      */
     private void removeEffects(Player player, List<EffectConfig> effects, String namespace, String sourceId) {
-        if (effects == null || effects.isEmpty()) return;
-        
+        if (effects == null || effects.isEmpty())
+            return;
+
         UUID playerId = player.getUniqueId();
-        
+
         // 更新记录
         Map<UUID, Map<String, List<EffectConfig>>> namespaceEffects = appliedEffects.get(namespace);
         if (namespaceEffects != null) {
@@ -266,7 +271,7 @@ public class PowerStructureManager {
                 playerEffects.remove(sourceId);
             }
         }
-        
+
         // 检查是否还有其他来源提供相同效果
         for (EffectConfig effect : effects) {
             if (effect != null && !isEffectProvidedByOtherSource(playerId, namespace, sourceId, effect)) {
@@ -278,19 +283,23 @@ public class PowerStructureManager {
     /**
      * 检查效果是否由其他来源提供
      */
-    private boolean isEffectProvidedByOtherSource(UUID playerId, String namespace, String excludeSourceId, EffectConfig effect) {
+    private boolean isEffectProvidedByOtherSource(UUID playerId, String namespace, String excludeSourceId,
+            EffectConfig effect) {
         Map<UUID, Map<String, List<EffectConfig>>> namespaceEffects = appliedEffects.get(namespace);
-        if (namespaceEffects == null) return false;
-        
+        if (namespaceEffects == null)
+            return false;
+
         Map<String, List<EffectConfig>> playerEffects = namespaceEffects.get(playerId);
-        if (playerEffects == null) return false;
-        
+        if (playerEffects == null)
+            return false;
+
         for (Map.Entry<String, List<EffectConfig>> entry : playerEffects.entrySet()) {
-            if (entry.getKey().equals(excludeSourceId)) continue;
-            
+            if (entry.getKey().equals(excludeSourceId))
+                continue;
+
             for (EffectConfig otherEffect : entry.getValue()) {
-                if (otherEffect.getEffectType() != null && 
-                    otherEffect.getEffectType().equals(effect.getEffectType())) {
+                if (otherEffect.getEffectType() != null &&
+                        otherEffect.getEffectType().equals(effect.getEffectType())) {
                     return true;
                 }
             }
@@ -303,13 +312,15 @@ public class PowerStructureManager {
      */
     private void clearEffectsForPlayer(Player player, String namespace) {
         UUID playerId = player.getUniqueId();
-        
+
         Map<UUID, Map<String, List<EffectConfig>>> namespaceEffects = appliedEffects.get(namespace);
-        if (namespaceEffects == null) return;
-        
+        if (namespaceEffects == null)
+            return;
+
         Map<String, List<EffectConfig>> playerEffects = namespaceEffects.remove(playerId);
-        if (playerEffects == null) return;
-        
+        if (playerEffects == null)
+            return;
+
         // 移除所有效果
         for (List<EffectConfig> effectList : playerEffects.values()) {
             for (EffectConfig effect : effectList) {
@@ -325,13 +336,15 @@ public class PowerStructureManager {
      */
     public void refreshEffectsForPlayer(Player player, String namespace) {
         UUID playerId = player.getUniqueId();
-        
+
         Map<UUID, Map<String, List<EffectConfig>>> namespaceEffects = appliedEffects.get(namespace);
-        if (namespaceEffects == null) return;
-        
+        if (namespaceEffects == null)
+            return;
+
         Map<String, List<EffectConfig>> playerEffects = namespaceEffects.get(playerId);
-        if (playerEffects == null) return;
-        
+        if (playerEffects == null)
+            return;
+
         // 重新应用所有效果（用于条件刷新后恢复）
         for (List<EffectConfig> effectList : playerEffects.values()) {
             for (EffectConfig effect : effectList) {
@@ -347,26 +360,29 @@ public class PowerStructureManager {
     /**
      * 刷新玩家的所有权力结构（根据条件重新应用）
      * 
-     * @param player 玩家
-     * @param namespace 命名空间
+     * @param player            玩家
+     * @param namespace         命名空间
      * @param structureProvider 结构提供者（sourceId -> PowerStructure）
      */
-    public void refreshStructures(Player player, String namespace, 
-                                   java.util.function.Function<String, PowerStructure> structureProvider) {
-        if (player == null) return;
-        
+    public void refreshStructures(Player player, String namespace,
+            java.util.function.Function<String, PowerStructure> structureProvider) {
+        if (player == null)
+            return;
+
         UUID playerId = player.getUniqueId();
-        
+
         // 获取当前已应用的结构
         Map<UUID, Set<String>> namespaceApplied = appliedStructures.get(namespace);
-        if (namespaceApplied == null) return;
-        
+        if (namespaceApplied == null)
+            return;
+
         Set<String> appliedIds = namespaceApplied.get(playerId);
-        if (appliedIds == null || appliedIds.isEmpty()) return;
-        
+        if (appliedIds == null || appliedIds.isEmpty())
+            return;
+
         // 清除当前附件
         clearNamespace(player, namespace);
-        
+
         // 重新应用（会检查条件）
         for (String sourceId : new ArrayList<>(appliedIds)) {
             PowerStructure structure = structureProvider.apply(sourceId);
@@ -383,8 +399,9 @@ public class PowerStructureManager {
      */
     public boolean hasApplied(UUID playerId, String namespace, String sourceId) {
         Map<UUID, Set<String>> namespaceApplied = appliedStructures.get(namespace);
-        if (namespaceApplied == null) return false;
-        
+        if (namespaceApplied == null)
+            return false;
+
         Set<String> playerApplied = namespaceApplied.get(playerId);
         return playerApplied != null && playerApplied.contains(sourceId);
     }
@@ -394,8 +411,9 @@ public class PowerStructureManager {
      */
     public Set<String> getAppliedIds(UUID playerId, String namespace) {
         Map<UUID, Set<String>> namespaceApplied = appliedStructures.get(namespace);
-        if (namespaceApplied == null) return new HashSet<>();
-        
+        if (namespaceApplied == null)
+            return new HashSet<>();
+
         Set<String> playerApplied = namespaceApplied.get(playerId);
         return playerApplied != null ? new HashSet<>(playerApplied) : new HashSet<>();
     }
@@ -420,12 +438,14 @@ public class PowerStructureManager {
             }
         }
         appliedEffects.clear();
-        
+
         for (Map<UUID, PermissionAttachment> namespaceAttachments : attachmentsByNamespace.values()) {
             for (PermissionAttachment attachment : namespaceAttachments.values()) {
                 try {
                     attachment.remove();
-                } catch (Exception e) { plugin.getLogger().fine("Failed to remove permission attachment during cleanup: " + e.getMessage()); }
+                } catch (Exception e) {
+                    plugin.getLogger().fine("Failed to remove permission attachment during cleanup: " + e.getMessage());
+                }
             }
         }
         attachmentsByNamespace.clear();

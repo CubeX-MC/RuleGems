@@ -27,6 +27,9 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.cubexmc.RuleGems;
+import org.cubexmc.event.GemPickupEvent;
+import org.cubexmc.event.GemPlaceEvent;
+import org.cubexmc.event.GemRedeemEvent;
 import org.cubexmc.model.ExecuteConfig;
 import org.cubexmc.model.GemDefinition;
 import org.cubexmc.utils.EffectUtils;
@@ -57,8 +60,8 @@ public class GemManager {
     private final GemScatterService scatterService;
 
     public GemManager(RuleGems plugin, ConfigManager configManager, GemDefinitionParser gemParser,
-                      GameplayConfig gameplayConfig, EffectUtils effectUtils,
-                      LanguageManager languageManager) {
+            GameplayConfig gameplayConfig, EffectUtils effectUtils,
+            LanguageManager languageManager) {
         this.plugin = plugin;
         this.configManager = configManager;
         this.gemParser = gemParser;
@@ -69,7 +72,8 @@ public class GemManager {
         this.stateManager = new GemStateManager(plugin, gemParser, languageManager);
         this.allowanceManager = new GemAllowanceManager(gemParser, gameplayConfig);
         this.permissionManager = new GemPermissionManager(plugin, gameplayConfig, stateManager);
-        this.placementManager = new GemPlacementManager(plugin, gemParser, gameplayConfig, languageManager, stateManager);
+        this.placementManager = new GemPlacementManager(plugin, gemParser, gameplayConfig, languageManager,
+                stateManager);
         this.scatterService = new GemScatterService(stateManager, placementManager, gemParser, gameplayConfig,
                 effectUtils, languageManager, this::saveGems);
 
@@ -86,12 +90,29 @@ public class GemManager {
 
     // ========== 子管理器访问器 ==========
 
-    public GemStateManager getStateManager() { return stateManager; }
-    public GemAllowanceManager getAllowanceManager() { return allowanceManager; }
-    public GemPermissionManager getPermissionManager() { return permissionManager; }
-    public GemPlacementManager getPlacementManager() { return placementManager; }
-    public ConfigManager getConfigManager() { return configManager; }
-    public boolean isInventoryGrantsEnabled() { return gameplayConfig.isInventoryGrantsEnabled(); }
+    public GemStateManager getStateManager() {
+        return stateManager;
+    }
+
+    public GemAllowanceManager getAllowanceManager() {
+        return allowanceManager;
+    }
+
+    public GemPermissionManager getPermissionManager() {
+        return permissionManager;
+    }
+
+    public GemPlacementManager getPlacementManager() {
+        return placementManager;
+    }
+
+    public ConfigManager getConfigManager() {
+        return configManager;
+    }
+
+    public boolean isInventoryGrantsEnabled() {
+        return gameplayConfig.isInventoryGrantsEnabled();
+    }
 
     public void setHistoryLogger(HistoryLogger historyLogger) {
         this.historyLogger = historyLogger;
@@ -99,7 +120,7 @@ public class GemManager {
     }
 
     // ====================================================================
-    //  加载 / 保存
+    // 加载 / 保存
     // ====================================================================
 
     public void loadGems() {
@@ -138,26 +159,45 @@ public class GemManager {
 
     public void saveGems() {
         placementManager.cancelAllEscapeTasks();
-        FileConfiguration gemsData = configManager.getGemsData();
 
-        // 清除旧数据段
-        for (String key : new String[]{
-                "placed-gems", "held-gems", "redeemed", "redeem_owner",
-                "redeem_owner_by_id", "full_set_owner", "pending_revokes",
-                "allowed_uses", "player_names"}) {
-            gemsData.set(key, null);
+        // 步骤 1：主线程中提取全部将要保存的数据为主线程安全的 Map
+        Map<String, Object> snapshot = new HashMap<>();
+
+        // 委托各自模块填充纯数据 (不依赖 Bukkit FileConfiguration)
+        stateManager.populateSaveSnapshot(snapshot);
+        permissionManager.populateSaveSnapshot(snapshot);
+        allowanceManager.populateSaveSnapshot(snapshot);
+
+        // 步骤 2：执行磁盘 I/O (如果插件已禁用，则同步执行；否则异步执行)
+        Runnable saveTask = () -> {
+            FileConfiguration gemsData = configManager.getGemsData();
+
+            // 清理旧节点
+            for (String key : new String[] {
+                    "placed-gems", "held-gems", "redeemed", "redeem_owner",
+                    "redeem_owner_by_id", "full_set_owner", "pending_revokes",
+                    "allowed_uses", "player_names" }) {
+                gemsData.set(key, null);
+            }
+
+            // 将 Snapshot 里的数据写入 YAML
+            for (Map.Entry<String, Object> entry : snapshot.entrySet()) {
+                gemsData.set(entry.getKey(), entry.getValue());
+            }
+
+            // 保存到磁盘
+            configManager.saveGemData(gemsData);
+        };
+
+        if (plugin.isEnabled()) {
+            SchedulerUtil.asyncRun(plugin, saveTask, 0L);
+        } else {
+            saveTask.run();
         }
-
-        // 委托保存
-        stateManager.saveData(gemsData);
-        permissionManager.saveData(gemsData);
-        allowanceManager.saveData(gemsData);
-
-        configManager.saveGemData(gemsData);
     }
 
     // ====================================================================
-    //  初始化辅助
+    // 初始化辅助
     // ====================================================================
 
     public void ensureConfiguredGemsPresent() {
@@ -169,7 +209,7 @@ public class GemManager {
     }
 
     // ====================================================================
-    //  事件处理（协调子管理器）
+    // 事件处理（协调子管理器）
     // ====================================================================
 
     /** 宝石方块被敲击 → 允许一击破坏 */
@@ -180,10 +220,12 @@ public class GemManager {
     /** 宝石放置 */
     public void onGemPlaced(BlockPlaceEvent event) {
         ItemStack inHand = event.getItemInHand();
-        if (!stateManager.isRuleGem(inHand)) return;
+        if (!stateManager.isRuleGem(inHand))
+            return;
 
         UUID gemId = stateManager.getGemUUID(inHand);
-        if (gemId == null) gemId = UUID.randomUUID();
+        if (gemId == null)
+            gemId = UUID.randomUUID();
 
         Block block = event.getBlockPlaced();
         Location placedLoc = block.getLocation();
@@ -197,7 +239,15 @@ public class GemManager {
             return;
         }
 
-        // 普通放置
+        // 普通放置 — fire GemPlaceEvent before modifying state
+        String gemKeyForEvent = stateManager.getGemKey(gemId);
+        GemPlaceEvent placeEvent = new GemPlaceEvent(placer, gemId, gemKeyForEvent, placedLoc);
+        Bukkit.getPluginManager().callEvent(placeEvent);
+        if (placeEvent.isCancelled()) {
+            event.setCancelled(true);
+            return;
+        }
+
         stateManager.clearGemHolder(gemId);
         stateManager.bindPlacedGem(placedLoc, gemId);
 
@@ -214,7 +264,11 @@ public class GemManager {
             UUID fGemId = gemId;
             SchedulerUtil.entityRun(plugin, placer, () -> {
                 stateManager.removeGemItemFromInventory(placer, fGemId);
-                try { placer.updateInventory(); } catch (Throwable e) { plugin.getLogger().fine("Failed to update placer inventory: " + e.getMessage()); }
+                try {
+                    placer.updateInventory();
+                } catch (Throwable e) {
+                    plugin.getLogger().fine("Failed to update placer inventory: " + e.getMessage());
+                }
             }, 1L, -1L);
         }
     }
@@ -222,10 +276,15 @@ public class GemManager {
     /** 宝石方块被破坏 → 回收到玩家背包 */
     public void onGemBroken(BlockBreakEvent event) {
         Block block = event.getBlock();
-        if (!stateManager.getLocationToGemUuid().containsKey(block.getLocation())) return;
+        if (!stateManager.getLocationToGemUuid().containsKey(block.getLocation()))
+            return;
 
         event.setDropItems(false);
-        try { event.setExpToDrop(0); } catch (Throwable e) { plugin.getLogger().fine("Failed to set exp drop to zero: " + e.getMessage()); }
+        try {
+            event.setExpToDrop(0);
+        } catch (Throwable e) {
+            plugin.getLogger().fine("Failed to set exp drop to zero: " + e.getMessage());
+        }
 
         UUID gemId = stateManager.getLocationToGemUuid().get(block.getLocation());
         Player player = event.getPlayer();
@@ -233,6 +292,15 @@ public class GemManager {
 
         if (inv.firstEmpty() == -1) {
             languageManager.logMessage("inventory_full");
+            event.setCancelled(true);
+            return;
+        }
+
+        // Fire GemPickupEvent before giving the gem to the player
+        String pickupKey = stateManager.getGemKey(gemId);
+        GemPickupEvent pickupEvent = new GemPickupEvent(player, gemId, pickupKey, block.getLocation());
+        Bukkit.getPluginManager().callEvent(pickupEvent);
+        if (pickupEvent.isCancelled()) {
             event.setCancelled(true);
             return;
         }
@@ -269,7 +337,8 @@ public class GemManager {
     /** 玩家丢弃宝石 → 放置到地面 */
     public void onPlayerDropItem(PlayerDropItemEvent event) {
         ItemStack item = event.getItemDrop().getItemStack();
-        if (!stateManager.isRuleGem(item)) return;
+        if (!stateManager.isRuleGem(item))
+            return;
         UUID gemId = stateManager.getGemUUID(item);
         event.getItemDrop().remove();
         stateManager.clearGemHolder(gemId);
@@ -310,7 +379,7 @@ public class GemManager {
     }
 
     // ====================================================================
-    //  散落
+    // 散落
     // ====================================================================
 
     public void scatterGems() {
@@ -318,49 +387,49 @@ public class GemManager {
     }
 
     // ====================================================================
-    //  兑换
+    // 兑换
     // ====================================================================
 
     /**
      * 主手持有宝石的兑换流程
      */
     public boolean redeemGemInHand(Player player) {
-        if (player == null) return false;
+        if (player == null)
+            return false;
         stateManager.cachePlayerName(player);
         if (!gameplayConfig.isRedeemEnabled()) {
             languageManager.sendMessage(player, "command.redeem.disabled");
             return true;
         }
         ItemStack inHand = player.getInventory().getItemInMainHand();
-        if (!stateManager.isRuleGem(inHand)) return false;
+        if (!stateManager.isRuleGem(inHand))
+            return false;
         UUID matchedGemId = stateManager.getGemUUID(inHand);
-        if (matchedGemId == null) return false;
+        if (matchedGemId == null)
+            return false;
 
         String targetKey = stateManager.getGemKey(matchedGemId);
         if (targetKey == null || targetKey.isEmpty()) {
             stateManager.ensureGemKeyAssigned(matchedGemId);
             targetKey = stateManager.getGemKey(matchedGemId);
-            if (targetKey == null || targetKey.isEmpty()) return false;
+            if (targetKey == null || targetKey.isEmpty())
+                return false;
         }
 
         GemDefinition def = stateManager.findGemDefinition(targetKey);
-        permissionManager.markGemRedeemed(player, targetKey);
-        applyRedeemRewards(player, def);
+
+        // Fire GemRedeemEvent before modifying state
+        GemRedeemEvent redeemEvent = new GemRedeemEvent(player, matchedGemId, targetKey,
+                GemRedeemEvent.RedeemContext.HAND);
+        Bukkit.getPluginManager().callEvent(redeemEvent);
+        if (redeemEvent.isCancelled()) {
+            return true;
+        }
+
+        String previousOwnerName = processRedeemCore(player, matchedGemId, targetKey, def);
+
         stateManager.removeGemItemFromInventory(player, matchedGemId);
         stateManager.getGemUuidToHolder().remove(matchedGemId);
-
-        // 单颗竞争撤销
-        String normalizedKey = targetKey.toLowerCase(Locale.ROOT);
-        UUID old = permissionManager.getGemIdToRedeemer().put(matchedGemId, player.getUniqueId());
-        String previousOwnerName = null;
-        if (old != null && !old.equals(player.getUniqueId())) {
-            permissionManager.decrementOwnerKeyCount(old, normalizedKey, def);
-            Player oldP = Bukkit.getPlayer(old);
-            if (oldP != null && oldP.isOnline()) previousOwnerName = oldP.getName();
-        }
-        permissionManager.incrementOwnerKeyCount(player.getUniqueId(), normalizedKey, def);
-        allowanceManager.reassignRedeemInstanceAllowance(matchedGemId, player.getUniqueId(), def, true);
-
         placementManager.randomPlaceGem(matchedGemId);
 
         if (historyLogger != null) {
@@ -385,12 +454,14 @@ public class GemManager {
             return true;
         }
         List<GemDefinition> defs = gemParser.getGemDefinitions();
-        if (defs == null || defs.isEmpty()) return false;
+        if (defs == null || defs.isEmpty())
+            return false;
 
         // 检查每个定义是否都持有
         Map<String, UUID> keyToGemId = new HashMap<>();
         for (ItemStack item : player.getInventory().getContents()) {
-            if (!stateManager.isRuleGem(item)) continue;
+            if (!stateManager.isRuleGem(item))
+                continue;
             UUID id = stateManager.getGemUUID(item);
             String key = stateManager.getGemKey(id);
             if (key != null && !keyToGemId.containsKey(key.toLowerCase())) {
@@ -398,7 +469,8 @@ public class GemManager {
             }
         }
         for (GemDefinition d : defs) {
-            if (!keyToGemId.containsKey(d.getGemKey().toLowerCase())) return false;
+            if (!keyToGemId.containsKey(d.getGemKey().toLowerCase()))
+                return false;
         }
 
         // 依次兑换每颗宝石
@@ -406,8 +478,16 @@ public class GemManager {
         permissionManager.setFullSetOwner(player.getUniqueId());
         for (GemDefinition d : defs) {
             String normalizedKey = d.getGemKey().toLowerCase(Locale.ROOT);
-            permissionManager.markGemRedeemed(player, d.getGemKey());
             UUID gid = keyToGemId.get(normalizedKey);
+
+            // Fire GemRedeemEvent per gem (FULL_SET context)
+            GemRedeemEvent redeemEvent = new GemRedeemEvent(player, gid, d.getGemKey(),
+                    GemRedeemEvent.RedeemContext.FULL_SET);
+            Bukkit.getPluginManager().callEvent(redeemEvent);
+            if (redeemEvent.isCancelled())
+                continue; // skip this gem if cancelled
+
+            permissionManager.markGemRedeemed(player, d.getGemKey());
             if (gid != null) {
                 UUID old = permissionManager.getGemIdToRedeemer().put(gid, player.getUniqueId());
                 if (old != null && !old.equals(player.getUniqueId())) {
@@ -427,9 +507,14 @@ public class GemManager {
 
         if (historyLogger != null) {
             java.util.List<String> allPerms = new java.util.ArrayList<>();
-            for (GemDefinition d : defs) { if (d.getPermissions() != null) allPerms.addAll(d.getPermissions()); }
+            for (GemDefinition d : defs) {
+                if (d.getPermissions() != null)
+                    allPerms.addAll(d.getPermissions());
+            }
             historyLogger.logFullSetRedeem(player, defs.size(), allPerms,
-                    previousFull != null && !previousFull.equals(player.getUniqueId()) ? stateManager.getCachedPlayerName(previousFull) : null);
+                    previousFull != null && !previousFull.equals(player.getUniqueId())
+                            ? stateManager.getCachedPlayerName(previousFull)
+                            : null);
         }
 
         broadcastRedeemAllTitle(player, defs);
@@ -438,25 +523,16 @@ public class GemManager {
     }
 
     // ====================================================================
-    //  兑换内部辅助
+    // 兑换内部辅助
     // ====================================================================
 
-    private GemDefinition findMatchingAltarGem(Location loc, String gemKey) {
-        if (!gameplayConfig.isPlaceRedeemEnabled() || loc == null || gemKey == null) return null;
-        GemDefinition def = stateManager.findGemDefinition(gemKey);
-        if (def == null) return null;
-        Location altar = def.getAltarLocation();
-        if (altar == null || altar.getWorld() == null || loc.getWorld() == null) return null;
-        if (!altar.getWorld().equals(loc.getWorld())) return null;
-        if (altar.distance(loc) <= gameplayConfig.getPlaceRedeemRadius()) return def;
-        return null;
-    }
-
-    private void handlePlaceRedeem(Player player, UUID gemId, Location placedLoc, Block block, GemDefinition def) {
-        if (player == null || gemId == null || def == null) return;
-        String targetKey = def.getGemKey();
-
-        placementManager.playPlaceRedeemEffects(placedLoc);
+    /**
+     * 兑换核心逻辑（供 redeemGemInHand / handlePlaceRedeem / redeemAll 共享）。
+     * 执行：标记兑换 → 应用奖励 → 归属转移（竞争撤销）→ 额度重分配。
+     *
+     * @return 被竞争替换的前任拥有者名称（可为 null）
+     */
+    private String processRedeemCore(Player player, UUID gemId, String targetKey, GemDefinition def) {
         permissionManager.markGemRedeemed(player, targetKey);
         applyRedeemRewards(player, def);
 
@@ -466,10 +542,44 @@ public class GemManager {
         if (old != null && !old.equals(player.getUniqueId())) {
             permissionManager.decrementOwnerKeyCount(old, normalizedKey, def);
             Player oldP = Bukkit.getPlayer(old);
-            if (oldP != null && oldP.isOnline()) previousOwnerName = oldP.getName();
+            if (oldP != null && oldP.isOnline())
+                previousOwnerName = oldP.getName();
         }
         permissionManager.incrementOwnerKeyCount(player.getUniqueId(), normalizedKey, def);
         allowanceManager.reassignRedeemInstanceAllowance(gemId, player.getUniqueId(), def, true);
+        return previousOwnerName;
+    }
+
+    private GemDefinition findMatchingAltarGem(Location loc, String gemKey) {
+        if (!gameplayConfig.isPlaceRedeemEnabled() || loc == null || gemKey == null)
+            return null;
+        GemDefinition def = stateManager.findGemDefinition(gemKey);
+        if (def == null)
+            return null;
+        Location altar = def.getAltarLocation();
+        if (altar == null || altar.getWorld() == null || loc.getWorld() == null)
+            return null;
+        if (!altar.getWorld().equals(loc.getWorld()))
+            return null;
+        if (altar.distance(loc) <= gameplayConfig.getPlaceRedeemRadius())
+            return def;
+        return null;
+    }
+
+    private void handlePlaceRedeem(Player player, UUID gemId, Location placedLoc, Block block, GemDefinition def) {
+        if (player == null || gemId == null || def == null)
+            return;
+        String targetKey = def.getGemKey();
+
+        // Fire GemRedeemEvent (altar context) before modifying state
+        GemRedeemEvent redeemEvent = new GemRedeemEvent(player, gemId, targetKey, GemRedeemEvent.RedeemContext.ALTAR);
+        Bukkit.getPluginManager().callEvent(redeemEvent);
+        if (redeemEvent.isCancelled()) {
+            return;
+        }
+
+        placementManager.playPlaceRedeemEffects(placedLoc);
+        String previousOwnerName = processRedeemCore(player, gemId, targetKey, def);
 
         if (historyLogger != null) {
             historyLogger.logGemRedeem(player, targetKey, def.getDisplayName(),
@@ -483,7 +593,8 @@ public class GemManager {
         ph.put("player", player.getName());
         languageManager.sendMessage(player, "place_redeem.success", ph);
         for (Player online : Bukkit.getOnlinePlayers()) {
-            if (!online.equals(player)) languageManager.sendMessage(online, "place_redeem.broadcast", ph);
+            if (!online.equals(player))
+                languageManager.sendMessage(online, "place_redeem.broadcast", ph);
         }
 
         stateManager.getGemUuidToHolder().remove(gemId);
@@ -492,12 +603,17 @@ public class GemManager {
 
         SchedulerUtil.entityRun(plugin, player, () -> {
             stateManager.removeGemItemFromInventory(player, gemId);
-            try { player.updateInventory(); } catch (Throwable e) { plugin.getLogger().fine("Failed to update player inventory: " + e.getMessage()); }
+            try {
+                player.updateInventory();
+            } catch (Throwable e) {
+                plugin.getLogger().fine("Failed to update player inventory: " + e.getMessage());
+            }
         }, 1L, -1L);
     }
 
     private void applyRedeemRewards(Player player, GemDefinition def) {
-        if (player == null || def == null) return;
+        if (player == null || def == null)
+            return;
         ExecuteConfig onRedeem = def.getOnRedeem();
         if (onRedeem != null) {
             Map<String, String> ph = Map.of("%player%", player.getName());
@@ -508,7 +624,8 @@ public class GemManager {
     }
 
     private void broadcastRedeemTitle(Player player, GemDefinition def, String targetKey) {
-        if (!gameplayConfig.isBroadcastRedeemTitle()) return;
+        if (!gameplayConfig.isBroadcastRedeemTitle())
+            return;
         Map<String, String> ph = new HashMap<>();
         ph.put("player", player.getName());
         ph.put("gem", def != null && def.getDisplayName() != null ? def.getDisplayName() : targetKey);
@@ -526,7 +643,8 @@ public class GemManager {
         boolean broadcast = gameplayConfig.getRedeemAllBroadcastOverride() != null
                 ? gameplayConfig.getRedeemAllBroadcastOverride()
                 : gameplayConfig.isBroadcastRedeemTitle();
-        if (!broadcast) return;
+        if (!broadcast)
+            return;
         List<String> title = gameplayConfig.getRedeemAllTitle();
         Map<String, String> ph = new HashMap<>();
         ph.put("player", player.getName());
@@ -555,7 +673,8 @@ public class GemManager {
     }
 
     private void revokePreviousFullSetOwner(UUID previousFull, List<GemDefinition> defs) {
-        if (previousFull == null || previousFull.equals(permissionManager.getFullSetOwner())) return;
+        if (previousFull == null || previousFull.equals(permissionManager.getFullSetOwner()))
+            return;
         Player prev = Bukkit.getPlayer(previousFull);
         if (prev != null && prev.isOnline()) {
             PowerStructureManager psm = plugin.getPowerStructureManager();
@@ -565,8 +684,8 @@ public class GemManager {
                 } else if (d.getPermissions() != null) {
                     permissionManager.revokeNodesAll(prev, d.getPermissions());
                 }
-                if (d.getVaultGroup() != null && !d.getVaultGroup().isEmpty() && plugin.getVaultPerms() != null) {
-                    try { plugin.getVaultPerms().playerRemoveGroup(prev, d.getVaultGroup()); } catch (Exception e) { plugin.getLogger().fine("Failed to remove vault group: " + e.getMessage()); }
+                if (d.getVaultGroup() != null && !d.getVaultGroup().isEmpty()) {
+                    plugin.getPermissionProvider().removeGroup(prev, d.getVaultGroup());
                 }
             }
             prev.recalculatePermissions();
@@ -574,8 +693,10 @@ public class GemManager {
             Set<String> allPerms = new HashSet<>();
             Set<String> allGroups = new HashSet<>();
             for (GemDefinition d : defs) {
-                if (d.getPermissions() != null) allPerms.addAll(d.getPermissions());
-                if (d.getVaultGroup() != null && !d.getVaultGroup().isEmpty()) allGroups.add(d.getVaultGroup());
+                if (d.getPermissions() != null)
+                    allPerms.addAll(d.getPermissions());
+                if (d.getVaultGroup() != null && !d.getVaultGroup().isEmpty())
+                    allGroups.add(d.getVaultGroup());
             }
             permissionManager.queueOfflineRevokes(previousFull, allPerms, allGroups);
         }
@@ -583,7 +704,8 @@ public class GemManager {
 
     private void applyRedeemAllPower(Player player, List<GemDefinition> defs) {
         PowerStructure redeemAllPower = gameplayConfig.getRedeemAllPowerStructure();
-        if (redeemAllPower == null || !redeemAllPower.hasAnyContent()) return;
+        if (redeemAllPower == null || !redeemAllPower.hasAnyContent())
+            return;
         PowerStructureManager psm = plugin.getPowerStructureManager();
         if (psm != null) {
             psm.applyStructure(player, redeemAllPower, "gem_redeem_all", "full_set", false);
@@ -592,25 +714,26 @@ public class GemManager {
         }
         List<org.cubexmc.model.AllowedCommand> extraAllows = redeemAllPower.getAllowedCommands();
         if (extraAllows != null && !extraAllows.isEmpty()) {
-            GemDefinition pseudoDef = new GemDefinition(
-                    "ALL", Material.BEDROCK, "ALL", Particle.FLAME,
-                    org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, null, null, null,
-                    redeemAllPower, Collections.emptyList(), null, false,
-                    Collections.emptyList(), 1, null, null, null);
+            GemDefinition pseudoDef = new GemDefinition.Builder("ALL")
+                    .material(Material.BEDROCK).displayName("ALL")
+                    .powerStructure(redeemAllPower).build();
             allowanceManager.grantGlobalAllowedCommands(player, pseudoDef);
         }
         try {
             org.bukkit.Sound s = org.bukkit.Sound.valueOf(gameplayConfig.getRedeemAllSound());
             effectUtils.playGlobalSound(new ExecuteConfig(Collections.emptyList(), s.name(), null), 1.0f, 1.0f);
-        } catch (Exception e) { plugin.getLogger().fine("Failed to play redeem-all sound: " + e.getMessage()); }
+        } catch (Exception e) {
+            plugin.getLogger().fine("Failed to play redeem-all sound: " + e.getMessage());
+        }
     }
 
     // ====================================================================
-    //  强制放置
+    // 强制放置
     // ====================================================================
 
     public void forcePlaceGem(UUID gemId, Location target) {
-        if (gemId == null || target == null) return;
+        if (gemId == null || target == null)
+            return;
         Player holder = stateManager.getGemHolder(gemId);
         // 如果持有者在线，先移除物品
         if (holder != null) {
@@ -622,44 +745,107 @@ public class GemManager {
     }
 
     // ====================================================================
-    //  宝石状态查询（委托 stateManager）— 仅保留多模块共享的方法
+    // 宝石状态查询（委托 stateManager）— 仅保留多模块共享的方法
     // ====================================================================
 
-    public void gemStatus(CommandSender sender) { stateManager.gemStatus(sender); }
-    public boolean isRuleGem(ItemStack item) { return stateManager.isRuleGem(item); }
-    public UUID getGemUUID(ItemStack item) { return stateManager.getGemUUID(item); }
-    public Location getGemLocation(UUID gemId) { return stateManager.getGemLocation(gemId); }
-    public Player getGemHolder(UUID gemId) { return stateManager.getGemHolder(gemId); }
-    public String getGemKey(UUID gemId) { return stateManager.getGemKey(gemId); }
-    public Set<UUID> getAllGemUuids() { return stateManager.getAllGemUuids(); }
-    public UUID resolveGemIdentifier(String input) { return stateManager.resolveGemIdentifier(input); }
-    public Material getGemMaterial(UUID gemId) { return stateManager.getGemMaterial(gemId); }
-    public boolean isSupportRequired(Material mat) { return stateManager.isSupportRequired(mat); }
-    public boolean hasBlockSupport(Location loc) { return stateManager.hasBlockSupport(loc); }
-    public Map<UUID, Location> getAllGemLocations() { return stateManager.getAllGemLocations(); }
-    public GemDefinition findGemDefinitionByKey(String gemKey) { return stateManager.findGemDefinition(gemKey); }
-    public String getCachedPlayerName(UUID uuid) { return stateManager.getCachedPlayerName(uuid); }
+    public void gemStatus(CommandSender sender) {
+        stateManager.gemStatus(sender);
+    }
+
+    public boolean isRuleGem(ItemStack item) {
+        return stateManager.isRuleGem(item);
+    }
+
+    public UUID getGemUUID(ItemStack item) {
+        return stateManager.getGemUUID(item);
+    }
+
+    public Location getGemLocation(UUID gemId) {
+        return stateManager.getGemLocation(gemId);
+    }
+
+    public Player getGemHolder(UUID gemId) {
+        return stateManager.getGemHolder(gemId);
+    }
+
+    public String getGemKey(UUID gemId) {
+        return stateManager.getGemKey(gemId);
+    }
+
+    public Set<UUID> getAllGemUuids() {
+        return stateManager.getAllGemUuids();
+    }
+
+    public UUID resolveGemIdentifier(String input) {
+        return stateManager.resolveGemIdentifier(input);
+    }
+
+    public Material getGemMaterial(UUID gemId) {
+        return stateManager.getGemMaterial(gemId);
+    }
+
+    public boolean isSupportRequired(Material mat) {
+        return stateManager.isSupportRequired(mat);
+    }
+
+    public boolean hasBlockSupport(Location loc) {
+        return stateManager.hasBlockSupport(loc);
+    }
+
+    public Map<UUID, Location> getAllGemLocations() {
+        return stateManager.getAllGemLocations();
+    }
+
+    public GemDefinition findGemDefinitionByKey(String gemKey) {
+        return stateManager.findGemDefinition(gemKey);
+    }
+
+    public String getCachedPlayerName(UUID uuid) {
+        return stateManager.getCachedPlayerName(uuid);
+    }
 
     // ====================================================================
-    //  权限操作（委托 permissionManager）— 仅保留多模块共享的方法
+    // 权限操作（委托 permissionManager）— 仅保留多模块共享的方法
     // ====================================================================
 
-    public void recalculateGrants(Player player) { permissionManager.recalculateGrants(player); }
-    public boolean revokeAllPlayerPermissions(Player player) { return permissionManager.revokeAllPlayerPermissions(player); }
-    public Map<UUID, Set<String>> getCurrentRulers() { return permissionManager.getCurrentRulers(); }
-    public void queueOfflineRevokes(UUID user, java.util.Collection<String> perms, java.util.Collection<String> groups) {
+    public void recalculateGrants(Player player) {
+        permissionManager.recalculateGrants(player);
+    }
+
+    public boolean revokeAllPlayerPermissions(Player player) {
+        return permissionManager.revokeAllPlayerPermissions(player);
+    }
+
+    public Map<UUID, Set<String>> getCurrentRulers() {
+        return permissionManager.getCurrentRulers();
+    }
+
+    public void queueOfflineRevokes(UUID user, java.util.Collection<String> perms,
+            java.util.Collection<String> groups) {
         permissionManager.queueOfflineRevokes(user, perms, groups);
     }
+
     public void queueOfflineEffectRevokes(UUID user, List<org.cubexmc.model.EffectConfig> effects) {
         permissionManager.queueOfflineEffectRevokes(user, effects);
     }
 
     // ====================================================================
-    //  放置操作（委托 placementManager）— 仅保留多模块共享的方法
+    // 放置操作（委托 placementManager）— 仅保留多模块共享的方法
     // ====================================================================
 
-    public void startParticleEffectTask(Particle particle) { placementManager.startParticleEffectTask(particle); }
-    public void checkPlayersNearRuleGems() { placementManager.checkPlayersNearRuleGems(); }
-    public void setGemAltarLocation(String gemKey, Location location) { placementManager.setGemAltarLocation(gemKey, location); }
-    public void removeGemAltarLocation(String gemKey) { placementManager.removeGemAltarLocation(gemKey); }
+    public void startParticleEffectTask(Particle particle) {
+        placementManager.startParticleEffectTask(particle);
+    }
+
+    public void checkPlayersNearRuleGems() {
+        placementManager.checkPlayersNearRuleGems();
+    }
+
+    public void setGemAltarLocation(String gemKey, Location location) {
+        placementManager.setGemAltarLocation(gemKey, location);
+    }
+
+    public void removeGemAltarLocation(String gemKey) {
+        placementManager.removeGemAltarLocation(gemKey);
+    }
 }

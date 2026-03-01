@@ -8,6 +8,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Server;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -16,77 +17,103 @@ import org.bukkit.scheduler.BukkitTask;
  */
 public class SchedulerUtil {
 
-    /** 缓存 Folia 检测结果，避免每次调度都做反射 */
     private static final boolean IS_FOLIA;
+
+    // --- Cached Folia Reflection Methods ---
+    private static Method METHOD_GET_GLOBAL_REGION_SCHEDULER;
+    private static Method METHOD_GLOBAL_RUN;
+    private static Method METHOD_GLOBAL_RUN_DELAYED;
+    private static Method METHOD_GLOBAL_RUN_AT_FIXED_RATE;
+
+    private static Method METHOD_GET_ENTITY_SCHEDULER;
+    private static Method METHOD_ENTITY_RUN;
+    private static Method METHOD_ENTITY_RUN_DELAYED;
+    private static Method METHOD_ENTITY_RUN_AT_FIXED_RATE;
+
+    private static Method METHOD_GET_REGION_SCHEDULER;
+    private static Method METHOD_REGION_RUN;
+    private static Method METHOD_REGION_RUN_DELAYED;
+    private static Method METHOD_REGION_RUN_AT_FIXED_RATE;
+
+    private static Method METHOD_GET_ASYNC_SCHEDULER;
+    private static Method METHOD_ASYNC_RUN_NOW;
+    private static Method METHOD_ASYNC_RUN_DELAYED;
+
+    private static Method METHOD_PLAYER_TELEPORT_ASYNC;
+
     static {
-        boolean folia;
+        boolean folia = false;
         try {
             Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
             folia = true;
-        } catch (ClassNotFoundException e) {
+
+            // Pre-cache methods if Folia is detected
+            Class<?> serverClass = Bukkit.getServer().getClass();
+            Class<?> pluginClass = Plugin.class;
+            Class<?> consumerClass = Consumer.class;
+            Class<?> runnableClass = Runnable.class;
+            Class<?> locationClass = Location.class;
+
+            // Global Region Scheduler
+            METHOD_GET_GLOBAL_REGION_SCHEDULER = serverClass.getMethod("getGlobalRegionScheduler");
+            Class<?> globalSchedulerClass = METHOD_GET_GLOBAL_REGION_SCHEDULER.getReturnType();
+            METHOD_GLOBAL_RUN = globalSchedulerClass.getMethod("run", pluginClass, consumerClass);
+            METHOD_GLOBAL_RUN_DELAYED = globalSchedulerClass.getMethod("runDelayed", pluginClass, consumerClass,
+                    long.class);
+            METHOD_GLOBAL_RUN_AT_FIXED_RATE = globalSchedulerClass.getMethod("runAtFixedRate", pluginClass,
+                    consumerClass, long.class, long.class);
+
+            // Entity Scheduler
+            METHOD_GET_ENTITY_SCHEDULER = Entity.class.getMethod("getScheduler");
+            Class<?> entitySchedulerClass = METHOD_GET_ENTITY_SCHEDULER.getReturnType();
+            METHOD_ENTITY_RUN = entitySchedulerClass.getMethod("run", pluginClass, consumerClass, runnableClass);
+            METHOD_ENTITY_RUN_DELAYED = entitySchedulerClass.getMethod("runDelayed", pluginClass, consumerClass,
+                    runnableClass, long.class);
+            METHOD_ENTITY_RUN_AT_FIXED_RATE = entitySchedulerClass.getMethod("runAtFixedRate", pluginClass,
+                    consumerClass, runnableClass, long.class, long.class);
+
+            // Region Scheduler
+            METHOD_GET_REGION_SCHEDULER = serverClass.getMethod("getRegionScheduler");
+            Class<?> regionSchedulerClass = METHOD_GET_REGION_SCHEDULER.getReturnType();
+            METHOD_REGION_RUN = regionSchedulerClass.getMethod("run", pluginClass, locationClass, consumerClass);
+            METHOD_REGION_RUN_DELAYED = regionSchedulerClass.getMethod("runDelayed", pluginClass, locationClass,
+                    consumerClass, long.class);
+            METHOD_REGION_RUN_AT_FIXED_RATE = regionSchedulerClass.getMethod("runAtFixedRate", pluginClass,
+                    locationClass, consumerClass, long.class, long.class);
+
+            // Async Scheduler
+            METHOD_GET_ASYNC_SCHEDULER = serverClass.getMethod("getAsyncScheduler");
+            Class<?> asyncSchedulerClass = METHOD_GET_ASYNC_SCHEDULER.getReturnType();
+            METHOD_ASYNC_RUN_NOW = asyncSchedulerClass.getMethod("runNow", pluginClass, consumerClass);
+            METHOD_ASYNC_RUN_DELAYED = asyncSchedulerClass.getMethod("runDelayed", pluginClass, consumerClass,
+                    long.class, TimeUnit.class);
+
+        } catch (Throwable e) {
             folia = false;
         }
         IS_FOLIA = folia;
+
+        try {
+            METHOD_PLAYER_TELEPORT_ASYNC = Player.class.getMethod("teleportAsync", Location.class);
+        } catch (Throwable ignored) {
+            // Paper/Folia >= 1.20 API is missing, fallback normally
+        }
     }
 
     /**
      * 判断服务器是否运行在Folia上
-     * 
-     * @return 是否为Folia服务器
      */
     public static boolean isFolia() {
         return IS_FOLIA;
     }
-      /**
-     * 延迟执行任务（全局调度）
-     * 
-     * @param plugin 插件实例
-     * @param task 任务
-     * @param delay 延迟时间，单位为tick
-     * @param period 周期时间，单位为tick, 如果为负数则表示只延迟一次
-     * @return 任务ID
-     */
-    public static Object globalRun(Plugin plugin, Runnable task, long delay, long period) {
-        delay = Math.max(0, delay);
-        if (isFolia()) {
-            try {
-                Server server = Bukkit.getServer();
-                Object globalScheduler = server.getClass().getMethod("getGlobalRegionScheduler").invoke(server);
-                Consumer<Object> foliaTask = scheduledTask -> task.run();
-                Class<?> pluginClass = Plugin.class;
-                Class<?> consumerClass = Consumer.class;
-                if (period <= 0) {
-                    if (delay == 0) {
-                        Method run = globalScheduler.getClass().getMethod("run", pluginClass, consumerClass);
-                        return run.invoke(globalScheduler, plugin, foliaTask);
-                    } else {
-                        Method runDelayed = globalScheduler.getClass().getMethod("runDelayed", pluginClass, consumerClass, long.class);
-                        return runDelayed.invoke(globalScheduler, plugin, foliaTask, delay);
-                    }
-                } else {
-                    Method runAtFixedRate = globalScheduler.getClass().getMethod("runAtFixedRate", pluginClass, consumerClass, long.class, long.class);
-                    return runAtFixedRate.invoke(globalScheduler, plugin, foliaTask, Math.max(1, delay), period);
-                }
-            } catch (Throwable t) {
-                try {
-                    plugin.getLogger().fine("Folia global scheduler unavailable, fallback to Bukkit scheduler: " + t.getMessage());
-                } catch (Throwable ignored) {
-                    // no-op
-                }
-            }
-        }
-        return runBukkitGlobal(plugin, task, delay, period);
-    }
-    
+
     /**
      * 取消任务
-     * 
-     * @param task 任务ID
      */
     public static void cancelTask(Object task) {
-        if (task == null) return;
+        if (task == null)
+            return;
         try {
-            // 优先尝试通用的 cancel 方法
             Method cancel = task.getClass().getMethod("cancel");
             cancel.invoke(task);
         } catch (Throwable ignored) {
@@ -94,128 +121,122 @@ public class SchedulerUtil {
                 if (task instanceof BukkitTask) {
                     ((BukkitTask) task).cancel();
                 }
-            } catch (Throwable t) {
-                // 忽略异常
+            } catch (Throwable ignored2) {
             }
         }
     }
+
+    /**
+     * 延迟执行任务（全局调度）
+     */
+    public static Object globalRun(Plugin plugin, Runnable task, long delay, long period) {
+        delay = Math.max(0, delay);
+        if (isFolia()) {
+            try {
+                Server server = Bukkit.getServer();
+                Object globalScheduler = METHOD_GET_GLOBAL_REGION_SCHEDULER.invoke(server);
+                Consumer<Object> foliaTask = scheduledTask -> task.run();
+
+                if (period <= 0) {
+                    if (delay == 0) {
+                        return METHOD_GLOBAL_RUN.invoke(globalScheduler, plugin, foliaTask);
+                    } else {
+                        return METHOD_GLOBAL_RUN_DELAYED.invoke(globalScheduler, plugin, foliaTask, delay);
+                    }
+                } else {
+                    return METHOD_GLOBAL_RUN_AT_FIXED_RATE.invoke(globalScheduler, plugin, foliaTask,
+                            Math.max(1, delay), period);
+                }
+            } catch (Throwable t) {
+                // fallback below
+            }
+        }
+        return runBukkitGlobal(plugin, task, delay, period);
+    }
+
     /**
      * 在玩家所在区域执行任务
-     * 
-     * @param plugin 插件实例
-     * @param entity 实体
-     * @param task 任务
-     * @param delay 延迟时间，单位为tick
-     * @param period 周期时间，单位为tick，如果为负数则表示只延迟一次
-     * @return 任务ID
      */
     public static Object entityRun(Plugin plugin, Entity entity, Runnable task, long delay, long period) {
         delay = Math.max(0, delay);
         if (isFolia()) {
             try {
-                Object entityScheduler = entity.getClass().getMethod("getScheduler").invoke(entity);
+                Object entityScheduler = METHOD_GET_ENTITY_SCHEDULER.invoke(entity);
                 Consumer<Object> foliaTask = scheduledTask -> task.run();
                 Runnable retiredCallback = () -> {
-                    try { plugin.getLogger().fine("Entity scheduler task cancelled: entity no longer exists"); } catch (Throwable ignored) {}
                 };
-                Class<?> pluginClass = Plugin.class;
-                Class<?> consumerClass = Consumer.class;
-                Class<?> runnableClass = Runnable.class;
+
                 if (period <= 0) {
                     if (delay == 0) {
-                        Method run = entityScheduler.getClass().getMethod("run", pluginClass, consumerClass, runnableClass);
-                        return run.invoke(entityScheduler, plugin, foliaTask, retiredCallback);
+                        return METHOD_ENTITY_RUN.invoke(entityScheduler, plugin, foliaTask, retiredCallback);
                     } else {
-                        Method runDelayed = entityScheduler.getClass().getMethod("runDelayed", pluginClass, consumerClass, runnableClass, long.class);
-                        return runDelayed.invoke(entityScheduler, plugin, foliaTask, retiredCallback, delay);
+                        return METHOD_ENTITY_RUN_DELAYED.invoke(entityScheduler, plugin, foliaTask, retiredCallback,
+                                delay);
                     }
                 } else {
-                    Method runAtFixedRate = entityScheduler.getClass().getMethod("runAtFixedRate", pluginClass, consumerClass, runnableClass, long.class, long.class);
-                    return runAtFixedRate.invoke(entityScheduler, plugin, foliaTask, retiredCallback, Math.max(1, delay), period);
+                    return METHOD_ENTITY_RUN_AT_FIXED_RATE.invoke(entityScheduler, plugin, foliaTask, retiredCallback,
+                            Math.max(1, delay), period);
                 }
             } catch (Throwable t) {
-                try {
-                    plugin.getLogger().fine("Folia entity scheduler unavailable, fallback to Bukkit scheduler: " + t.getMessage());
-                } catch (Throwable ignored) {
-                    // no-op
-                }
+                // fallback below
             }
         }
         return runBukkitEntityFallback(plugin, task, delay, period);
     }
-      /**
+
+    /**
      * 在指定位置区域延迟执行任务
-     * 
-     * @param plugin 插件实例
-     * @param location 位置
-     * @param task 任务
-     * @param delay 延迟时间，单位为tick
-     * @return 任务ID
      */
     public static Object regionRun(Plugin plugin, Location location, Runnable task, long delay, long period) {
         delay = Math.max(0, delay);
         if (isFolia()) {
             try {
                 Server server = Bukkit.getServer();
-                Object regionScheduler = server.getClass().getMethod("getRegionScheduler").invoke(server);
+                Object regionScheduler = METHOD_GET_REGION_SCHEDULER.invoke(server);
                 Consumer<Object> foliaTask = scheduledTask -> task.run();
-                Class<?> pluginClass = Plugin.class;
-                Class<?> consumerClass = Consumer.class;
-                Class<?> locationClass = Location.class;
+
                 if (period <= 0) {
                     if (delay == 0) {
-                        Method run = regionScheduler.getClass().getMethod("run", pluginClass, locationClass, consumerClass);
-                        return run.invoke(regionScheduler, plugin, location, foliaTask);
+                        return METHOD_REGION_RUN.invoke(regionScheduler, plugin, location, foliaTask);
                     } else {
-                        Method runDelayed = regionScheduler.getClass().getMethod("runDelayed", pluginClass, locationClass, consumerClass, long.class);
-                        return runDelayed.invoke(regionScheduler, plugin, location, foliaTask, delay);
+                        return METHOD_REGION_RUN_DELAYED.invoke(regionScheduler, plugin, location, foliaTask, delay);
                     }
                 } else {
-                    Method runAtFixedRate = regionScheduler.getClass().getMethod("runAtFixedRate", pluginClass, locationClass, consumerClass, long.class, long.class);
-                    return runAtFixedRate.invoke(regionScheduler, plugin, location, foliaTask, Math.max(1, delay), period);
+                    return METHOD_REGION_RUN_AT_FIXED_RATE.invoke(regionScheduler, plugin, location, foliaTask,
+                            Math.max(1, delay), period);
                 }
             } catch (Throwable t) {
-                try {
-                    plugin.getLogger().fine("Folia region scheduler unavailable, fallback to Bukkit scheduler: " + t.getMessage());
-                } catch (Throwable ignored) {
-                    // no-op
-                }
+                // fallback below
             }
         }
         return runBukkitRegionFallback(plugin, task, delay, period);
     }
+
     /**
      * 在异步线程延迟执行任务（统一使用 tick 作为时间单位）
-     *
-     * @param plugin 插件实例
-     * @param task 任务
-     * @param delay 延迟时间，单位为 tick
      */
     public static void asyncRun(Plugin plugin, Runnable task, long delay) {
         delay = Math.max(0, delay);
         if (isFolia()) {
             try {
                 Server server = Bukkit.getServer();
-                Object asyncScheduler = server.getClass().getMethod("getAsyncScheduler").invoke(server);
+                Object asyncScheduler = METHOD_GET_ASYNC_SCHEDULER.invoke(server);
                 Consumer<Object> foliaTask = scheduledTask -> task.run();
-                Class<?> pluginClass = Plugin.class;
-                Class<?> consumerClass = Consumer.class;
+
                 if (delay <= 0) {
-                    Method runNow = asyncScheduler.getClass().getMethod("runNow", pluginClass, consumerClass);
-                    runNow.invoke(asyncScheduler, plugin, foliaTask);
+                    METHOD_ASYNC_RUN_NOW.invoke(asyncScheduler, plugin, foliaTask);
                 } else {
-                    Method runDelayed = asyncScheduler.getClass().getMethod("runDelayed", pluginClass, consumerClass, long.class, TimeUnit.class);
                     // interpret delay as ticks for consistency with Bukkit API
-                    runDelayed.invoke(asyncScheduler, plugin, foliaTask, delay * 50, TimeUnit.MILLISECONDS);
+                    METHOD_ASYNC_RUN_DELAYED.invoke(asyncScheduler, plugin, foliaTask, delay * 50,
+                            TimeUnit.MILLISECONDS);
                 }
+                return;
             } catch (Throwable t) {
-                long ticks = delay <= 0 ? 0L : Math.max(1L, delay);
-                Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, task, ticks);
+                // fallback below
             }
-        } else {
-            long ticks = delay <= 0 ? 0L : Math.max(1L, delay);
-            Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, task, ticks);
         }
+        long ticks = delay <= 0 ? 0L : Math.max(1L, delay);
+        Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, task, ticks);
     }
 
     /**
@@ -223,29 +244,32 @@ public class SchedulerUtil {
      * - 若存在 Player#teleportAsync(Location)，优先通过反射调用（Folia 推荐）
      * - 否则在合适的线程上下文调用同步 teleport
      */
-    public static void safeTeleport(Plugin plugin, org.bukkit.entity.Player player, org.bukkit.Location dest) {
-        if (player == null || dest == null) return;
-        // Try teleportAsync via reflection (Paper/Folia >= 1.20+)
-        try {
-            java.lang.reflect.Method m = player.getClass().getMethod("teleportAsync", org.bukkit.Location.class);
-            m.invoke(player, dest);
+    public static void safeTeleport(Plugin plugin, Player player, Location dest) {
+        if (player == null || dest == null)
             return;
-        } catch (NoSuchMethodException ignored) {
-            // method not present on this API
-        } catch (Throwable t) {
-            // fall through to sync teleport fallback
+
+        if (METHOD_PLAYER_TELEPORT_ASYNC != null) {
+            try {
+                METHOD_PLAYER_TELEPORT_ASYNC.invoke(player, dest);
+                return;
+            } catch (Throwable t) {
+                // fall through to sync teleport fallback
+            }
         }
+
         // Fallback: schedule appropriately
         if (isFolia()) {
-            // Execute on player's region thread; some Folia builds still allow sync teleport from scheduler
             entityRun(plugin, player, () -> {
-                try { player.teleport(dest); } catch (Throwable e) { Bukkit.getLogger().fine("Failed to teleport player in Folia fallback: " + e.getMessage()); }
+                try {
+                    player.teleport(dest);
+                } catch (Throwable ignored) {
+                }
             }, 0L, -1L);
         } else {
-            if (org.bukkit.Bukkit.isPrimaryThread()) {
+            if (Bukkit.isPrimaryThread()) {
                 player.teleport(dest);
             } else {
-                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> player.teleport(dest));
+                Bukkit.getScheduler().runTask(plugin, () -> player.teleport(dest));
             }
         }
     }
@@ -281,4 +305,4 @@ public class SchedulerUtil {
     private static Object runBukkitRegionFallback(Plugin plugin, Runnable task, long delay, long period) {
         return runBukkitEntityFallback(plugin, task, delay, period);
     }
-} 
+}

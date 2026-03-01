@@ -42,13 +42,13 @@ public class GemPermissionManager {
     private GemAllowanceManager allowanceManager;
 
     // 归属：按 gemId 记录当前兑换归属玩家
-    private final Map<UUID, UUID> gemIdToRedeemer = new HashMap<>();
+    private final Map<UUID, UUID> gemIdToRedeemer = new ConcurrentHashMap<>();
     // 玩家已兑换的 gemKey 集合
-    private final Map<UUID, Set<String>> playerUuidToRedeemedKeys = new HashMap<>();
+    private final Map<UUID, Set<String>> playerUuidToRedeemedKeys = new ConcurrentHashMap<>();
     // 玩家对每个 gemKey 的归属计数
-    private final Map<UUID, Map<String, Integer>> ownerKeyCount = new HashMap<>();
+    private final Map<UUID, Map<String, Integer>> ownerKeyCount = new ConcurrentHashMap<>();
     // 当前 inventory_grants 生效的 key
-    private final Map<UUID, Set<String>> playerActiveHeldKeys = new HashMap<>();
+    private final Map<UUID, Set<String>> playerActiveHeldKeys = new ConcurrentHashMap<>();
     // 权限附件
     private final Map<UUID, PermissionAttachment> invAttachments = new HashMap<>();
     private final Map<UUID, PermissionAttachment> redeemAttachments = new HashMap<>();
@@ -81,7 +81,8 @@ public class GemPermissionManager {
     }
 
     private void save() {
-        if (saveCallback != null) saveCallback.run();
+        if (saveCallback != null)
+            saveCallback.run();
     }
 
     /** 懒获取 PowerStructureManager（通过 plugin 引用避免循环依赖） */
@@ -110,7 +111,8 @@ public class GemPermissionManager {
     public Map<UUID, Set<String>> getPendingPermRevokes() {
         Map<UUID, Set<String>> result = new HashMap<>();
         for (Map.Entry<UUID, PendingRevoke> e : pendingRevokes.entrySet()) {
-            if (!e.getValue().getPermissions().isEmpty()) result.put(e.getKey(), e.getValue().getPermissions());
+            if (!e.getValue().getPermissions().isEmpty())
+                result.put(e.getKey(), e.getValue().getPermissions());
         }
         return result;
     }
@@ -118,7 +120,8 @@ public class GemPermissionManager {
     public Map<UUID, Set<String>> getPendingGroupRevokes() {
         Map<UUID, Set<String>> result = new HashMap<>();
         for (Map.Entry<UUID, PendingRevoke> e : pendingRevokes.entrySet()) {
-            if (!e.getValue().getGroups().isEmpty()) result.put(e.getKey(), e.getValue().getGroups());
+            if (!e.getValue().getGroups().isEmpty())
+                result.put(e.getKey(), e.getValue().getGroups());
         }
         return result;
     }
@@ -134,7 +137,8 @@ public class GemPermissionManager {
     public Map<UUID, Set<String>> getPendingKeyRevokes() {
         Map<UUID, Set<String>> result = new HashMap<>();
         for (Map.Entry<UUID, PendingRevoke> e : pendingRevokes.entrySet()) {
-            if (!e.getValue().getKeys().isEmpty()) result.put(e.getKey(), e.getValue().getKeys());
+            if (!e.getValue().getKeys().isEmpty())
+                result.put(e.getKey(), e.getValue().getKeys());
         }
         return result;
     }
@@ -142,7 +146,8 @@ public class GemPermissionManager {
     public Map<UUID, Set<String>> getPendingEffectRevokes() {
         Map<UUID, Set<String>> result = new HashMap<>();
         for (Map.Entry<UUID, PendingRevoke> e : pendingRevokes.entrySet()) {
-            if (!e.getValue().getEffects().isEmpty()) result.put(e.getKey(), e.getValue().getEffects());
+            if (!e.getValue().getEffects().isEmpty())
+                result.put(e.getKey(), e.getValue().getEffects());
         }
         return result;
     }
@@ -197,7 +202,10 @@ public class GemPermissionManager {
                     UUID gem = UUID.fromString(gid);
                     UUID player = UUID.fromString(ownerById.getString(gid));
                     gemIdToRedeemer.put(gem, player);
-                } catch (Exception e) { plugin.getLogger().warning("Failed to parse redeem owner by gem id '" + gid + "': " + e.getMessage()); }
+                } catch (Exception e) {
+                    plugin.getLogger()
+                            .warning("Failed to parse redeem owner by gem id '" + gid + "': " + e.getMessage());
+                }
             }
         } else {
             ConfigurationSection ownerSec = gemsData.getConfigurationSection("redeem_owner");
@@ -212,7 +220,10 @@ public class GemPermissionManager {
                                 gemIdToRedeemer.put(e.getKey(), player);
                             }
                         }
-                    } catch (Exception e) { plugin.getLogger().warning("Failed to parse legacy redeem owner for gem key '" + gemKey + "': " + e.getMessage()); }
+                    } catch (Exception e) {
+                        plugin.getLogger().warning(
+                                "Failed to parse legacy redeem owner for gem key '" + gemKey + "': " + e.getMessage());
+                    }
                 }
             }
         }
@@ -220,7 +231,11 @@ public class GemPermissionManager {
         ConfigurationSection fso = gemsData.getConfigurationSection("full_set_owner");
         if (fso != null) {
             String u = fso.getString("uuid");
-            try { fullSetOwner = UUID.fromString(u); } catch (Exception e) { plugin.getLogger().warning("Failed to parse full set owner UUID '" + u + "': " + e.getMessage()); }
+            try {
+                fullSetOwner = UUID.fromString(u);
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to parse full set owner UUID '" + u + "': " + e.getMessage());
+            }
         }
         // 离线撤销队列
         loadPendingRevokes(gemsData);
@@ -228,7 +243,8 @@ public class GemPermissionManager {
 
     private void loadPendingSection(FileConfiguration data, String path, Map<UUID, Set<String>> target) {
         ConfigurationSection section = data.getConfigurationSection(path);
-        if (section == null) return;
+        if (section == null)
+            return;
         for (String pid : section.getKeys(false)) {
             try {
                 UUID id = UUID.fromString(pid);
@@ -236,7 +252,10 @@ public class GemPermissionManager {
                 if (list != null && !list.isEmpty()) {
                     target.put(id, new HashSet<>(list));
                 }
-            } catch (Exception e) { plugin.getLogger().warning("Failed to load pending revoke entry for '" + pid + "' at path '" + path + "': " + e.getMessage()); }
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to load pending revoke entry for '" + pid + "' at path '" + path
+                        + "': " + e.getMessage());
+            }
         }
     }
 
@@ -244,15 +263,17 @@ public class GemPermissionManager {
      * 从 gemsData 加载所有离线撤销队列到统一的 pendingRevokes 映射中。
      */
     private void loadPendingRevokes(FileConfiguration gemsData) {
-        String[] categories = {"permissions", "groups", "keys", "effects"};
+        String[] categories = { "permissions", "groups", "keys", "effects" };
         for (String cat : categories) {
             ConfigurationSection section = gemsData.getConfigurationSection("pending_revokes." + cat);
-            if (section == null) continue;
+            if (section == null)
+                continue;
             for (String pid : section.getKeys(false)) {
                 try {
                     UUID id = UUID.fromString(pid);
                     List<String> list = section.getStringList(pid);
-                    if (list == null || list.isEmpty()) continue;
+                    if (list == null || list.isEmpty())
+                        continue;
                     PendingRevoke pr = pendingRevokes.computeIfAbsent(id, k -> new PendingRevoke());
                     Set<String> target = switch (cat) {
                         case "permissions" -> pr.getPermissions();
@@ -261,9 +282,11 @@ public class GemPermissionManager {
                         case "effects" -> pr.getEffects();
                         default -> null;
                     };
-                    if (target != null) target.addAll(list);
+                    if (target != null)
+                        target.addAll(list);
                 } catch (Exception e) {
-                    plugin.getLogger().warning("Failed to load pending revoke entry for '" + pid + "' at path 'pending_revokes." + cat + "': " + e.getMessage());
+                    plugin.getLogger().warning("Failed to load pending revoke entry for '" + pid
+                            + "' at path 'pending_revokes." + cat + "': " + e.getMessage());
                 }
             }
         }
@@ -273,33 +296,38 @@ public class GemPermissionManager {
      * 将兑换归属、已兑换 key、全套拥有者和离线撤销队列写入 gemsData。
      */
     public void saveData(FileConfiguration gemsData) {
-        for (Map.Entry<UUID, Set<String>> e : playerUuidToRedeemedKeys.entrySet()) {
-            gemsData.set("redeemed." + e.getKey().toString(), new ArrayList<>(e.getValue()));
+        Map<String, Object> snapshot = new HashMap<>();
+        populateSaveSnapshot(snapshot);
+        for (Map.Entry<String, Object> entry : snapshot.entrySet()) {
+            gemsData.set(entry.getKey(), entry.getValue());
         }
-        for (Map.Entry<UUID, UUID> e : gemIdToRedeemer.entrySet()) {
-            gemsData.set("redeem_owner_by_id." + e.getKey().toString(), e.getValue().toString());
-        }
-        if (fullSetOwner != null) {
-            gemsData.set("full_set_owner.uuid", fullSetOwner.toString());
-        }
-        savePendingRevokes(gemsData);
     }
 
     /**
-     * 将统一的 pendingRevokes 保存到 gemsData 的各子路径下。
+     * 将将要保存的数据结构提取到快照中，用于线程安全的异步落盘
      */
-    private void savePendingRevokes(FileConfiguration gemsData) {
+    public void populateSaveSnapshot(Map<String, Object> snapshot) {
+        for (Map.Entry<UUID, Set<String>> e : playerUuidToRedeemedKeys.entrySet()) {
+            snapshot.put("redeemed." + e.getKey().toString(), new ArrayList<>(e.getValue()));
+        }
+        for (Map.Entry<UUID, UUID> e : gemIdToRedeemer.entrySet()) {
+            snapshot.put("redeem_owner_by_id." + e.getKey().toString(), e.getValue().toString());
+        }
+        if (fullSetOwner != null) {
+            snapshot.put("full_set_owner.uuid", fullSetOwner.toString());
+        }
+
         for (Map.Entry<UUID, PendingRevoke> e : pendingRevokes.entrySet()) {
             String uuid = e.getKey().toString();
             PendingRevoke pr = e.getValue();
             if (!pr.getPermissions().isEmpty())
-                gemsData.set("pending_revokes.permissions." + uuid, new ArrayList<>(pr.getPermissions()));
+                snapshot.put("pending_revokes.permissions." + uuid, new ArrayList<>(pr.getPermissions()));
             if (!pr.getGroups().isEmpty())
-                gemsData.set("pending_revokes.groups." + uuid, new ArrayList<>(pr.getGroups()));
+                snapshot.put("pending_revokes.groups." + uuid, new ArrayList<>(pr.getGroups()));
             if (!pr.getKeys().isEmpty())
-                gemsData.set("pending_revokes.keys." + uuid, new ArrayList<>(pr.getKeys()));
+                snapshot.put("pending_revokes.keys." + uuid, new ArrayList<>(pr.getKeys()));
             if (!pr.getEffects().isEmpty())
-                gemsData.set("pending_revokes.effects." + uuid, new ArrayList<>(pr.getEffects()));
+                snapshot.put("pending_revokes.effects." + uuid, new ArrayList<>(pr.getEffects()));
         }
     }
 
@@ -309,11 +337,13 @@ public class GemPermissionManager {
      * 授予权限（使用 redeemAttachments）
      */
     public void grantPermissions(Player player, List<String> perms) {
-        if (perms == null || perms.isEmpty()) return;
+        if (perms == null || perms.isEmpty())
+            return;
         PermissionAttachment attachment = redeemAttachments.computeIfAbsent(
-            player.getUniqueId(), p -> player.addAttachment(plugin));
+                player.getUniqueId(), p -> player.addAttachment(plugin));
         for (String node : perms) {
-            if (node == null || node.trim().isEmpty()) continue;
+            if (node == null || node.trim().isEmpty())
+                continue;
             attachment.setPermission(node, true);
         }
         player.recalculatePermissions();
@@ -323,15 +353,13 @@ public class GemPermissionManager {
      * 兑换场景授予权限（同时写入 Vault）
      */
     public void grantRedeemPermissions(Player player, List<String> perms) {
-        if (perms == null || perms.isEmpty()) return;
+        if (perms == null || perms.isEmpty())
+            return;
         grantPermissions(player, perms);
-        if (plugin.getVaultPerms() != null) {
-            for (String node : perms) {
-                if (node == null || node.trim().isEmpty()) continue;
-                try {
-                    plugin.getVaultPerms().playerAdd(player, node);
-                } catch (Exception e) { plugin.getLogger().warning("Failed to add Vault permission '" + node + "' to player '" + player.getName() + "': " + e.getMessage()); }
-            }
+        for (String node : perms) {
+            if (node == null || node.trim().isEmpty())
+                continue;
+            plugin.getPermissionProvider().addPermission(player, node);
         }
     }
 
@@ -339,21 +367,20 @@ public class GemPermissionManager {
      * 撤销权限节点（List 版本 - 仅 redeemAttachments + Vault）
      */
     public void revokeNodes(Player player, List<String> perms) {
-        if (perms == null || perms.isEmpty()) return;
+        if (perms == null || perms.isEmpty())
+            return;
         PermissionAttachment attachment = redeemAttachments.get(player.getUniqueId());
         if (attachment != null) {
             for (String node : perms) {
-                if (node == null || node.trim().isEmpty()) continue;
+                if (node == null || node.trim().isEmpty())
+                    continue;
                 attachment.unsetPermission(node);
             }
         }
-        if (plugin.getVaultPerms() != null) {
-            for (String node : perms) {
-                if (node == null || node.trim().isEmpty()) continue;
-                try {
-                    plugin.getVaultPerms().playerRemove(player, node);
-                } catch (Exception e) { plugin.getLogger().warning("Failed to remove Vault permission '" + node + "' from player '" + player.getName() + "': " + e.getMessage()); }
-            }
+        for (String node : perms) {
+            if (node == null || node.trim().isEmpty())
+                continue;
+            plugin.getPermissionProvider().removePermission(player, node);
         }
         player.recalculatePermissions();
     }
@@ -363,23 +390,30 @@ public class GemPermissionManager {
      * 用于 applyPendingRevokesIfAny 和 revokeAllPlayerPermissions 等场景
      */
     public void revokeNodesAll(Player player, Collection<String> nodes) {
-        if (nodes == null || nodes.isEmpty()) return;
+        if (nodes == null || nodes.isEmpty())
+            return;
         PermissionAttachment i = invAttachments.get(player.getUniqueId());
         if (i != null) {
             for (String n : nodes) {
-                try { i.unsetPermission(n); } catch (Exception e) { plugin.getLogger().fine("Failed to unset inv permission '" + n + "': " + e.getMessage()); }
+                try {
+                    i.unsetPermission(n);
+                } catch (Exception e) {
+                    plugin.getLogger().fine("Failed to unset inv permission '" + n + "': " + e.getMessage());
+                }
             }
         }
         PermissionAttachment r = redeemAttachments.get(player.getUniqueId());
         if (r != null) {
             for (String n : nodes) {
-                try { r.unsetPermission(n); } catch (Exception e) { plugin.getLogger().fine("Failed to unset redeem permission '" + n + "': " + e.getMessage()); }
+                try {
+                    r.unsetPermission(n);
+                } catch (Exception e) {
+                    plugin.getLogger().fine("Failed to unset redeem permission '" + n + "': " + e.getMessage());
+                }
             }
         }
-        if (plugin.getVaultPerms() != null) {
-            for (String n : nodes) {
-                try { plugin.getVaultPerms().playerRemove(player, n); } catch (Exception e) { plugin.getLogger().fine("Failed to remove Vault permission '" + n + "' during revokeNodesAll: " + e.getMessage()); }
-            }
+        for (String n : nodes) {
+            plugin.getPermissionProvider().removePermission(player, n);
         }
     }
 
@@ -389,16 +423,19 @@ public class GemPermissionManager {
      * 队列离线权限/组撤销
      */
     public void queueOfflineRevokes(UUID user, Collection<String> perms, Collection<String> groups) {
-        if (user == null) return;
+        if (user == null)
+            return;
         PendingRevoke pr = pendingRevokes.computeIfAbsent(user, k -> new PendingRevoke());
         if (perms != null && !perms.isEmpty()) {
             for (String p : perms) {
-                if (p != null && !p.trim().isEmpty()) pr.getPermissions().add(p);
+                if (p != null && !p.trim().isEmpty())
+                    pr.getPermissions().add(p);
             }
         }
         if (groups != null && !groups.isEmpty()) {
             for (String g : groups) {
-                if (g != null && !g.trim().isEmpty()) pr.getGroups().add(g);
+                if (g != null && !g.trim().isEmpty())
+                    pr.getGroups().add(g);
             }
         }
         save();
@@ -408,7 +445,8 @@ public class GemPermissionManager {
      * 将药水效果类型加入离线待撤销队列
      */
     public void queueOfflineEffectRevokes(UUID user, List<EffectConfig> effects) {
-        if (user == null || effects == null || effects.isEmpty()) return;
+        if (user == null || effects == null || effects.isEmpty())
+            return;
         PendingRevoke pr = pendingRevokes.computeIfAbsent(user, k -> new PendingRevoke());
         for (EffectConfig ec : effects) {
             if (ec != null && ec.getEffectType() != null) {
@@ -422,11 +460,13 @@ public class GemPermissionManager {
      * 应用待处理的离线撤销（完整版：权限、Vault 组、药水效果、key revokes）
      */
     public void applyPendingRevokesIfAny(Player player) {
-        if (player == null) return;
+        if (player == null)
+            return;
         UUID uid = player.getUniqueId();
 
         PendingRevoke pr = pendingRevokes.remove(uid);
-        if (pr == null || pr.isEmpty()) return;
+        if (pr == null || pr.isEmpty())
+            return;
 
         boolean changed = false;
 
@@ -441,11 +481,9 @@ public class GemPermissionManager {
         }
 
         Set<String> groups = pr.getGroups();
-        if (!groups.isEmpty() && plugin.getVaultPerms() != null) {
+        if (!groups.isEmpty()) {
             for (String g : groups) {
-                try {
-                    plugin.getVaultPerms().playerRemoveGroup(player, g);
-                } catch (Exception e) { plugin.getLogger().fine("Failed to remove Vault group '" + g + "' from player during pending revoke: " + e.getMessage()); }
+                plugin.getPermissionProvider().removeGroup(player, g);
             }
             changed = true;
         }
@@ -455,18 +493,24 @@ public class GemPermissionManager {
         if (!effectTypes.isEmpty()) {
             for (String typeName : effectTypes) {
                 try {
-                    org.bukkit.potion.PotionEffectType type =
-                        org.bukkit.potion.PotionEffectType.getByName(typeName);
+                    org.bukkit.potion.PotionEffectType type = org.bukkit.potion.PotionEffectType.getByName(typeName);
                     if (type != null) {
                         player.removePotionEffect(type);
                     }
-                } catch (Exception e) { plugin.getLogger().fine("Failed to remove pending potion effect '" + typeName + "': " + e.getMessage()); }
+                } catch (Exception e) {
+                    plugin.getLogger()
+                            .fine("Failed to remove pending potion effect '" + typeName + "': " + e.getMessage());
+                }
             }
             changed = true;
         }
 
         if (changed) {
-            try { player.recalculatePermissions(); } catch (Throwable e) { plugin.getLogger().fine("Failed to recalculate permissions after pending revokes: " + e.getMessage()); }
+            try {
+                player.recalculatePermissions();
+            } catch (Throwable e) {
+                plugin.getLogger().fine("Failed to recalculate permissions after pending revokes: " + e.getMessage());
+            }
             save();
         }
     }
@@ -477,7 +521,8 @@ public class GemPermissionManager {
      * 增加归属计数（0→1 时通过 PowerStructureManager 发放权限结构 + appoint 权限）
      */
     public void incrementOwnerKeyCount(UUID owner, String key, GemDefinition def) {
-        if (owner == null || key == null) return;
+        if (owner == null || key == null)
+            return;
         Map<String, Integer> map = ownerKeyCount.computeIfAbsent(owner, k -> new HashMap<>());
         int before = map.getOrDefault(key, 0);
         int after = before + 1;
@@ -491,7 +536,12 @@ public class GemPermissionManager {
                     psm.applyStructure(p, def.getPowerStructure(), "gem_redeem", key, false);
                 }
                 grantAppointPermissions(p, def);
-                try { p.recalculatePermissions(); } catch (Throwable e) { plugin.getLogger().fine("Failed to recalculate permissions after incrementing owner key count: " + e.getMessage()); }
+                try {
+                    p.recalculatePermissions();
+                } catch (Throwable e) {
+                    plugin.getLogger().fine(
+                            "Failed to recalculate permissions after incrementing owner key count: " + e.getMessage());
+                }
             }
         }
     }
@@ -501,7 +551,8 @@ public class GemPermissionManager {
      * 处理在线/离线两种情况，包括级联撤销和额度清理
      */
     public void decrementOwnerKeyCount(UUID owner, String key, GemDefinition def) {
-        if (owner == null || key == null) return;
+        if (owner == null || key == null)
+            return;
         Map<String, Integer> map = ownerKeyCount.computeIfAbsent(owner, k -> new HashMap<>());
         int before = map.getOrDefault(key, 0);
         int after = Math.max(0, before - 1);
@@ -515,27 +566,34 @@ public class GemPermissionManager {
                     psm.removeStructure(p, def.getPowerStructure(), "gem_redeem", key);
                 }
                 revokeAppointPermissions(p, def);
-                try { p.recalculatePermissions(); } catch (Throwable e) { plugin.getLogger().fine("Failed to recalculate permissions after decrementing owner key count: " + e.getMessage()); }
+                try {
+                    p.recalculatePermissions();
+                } catch (Throwable e) {
+                    plugin.getLogger().fine(
+                            "Failed to recalculate permissions after decrementing owner key count: " + e.getMessage());
+                }
                 if (historyLogger != null) {
                     LanguageManager lm = plugin.getLanguageManager();
                     historyLogger.logPermissionRevoke(
-                        owner.toString(), p.getName(), key, def.getDisplayName(),
-                        def.getPermissions(), def.getVaultGroup(),
-                        lm != null ? lm.getMessage("history_reason.ownership_lost") : "Ownership change: lost last gem of this type");
+                            owner.toString(), p.getName(), key, def.getDisplayName(),
+                            def.getPermissions(), def.getVaultGroup(),
+                            lm != null ? lm.getMessage("history_reason.ownership_lost")
+                                    : "Ownership change: lost last gem of this type");
                 }
             } else {
                 // 离线：权限与 Vault 组放入 pending 队列
                 List<String> permsToRevoke = new ArrayList<>();
-                if (def.getPermissions() != null) permsToRevoke.addAll(def.getPermissions());
+                if (def.getPermissions() != null)
+                    permsToRevoke.addAll(def.getPermissions());
                 // appoint 权限节点也需要撤销
                 permsToRevoke.addAll(getAppointPermissionNodes(def));
                 // 记录待撤销的 gemKey 用于 rulers 显示过滤
                 pendingRevokes.computeIfAbsent(owner, k -> new PendingRevoke()).getKeys().add(key);
                 queueOfflineRevokes(owner,
-                    permsToRevoke,
-                    (def.getVaultGroup() != null && !def.getVaultGroup().isEmpty())
-                        ? Collections.singleton(def.getVaultGroup())
-                        : Collections.emptySet());
+                        permsToRevoke,
+                        (def.getVaultGroup() != null && !def.getVaultGroup().isEmpty())
+                                ? Collections.singleton(def.getVaultGroup())
+                                : Collections.emptySet());
 
                 // 离线撤销：药水效果
                 queueOfflineEffectRevokes(owner, def.getEffects());
@@ -544,8 +602,8 @@ public class GemPermissionManager {
 
                 // 1. 触发 appointee 级联撤销
                 if (plugin.getFeatureManager() != null) {
-                    org.cubexmc.features.appoint.AppointFeature appointFeature =
-                        plugin.getFeatureManager().getAppointFeature();
+                    org.cubexmc.features.appoint.AppointFeature appointFeature = plugin.getFeatureManager()
+                            .getAppointFeature();
                     if (appointFeature != null && appointFeature.isEnabled()) {
                         PowerStructure power = def.getPowerStructure();
                         if (power != null && power.getAppoints() != null) {
@@ -558,8 +616,7 @@ public class GemPermissionManager {
 
                 // 2. 清除该宝石关联的 allowed_commands 额度
                 if (allowanceManager != null) {
-                    Map<UUID, Map<String, Integer>> perRed =
-                        allowanceManager.getPlayerGemRedeemUses().get(owner);
+                    Map<UUID, Map<String, Integer>> perRed = allowanceManager.getPlayerGemRedeemUses().get(owner);
                     if (perRed != null) {
                         for (Map.Entry<UUID, UUID> entry : gemIdToRedeemer.entrySet()) {
                             if (owner.equals(entry.getValue())) {
@@ -570,16 +627,20 @@ public class GemPermissionManager {
                                 }
                             }
                         }
-                        if (perRed.isEmpty()) allowanceManager.getPlayerGemRedeemUses().remove(owner);
+                        if (perRed.isEmpty())
+                            allowanceManager.getPlayerGemRedeemUses().remove(owner);
                     }
                 }
 
                 if (historyLogger != null) {
                     LanguageManager lm = plugin.getLanguageManager();
                     historyLogger.logPermissionRevoke(
-                        owner.toString(), lm != null ? lm.getMessage("player.unknown_offline") : "Unknown (offline)", key, def.getDisplayName(),
-                        def.getPermissions(), def.getVaultGroup(),
-                        lm != null ? lm.getMessage("history_reason.ownership_lost_offline") : "Ownership change: lost last gem of this type (offline revoke)");
+                            owner.toString(),
+                            lm != null ? lm.getMessage("player.unknown_offline") : "Unknown (offline)", key,
+                            def.getDisplayName(),
+                            def.getPermissions(), def.getVaultGroup(),
+                            lm != null ? lm.getMessage("history_reason.ownership_lost_offline")
+                                    : "Ownership change: lost last gem of this type (offline revoke)");
                 }
             }
         }
@@ -592,7 +653,8 @@ public class GemPermissionManager {
      */
     public List<String> getAppointPermissionNodes(GemDefinition def) {
         List<String> nodes = new ArrayList<>();
-        if (def == null || def.getPowerStructure() == null) return nodes;
+        if (def == null || def.getPowerStructure() == null)
+            return nodes;
         PowerStructure power = def.getPowerStructure();
         if (power.getAppoints() != null && !power.getAppoints().isEmpty()) {
             for (String appointKey : power.getAppoints().keySet()) {
@@ -631,8 +693,8 @@ public class GemPermissionManager {
             }
             // 触发级联撤销
             if (plugin.getFeatureManager() != null) {
-                org.cubexmc.features.appoint.AppointFeature appointFeature =
-                    plugin.getFeatureManager().getAppointFeature();
+                org.cubexmc.features.appoint.AppointFeature appointFeature = plugin.getFeatureManager()
+                        .getAppointFeature();
                 if (appointFeature != null && appointFeature.isEnabled()) {
                     for (String perm : appointPerms) {
                         String permSetKey = perm.substring("rulegems.appoint.".length());
@@ -650,7 +712,8 @@ public class GemPermissionManager {
      * 使用 PowerStructureManager 管理权限的增量变化
      */
     public void recalculateGrants(Player player) {
-        if (!gameplayConfig.isInventoryGrantsEnabled()) return;
+        if (!gameplayConfig.isInventoryGrantsEnabled())
+            return;
 
         PowerStructureManager psm = getPSM();
 
@@ -658,24 +721,30 @@ public class GemPermissionManager {
         List<String> presentKeysOrdered = new ArrayList<>();
         Inventory inv = player.getInventory();
         for (ItemStack item : inv.getContents()) {
-            if (!stateManager.isRuleGem(item)) continue;
+            if (!stateManager.isRuleGem(item))
+                continue;
             UUID id = stateManager.getGemUUID(item);
             String key = stateManager.getGemUuidToKey().get(id);
-            if (key == null) continue;
+            if (key == null)
+                continue;
             String k = key.toLowerCase(ROOT_LOCALE);
-            if (!presentKeysOrdered.contains(k)) presentKeysOrdered.add(k);
+            if (!presentKeysOrdered.contains(k))
+                presentKeysOrdered.add(k);
         }
 
         // 基于上次选中的 active 集合优先保留，新增时再做互斥筛选
         Set<String> previouslyActive = playerActiveHeldKeys.getOrDefault(
-            player.getUniqueId(), Collections.emptySet());
+                player.getUniqueId(), Collections.emptySet());
         Set<String> selectedKeys = new LinkedHashSet<>();
         for (String k : presentKeysOrdered) {
-            if (previouslyActive.contains(k)) selectedKeys.add(k);
+            if (previouslyActive.contains(k))
+                selectedKeys.add(k);
         }
         for (String k : presentKeysOrdered) {
-            if (selectedKeys.contains(k)) continue;
-            if (!conflictsWithSelected(k, selectedKeys)) selectedKeys.add(k);
+            if (selectedKeys.contains(k))
+                continue;
+            if (!conflictsWithSelected(k, selectedKeys))
+                selectedKeys.add(k);
         }
 
         // 找出需要移除/新增的 keys
@@ -708,21 +777,25 @@ public class GemPermissionManager {
             Set<String> shouldHave = new HashSet<>();
             for (String k : selectedKeys) {
                 GemDefinition def = stateManager.findGemDefinition(k);
-                if (def == null) continue;
+                if (def == null)
+                    continue;
                 if (def.getPermissions() != null) {
                     for (String node : def.getPermissions()) {
-                        if (node != null && !node.trim().isEmpty()) shouldHave.add(node);
+                        if (node != null && !node.trim().isEmpty())
+                            shouldHave.add(node);
                     }
                 }
             }
             PermissionAttachment attachment = invAttachments.computeIfAbsent(
-                player.getUniqueId(), p -> player.addAttachment(plugin));
+                    player.getUniqueId(), p -> player.addAttachment(plugin));
             Set<String> current = new HashSet<>(attachment.getPermissions().keySet());
             for (String node : shouldHave) {
-                if (!current.contains(node)) attachment.setPermission(node, true);
+                if (!current.contains(node))
+                    attachment.setPermission(node, true);
             }
             for (String node : current) {
-                if (!shouldHave.contains(node)) attachment.unsetPermission(node);
+                if (!shouldHave.contains(node))
+                    attachment.unsetPermission(node);
             }
         }
         player.recalculatePermissions();
@@ -736,15 +809,18 @@ public class GemPermissionManager {
         Set<String> cm = new HashSet<>();
         if (c != null && c.getMutualExclusive() != null) {
             for (String x : c.getMutualExclusive()) {
-                if (x != null) cm.add(x.toLowerCase(ROOT_LOCALE));
+                if (x != null)
+                    cm.add(x.toLowerCase(ROOT_LOCALE));
             }
         }
         for (String s : selectedKeys) {
-            if (cm.contains(s.toLowerCase(ROOT_LOCALE))) return true;
+            if (cm.contains(s.toLowerCase(ROOT_LOCALE)))
+                return true;
             GemDefinition sd = stateManager.findGemDefinition(s);
             if (sd != null && sd.getMutualExclusive() != null) {
                 for (String x : sd.getMutualExclusive()) {
-                    if (x != null && x.equalsIgnoreCase(candidateKey)) return true;
+                    if (x != null && x.equalsIgnoreCase(candidateKey))
+                        return true;
                 }
             }
         }
@@ -761,7 +837,8 @@ public class GemPermissionManager {
      * @return 是否成功撤销（true=该玩家有权限被撤销，false=该玩家没有任何宝石权限）
      */
     public boolean revokeAllPlayerPermissions(Player player) {
-        if (player == null) return false;
+        if (player == null)
+            return false;
         UUID uid = player.getUniqueId();
         boolean hadAny = false;
 
@@ -808,24 +885,36 @@ public class GemPermissionManager {
         // 5. 清空权限附件
         PermissionAttachment invAtt = invAttachments.remove(uid);
         if (invAtt != null) {
-            try { player.removeAttachment(invAtt); } catch (Throwable e) { plugin.getLogger().fine("Failed to remove inv permission attachment: " + e.getMessage()); }
+            try {
+                player.removeAttachment(invAtt);
+            } catch (Throwable e) {
+                plugin.getLogger().fine("Failed to remove inv permission attachment: " + e.getMessage());
+            }
         }
         PermissionAttachment redAtt = redeemAttachments.remove(uid);
         if (redAtt != null) {
-            try { player.removeAttachment(redAtt); } catch (Throwable e) { plugin.getLogger().fine("Failed to remove redeem permission attachment: " + e.getMessage()); }
+            try {
+                player.removeAttachment(redAtt);
+            } catch (Throwable e) {
+                plugin.getLogger().fine("Failed to remove redeem permission attachment: " + e.getMessage());
+            }
         }
 
         // 6. 重算权限
-        try { player.recalculatePermissions(); } catch (Throwable e) { plugin.getLogger().fine("Failed to recalculate permissions during revokeAll: " + e.getMessage()); }
+        try {
+            player.recalculatePermissions();
+        } catch (Throwable e) {
+            plugin.getLogger().fine("Failed to recalculate permissions during revokeAll: " + e.getMessage());
+        }
 
         // 7. 记录日志
         if (hadAny && historyLogger != null) {
             LanguageManager lm = plugin.getLanguageManager();
             historyLogger.logPermissionRevoke(
-                uid.toString(), player.getName(), "ALL",
-                lm != null ? lm.getMessage("history_reason.all_permissions") : "All gem permissions",
-                Collections.emptyList(), null,
-                lm != null ? lm.getMessage("history_reason.admin_revoke") : "Admin forced revoke");
+                    uid.toString(), player.getName(), "ALL",
+                    lm != null ? lm.getMessage("history_reason.all_permissions") : "All gem permissions",
+                    Collections.emptyList(), null,
+                    lm != null ? lm.getMessage("history_reason.admin_revoke") : "Admin forced revoke");
         }
 
         // 8. 持久化
@@ -840,7 +929,8 @@ public class GemPermissionManager {
      * 标记宝石已兑换
      */
     public void markGemRedeemed(Player player, String gemKey) {
-        if (player == null || gemKey == null || gemKey.isEmpty()) return;
+        if (player == null || gemKey == null || gemKey.isEmpty())
+            return;
         String normalizedKey = gemKey.toLowerCase(ROOT_LOCALE);
         playerUuidToRedeemedKeys.computeIfAbsent(player.getUniqueId(), u -> new HashSet<>()).add(normalizedKey);
     }
@@ -861,14 +951,17 @@ public class GemPermissionManager {
         }
         for (Map.Entry<UUID, UUID> e : gemIdToRedeemer.entrySet()) {
             UUID u = e.getValue();
-            if (u == null) continue;
+            if (u == null)
+                continue;
             String k = stateManager.getGemUuidToKey().get(e.getKey());
-            if (k == null) continue;
+            if (k == null)
+                continue;
             String normalizedKey = k.toLowerCase(ROOT_LOCALE);
             // 跳过待离线撤销的组合
             PendingRevoke pr = pendingRevokes.get(u);
             Set<String> pendingKeys = (pr != null) ? pr.getKeys() : null;
-            if (pendingKeys != null && pendingKeys.contains(normalizedKey)) continue;
+            if (pendingKeys != null && pendingKeys.contains(normalizedKey))
+                continue;
             map.computeIfAbsent(u, kk -> new HashSet<>()).add(normalizedKey);
         }
         return map;
@@ -881,12 +974,16 @@ public class GemPermissionManager {
      * 在 inventory_grants 模式下：切换 gemId 归属，并按计数增减管理权限
      */
     public void handleInventoryOwnershipOnPickup(Player player, UUID gemId) {
-        if (player == null || gemId == null) return;
-        if (!gameplayConfig.isInventoryGrantsEnabled()) return;
+        if (player == null || gemId == null)
+            return;
+        if (!gameplayConfig.isInventoryGrantsEnabled())
+            return;
         String gemKey = stateManager.getGemUuidToKey().get(gemId);
-        if (gemKey == null) return;
+        if (gemKey == null)
+            return;
         GemDefinition def = stateManager.findGemDefinition(gemKey);
-        if (def == null) return;
+        if (def == null)
+            return;
         // 实例级额度：将该 gemId 的持有者额度转交给当前玩家
         if (allowanceManager != null) {
             allowanceManager.reassignHeldInstanceAllowance(gemId, player.getUniqueId(), def);

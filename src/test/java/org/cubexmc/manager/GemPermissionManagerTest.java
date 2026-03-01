@@ -6,6 +6,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.permissions.PermissionAttachment;
 import org.cubexmc.RuleGems;
 import org.cubexmc.model.*;
+import org.cubexmc.provider.PermissionProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -27,11 +28,18 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class GemPermissionManagerTest {
 
-    @Mock private RuleGems plugin;
-    @Mock private GameplayConfig gameplayConfig;
-    @Mock private GemStateManager stateManager;
-    @Mock private HistoryLogger historyLogger;
-    @Mock private GemAllowanceManager allowanceManager;
+    @Mock
+    private RuleGems plugin;
+    @Mock
+    private GameplayConfig gameplayConfig;
+    @Mock
+    private GemStateManager stateManager;
+    @Mock
+    private HistoryLogger historyLogger;
+    @Mock
+    private GemAllowanceManager allowanceManager;
+    @Mock
+    private PermissionProvider permissionProvider;
 
     private GemPermissionManager manager;
 
@@ -47,6 +55,7 @@ class GemPermissionManagerTest {
     void setUp() {
         // Use lenient stubs since not all tests use all mocks
         lenient().when(plugin.getLogger()).thenReturn(java.util.logging.Logger.getLogger("TestLogger"));
+        lenient().when(plugin.getPermissionProvider()).thenReturn(permissionProvider);
         // Mock static Bukkit.getPlayer() to avoid NPE on Bukkit.server
         mockedBukkit = mockStatic(Bukkit.class);
         mockedBukkit.when(() -> Bukkit.getPlayer(any(UUID.class))).thenReturn(null);
@@ -63,16 +72,21 @@ class GemPermissionManagerTest {
     }
 
     private GemDefinition createSimpleGemDef(String key, List<String> permissions, String vaultGroup) {
-        return new GemDefinition(key, null, "Test " + key, null, null,
-                null, null, null, permissions, vaultGroup, null, null, false,
-                null, null, 1, null, null, null);
+        PowerStructure ps = new PowerStructure();
+        if (permissions != null)
+            ps.setPermissions(permissions);
+        if (vaultGroup != null && !vaultGroup.isEmpty()) {
+            ps.setVaultGroups(new ArrayList<>(Collections.singletonList(vaultGroup)));
+        }
+        return new GemDefinition.Builder(key)
+                .displayName("Test " + key).powerStructure(ps).build();
     }
 
     private GemDefinition createGemDefWithAppoints(String key, Map<String, AppointDefinition> appoints) {
         PowerStructure ps = new PowerStructure();
         ps.setAppoints(appoints);
-        return new GemDefinition(key, null, "Test " + key, null, null,
-                null, null, null, ps, null, null, false, null, 1, null, null, null);
+        return new GemDefinition.Builder(key)
+                .displayName("Test " + key).powerStructure(ps).build();
     }
 
     // ==================== Owner Key Count ====================
@@ -333,7 +347,8 @@ class GemPermissionManagerTest {
             Runnable mockSave = mock(Runnable.class);
             manager.setSaveCallback(mockSave);
             // We need to add "all" to pending keys for PLAYER_A
-            // This happens via decrementOwnerKeyCount offline path which adds to pendingRevokes keys
+            // This happens via decrementOwnerKeyCount offline path which adds to
+            // pendingRevokes keys
             // For direct test, manipulate via queueOfflineRevokes then add key manually
             manager.queueOfflineRevokes(PLAYER_A, Collections.singleton("dummy.perm"), null);
             // The pending revoke now exists, add "all" to its keys

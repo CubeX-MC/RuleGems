@@ -68,8 +68,8 @@ class GemAllowanceManagerTest {
         AllowedCommand ac = new AllowedCommand(label, uses, null, 0);
         PowerStructure ps = new PowerStructure();
         ps.setAllowedCommands(Collections.singletonList(ac));
-        return new GemDefinition(key, null, "Test Gem", null, null,
-                null, null, null, ps, null, null, false, null, 1, null, null, null);
+        return new GemDefinition.Builder(key)
+                .displayName("Test Gem").powerStructure(ps).build();
     }
 
     // ==================== hasAnyAllowed ====================
@@ -477,9 +477,8 @@ class GemAllowanceManagerTest {
 
         @Test
         void handlesDefinitionWithNoAllowed() {
-            PowerStructure ps = new PowerStructure();
-            GemDefinition def = new GemDefinition("basic", null, "Basic", null, null,
-                    null, null, null, ps, null, null, false, null, 1, null, null, null);
+            GemDefinition def = new GemDefinition.Builder("basic")
+                    .displayName("Basic").build();
             Player mockPlayer = mock(Player.class);
             // getUniqueId() may or may not be called depending on early return
             lenient().when(mockPlayer.getUniqueId()).thenReturn(PLAYER_A);

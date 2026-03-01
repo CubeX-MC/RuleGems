@@ -1,0 +1,187 @@
+# ==========================================
+# RuleGems - Gems Configuration
+# ==========================================
+
+justice:
+  material: AMETHYST_BLOCK
+  name: "&dJustice Gem"
+  count: 1
+  lore:
+    - "&ePrivileges & Commands:"
+    - "&a/rgjail <player> [jail] [duration]"
+    - "&a/mute <player> [duration]"
+    - "&ePassive Effects:"
+    - "&7Resistance II"
+    - "&eAppointments:"
+    - "&7Can appoint 3 &9Police Officers"
+  enchanted: true
+  redeem_title: ["&d%player% redeemed the Justice Gem", "&eJustice is guarded by you!"]
+  particle: ENCHANTMENT_TABLE
+  sound: BLOCK_AMETHYST_BLOCK_RESONATE
+  power: "justice_gem"
+  on_pickup:
+    sound: BLOCK_AMETHYST_BLOCK_RESONATE
+    particle: ENCHANTMENT_TABLE
+  on_scatter:
+    sound: ENTITY_WITHER_SKELETON_DEATH
+    particle: PORTAL
+  on_redeem:
+    sound: ENTITY_ENDER_DRAGON_GROWL
+    particle: DRAGON_BREATH
+
+truth:
+  material: DIAMOND_BLOCK
+  name: "&bTruth Gem"
+  count: 1
+  lore:
+    - "&ePrivileges & Permissions:"
+    - "&a/co inspect &7- Inspector Mode"
+    - "&a/co lookup &7- Lookup Records"
+    - "&a/inv <player> &7- View Inventory"
+    - "&ePassive Effects:"
+    - "&7Night Vision"
+    - "&eAppointments:"
+    - "&7Can appoint 3 &bInvestigators"
+  enchanted: true
+  redeem_title: ["&b%player% redeemed the Truth Gem", "&eThe truth shall be revealed to you!"]
+  particle: GLOW
+  sound: BLOCK_SCULK_SENSOR_CLICKING
+  power: "truth_gem"
+  on_pickup:
+    sound: BLOCK_SCULK_SENSOR_CLICKING
+    particle: GLOW
+  on_scatter:
+    sound: ENTITY_ALLAY_DEATH
+    particle: SOUL
+  on_redeem:
+    sound: BLOCK_BEACON_ACTIVATE
+    particle: END_ROD
+
+flight:
+  material: QUARTZ_BLOCK
+  name: "&eFlight Gem"
+  count: 1
+  lore:
+    - "&ePrivileges & Commands:"
+    - "&a/tempfly &7- 120s of flight"
+    - "&ePassive Effects:"
+    - "&7Slow Falling I, Jump Boost II"
+    - "&eAppointments:"
+    - "&7Can appoint 3 &eScouts"
+  enchanted: true
+  redeem_title: ["&e%player% redeemed the Flight Gem", "&bSpread your wings and soar!"]
+  particle: CLOUD
+  sound: ENTITY_ENDER_DRAGON_FLAP
+  power: "flight_gem"
+  on_pickup:
+    sound: ENTITY_ENDER_DRAGON_FLAP
+    particle: CLOUD
+  on_scatter:
+    sound: ENTITY_PHANTOM_DEATH
+    particle: POOF
+  on_redeem:
+    sound: ENTITY_BAT_TAKEOFF
+    particle: FIREWORK
+
+life:
+  material: REDSTONE_BLOCK
+  name: "&cLife Gem"
+  count: 1
+  lore:
+    - "&ePrivileges & Commands:"
+    - "&a/heal &7- Restore Health"
+    - "&ePassive Effects:"
+    - "&7Regeneration II, Health Boost I"
+    - "&eAppointments:"
+    - "&7Can appoint 5 &cMedics"
+  enchanted: true
+  redeem_title: ["&c%player% redeemed the Life Gem", "&eThe power of life flows through you!"]
+  particle: HEART
+  sound: BLOCK_BEACON_POWER_SELECT
+  power: "life_gem"
+  on_pickup:
+    sound: BLOCK_BEACON_POWER_SELECT
+    particle: HEART
+  on_scatter:
+    sound: ENTITY_ZOMBIE_VILLAGER_DEATH
+    particle: DAMAGE_INDICATOR
+  on_redeem:
+    sound: ENTITY_PLAYER_LEVELUP
+    particle: TOTEM
+
+lead_assassin:
+  material: POLISHED_BLACKSTONE_BRICKS
+  name: "&8Lead Assassin Gem"
+  count: 1
+  lore:
+    - "&ePassive Effects:"
+    - "&7Invisibility, Speed II, Strength I"
+    - "&eAppointments:"
+    - "&7Can appoint 3 &8Assassins"
+  enchanted: true
+  redeem_title: ["&8%player% redeemed the Lead Assassin Gem", "&7The shadows serve you..."]
+  particle: ASH
+  sound: ENTITY_WITHER_SPAWN
+  power: "lead_assassin_gem"
+  on_pickup:
+    sound: ENTITY_WITHER_SPAWN
+    particle: ASH
+  on_scatter:
+    sound: ENTITY_ENDERMAN_TELEPORT
+    particle: PORTAL
+  on_redeem:
+    sound: ENTITY_WITHER_AMBIENT
+    particle: SQUID_INK
+
+land:
+  material: BARREL
+  name: "&6Land Gem"
+  count: 1
+  lore:
+    - "&ePrivileges & Permissions:"
+    - "&aBypass Lands Protection"
+    - "&aManage any land"
+    - "&ePassive Effects:"
+    - "&7Haste II"
+    - "&eAppointments:"
+    - "&7Can appoint 2 &6Land Wardens"
+  enchanted: true
+  redeem_title: ["&6%player% redeemed the Land Gem", "&eThe keeper of the earth is born!"]
+  particle: VILLAGER_HAPPY
+  sound: BLOCK_BARREL_OPEN
+  power: "land_gem"
+  on_pickup:
+    sound: BLOCK_BARREL_OPEN
+    particle: VILLAGER_HAPPY
+  on_scatter:
+    sound: ENTITY_IRON_GOLEM_DEATH
+    particle: EXPLOSION_NORMAL
+  on_redeem:
+    sound: ENTITY_IRON_GOLEM_REPAIR
+    particle: VILLAGER_HAPPY
+
+navigation:
+  material: LODESTONE
+  name: "&aNavigation Gem"
+  count: 1
+  lore:
+    - "&ePrivileges & Commands:"
+    - "&aRight-click compass to find closest gem"
+    - "&ePassive Effects:"
+    - "&7Speed II"
+    - "&eAppointments:"
+    - "&7Can appoint 4 &aNavigators"
+  enchanted: true
+  redeem_title: ["&a%player% redeemed the Navigation Gem", "&2Never lose your way!"]
+  particle: COMPASS
+  sound: BLOCK_LODESTONE_STEP
+  power: "navigation_gem"
+  on_pickup:
+    sound: BLOCK_LODESTONE_STEP
+    particle: COMPASS
+  on_scatter:
+    sound: ENTITY_ILLUSIONER_MIRROR_MOVE
+    particle: SPELL_WITCH
+  on_redeem:
+    sound: BLOCK_PORTAL_TRIGGER
+    particle: ENCHANTMENT_TABLE

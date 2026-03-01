@@ -86,12 +86,14 @@ public class GemAllowanceManager {
      */
     public void loadData(FileConfiguration gemsData) {
         ConfigurationSection au = gemsData.getConfigurationSection("allowed_uses");
-        if (au == null) return;
+        if (au == null)
+            return;
         for (String playerId : au.getKeys(false)) {
             try {
                 UUID uid = UUID.fromString(playerId);
                 ConfigurationSection playerSec = au.getConfigurationSection(playerId);
-                if (playerSec == null) continue;
+                if (playerSec == null)
+                    continue;
                 loadInstanceSection(playerSec, "held_instances", uid, playerGemHeldUses);
                 loadInstanceSection(playerSec, "redeemed_instances", uid, playerGemRedeemUses);
                 // 向后兼容: legacy "instances" → 视为 redeemed_instances
@@ -105,16 +107,20 @@ public class GemAllowanceManager {
                     for (String l : globSec.getKeys(false)) {
                         map.put(l.toLowerCase(ROOT_LOCALE), globSec.getInt(l, 0));
                     }
-                    if (!map.isEmpty()) playerGlobalAllowedUses.put(uid, map);
+                    if (!map.isEmpty())
+                        playerGlobalAllowedUses.put(uid, map);
                 }
-            } catch (Exception e) { Bukkit.getLogger().warning("Failed to load allowance data for player: " + e.getMessage()); }
+            } catch (Exception e) {
+                Bukkit.getLogger().warning("Failed to load allowance data for player: " + e.getMessage());
+            }
         }
     }
 
     private void loadInstanceSection(ConfigurationSection playerSec, String key, UUID uid,
-                                     Map<UUID, Map<UUID, Map<String, Integer>>> target) {
+            Map<UUID, Map<UUID, Map<String, Integer>>> target) {
         ConfigurationSection sec = playerSec.getConfigurationSection(key);
-        if (sec == null || sec.getKeys(false).isEmpty()) return;
+        if (sec == null || sec.getKeys(false).isEmpty())
+            return;
         Map<UUID, Map<String, Integer>> perInst = new HashMap<>();
         for (String gid : sec.getKeys(false)) {
             try {
@@ -127,20 +133,34 @@ public class GemAllowanceManager {
                     }
                 }
                 perInst.put(gem, map);
-            } catch (Exception e) { Bukkit.getLogger().warning("Failed to parse gem UUID in allowance data: " + e.getMessage()); }
+            } catch (Exception e) {
+                Bukkit.getLogger().warning("Failed to parse gem UUID in allowance data: " + e.getMessage());
+            }
         }
-        if (!perInst.isEmpty()) target.put(uid, perInst);
+        if (!perInst.isEmpty())
+            target.put(uid, perInst);
     }
 
     /**
      * 将命令限次数据写入 gemsData。
      */
     public void saveData(FileConfiguration gemsData) {
+        Map<String, Object> snapshot = new HashMap<>();
+        populateSaveSnapshot(snapshot);
+        for (Map.Entry<String, Object> entry : snapshot.entrySet()) {
+            gemsData.set(entry.getKey(), entry.getValue());
+        }
+    }
+
+    /**
+     * 将将要保存的数据结构提取到快照中，用于线程安全的异步落盘
+     */
+    public void populateSaveSnapshot(Map<String, Object> snapshot) {
         for (Map.Entry<UUID, Map<UUID, Map<String, Integer>>> e : playerGemHeldUses.entrySet()) {
             String base = "allowed_uses." + e.getKey().toString();
             for (Map.Entry<UUID, Map<String, Integer>> inst : e.getValue().entrySet()) {
                 for (Map.Entry<String, Integer> l : inst.getValue().entrySet()) {
-                    gemsData.set(base + ".held_instances." + inst.getKey().toString() + "." + l.getKey(), l.getValue());
+                    snapshot.put(base + ".held_instances." + inst.getKey().toString() + "." + l.getKey(), l.getValue());
                 }
             }
         }
@@ -148,14 +168,15 @@ public class GemAllowanceManager {
             String base = "allowed_uses." + e.getKey().toString();
             for (Map.Entry<UUID, Map<String, Integer>> inst : e.getValue().entrySet()) {
                 for (Map.Entry<String, Integer> l : inst.getValue().entrySet()) {
-                    gemsData.set(base + ".redeemed_instances." + inst.getKey().toString() + "." + l.getKey(), l.getValue());
+                    snapshot.put(base + ".redeemed_instances." + inst.getKey().toString() + "." + l.getKey(),
+                            l.getValue());
                 }
             }
         }
         for (Map.Entry<UUID, Map<String, Integer>> e : playerGlobalAllowedUses.entrySet()) {
             String base = "allowed_uses." + e.getKey().toString();
             for (Map.Entry<String, Integer> l : e.getValue().entrySet()) {
-                gemsData.set(base + ".global." + l.getKey(), l.getValue());
+                snapshot.put(base + ".global." + l.getKey(), l.getValue());
             }
         }
     }
@@ -164,7 +185,8 @@ public class GemAllowanceManager {
      * 清除指定玩家的所有额度数据
      */
     public void clearPlayerData(UUID uid) {
-        if (uid == null) return;
+        if (uid == null)
+            return;
         playerGemHeldUses.remove(uid);
         playerGemRedeemUses.remove(uid);
         playerGlobalAllowedUses.remove(uid);
@@ -465,7 +487,8 @@ public class GemAllowanceManager {
             dest.put(gemId, payload);
         }
         markDirty(newOwner);
-        if (oldOwner != null) invalidateLabelIndex(oldOwner);
+        if (oldOwner != null)
+            invalidateLabelIndex(oldOwner);
     }
 
     /**
@@ -509,7 +532,8 @@ public class GemAllowanceManager {
             dest.put(gemId, payload);
         }
         markDirty(newOwner);
-        if (oldOwner != null) invalidateLabelIndex(oldOwner);
+        if (oldOwner != null)
+            invalidateLabelIndex(oldOwner);
     }
 
     /**
@@ -534,7 +558,8 @@ public class GemAllowanceManager {
      * 获取玩家所有可用的命令标签（使用反向索引缓存）
      */
     public Set<String> getAvailableCommandLabels(UUID uid) {
-        if (uid == null) return new HashSet<>();
+        if (uid == null)
+            return new HashSet<>();
         if (labelIndexDirtyPlayers.contains(uid) || !labelIndexCache.containsKey(uid)) {
             Set<String> labels = rebuildLabelIndex(uid);
             labelIndexCache.put(uid, labels);
@@ -552,26 +577,32 @@ public class GemAllowanceManager {
     }
 
     private void invalidateLabelIndex(UUID uid) {
-        if (uid != null) labelIndexDirtyPlayers.add(uid);
+        if (uid != null)
+            labelIndexDirtyPlayers.add(uid);
     }
 
     private void collectActiveLabelsFromNestedMap(Set<String> labels,
             Map<UUID, Map<String, Integer>> nested) {
-        if (nested == null || nested.isEmpty()) return;
+        if (nested == null || nested.isEmpty())
+            return;
         for (Map<String, Integer> inner : nested.values()) {
             collectActiveLabelsFromFlatMap(labels, inner);
         }
     }
 
     private void collectActiveLabelsFromFlatMap(Set<String> labels, Map<String, Integer> map) {
-        if (map == null || map.isEmpty()) return;
+        if (map == null || map.isEmpty())
+            return;
         for (Map.Entry<String, Integer> entry : map.entrySet()) {
             String key = entry.getKey();
             Integer remaining = entry.getValue();
-            if (key == null || key.isBlank() || remaining == null) continue;
-            if (remaining == 0) continue;
+            if (key == null || key.isBlank() || remaining == null)
+                continue;
+            if (remaining == 0)
+                continue;
             String base = key.split(" ")[0].toLowerCase(ROOT_LOCALE);
-            if (!base.isEmpty()) labels.add(base);
+            if (!base.isEmpty())
+                labels.add(base);
         }
     }
 
