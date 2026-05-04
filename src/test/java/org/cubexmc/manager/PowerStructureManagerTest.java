@@ -120,12 +120,12 @@ class PowerStructureManagerTest {
 
     @Test
     void clearNamespaceRemovesTrackedEffects() {
-        PowerStructure structure = structureWithEffect(PotionEffectType.JUMP_BOOST, 0);
+        PowerStructure structure = structureWithEffect(PotionEffectType.SPEED, 0);
 
         manager.applyStructure(player, structure, "gem_redeem", "spring", false);
         manager.clearNamespace(player, "gem_redeem");
 
-        verify(player, times(1)).removePotionEffect(PotionEffectType.JUMP_BOOST);
+        verify(player, times(1)).removePotionEffect(PotionEffectType.SPEED);
     }
 
     @Test
