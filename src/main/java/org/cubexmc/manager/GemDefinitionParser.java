@@ -2,9 +2,12 @@ package org.cubexmc.manager;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Logger;
 
 import org.bukkit.Bukkit;
@@ -25,6 +28,9 @@ import org.cubexmc.model.ExecuteConfig;
 import org.cubexmc.model.GemDefinition;
 import org.cubexmc.model.PowerCondition;
 import org.cubexmc.model.PowerStructure;
+import org.cubexmc.model.RedeemIngredient;
+import org.cubexmc.model.RedeemRecipe;
+import org.cubexmc.model.RedeemRequirements;
 
 import static org.cubexmc.utils.ConfigParseUtils.*;
 
@@ -70,6 +76,20 @@ public class GemDefinitionParser {
 
     public PowerStructure getPowerTemplate(String name) {
         return powerTemplates.get(name);
+    }
+
+    public List<String> detectLegacySyntax(FileConfiguration config, File dataFolder) {
+        Set<String> findings = new LinkedHashSet<>();
+        if (config != null) {
+            collectLegacyFromMap(config.getValues(false), findings);
+            ConfigurationSection redeemAll = config.getConfigurationSection("redeem_all");
+            if (redeemAll != null) {
+                collectLegacyFromMap(redeemAll.getValues(false), findings);
+            }
+        }
+        collectLegacyFromYamlFolder(new File(dataFolder, "gems"), findings, true);
+        collectLegacyFromYamlFolder(new File(dataFolder, "powers"), findings, false);
+        return new ArrayList<>(findings);
     }
 
     // ==================== 权力模板加载 ====================
@@ -281,6 +301,7 @@ public class GemDefinitionParser {
         Location[] range = parseRandomPlaceRange(map, gemKey);
         Location altarLocation = parseAltarLocation(map, gemKey);
         PowerStructure powerStructure = resolveGemPower(map);
+        RedeemRequirements redeemRequirements = parseRedeemRequirements(map.get("redeem_requirements"));
 
         return new GemDefinition.Builder(gemKey)
                 .material(material).displayName(displayName).particle(particle).sound(sound)
@@ -288,7 +309,107 @@ public class GemDefinitionParser {
                 .powerStructure(powerStructure).lore(lore).redeemTitle(redeemTitle)
                 .enchanted(enchanted).mutualExclusive(mutex).count(count)
                 .randomPlaceCorner1(range[0]).randomPlaceCorner2(range[1])
-                .altarLocation(altarLocation).build();
+                .altarLocation(altarLocation).redeemRequirements(redeemRequirements).build();
+    }
+
+    public RedeemRequirements parseRedeemRequirements(Object obj) {
+        Map<?, ?> map = asMap(obj);
+        if (map == null) {
+            return RedeemRequirements.NONE;
+        }
+        boolean allowRedeemAll = map.containsKey("allow_redeem_all")
+                ? parseBooleanLenient(map.get("allow_redeem_all"))
+                : false;
+        List<RedeemRecipe> recipes;
+        Object anyOf = map.get("any_of");
+        if (anyOf instanceof List) {
+            if (hasTopLevelRecipeFields(map)) {
+                logger.warning("redeem_requirements mixes any_of with top-level recipe fields; using any_of.");
+            }
+            recipes = new ArrayList<>();
+            for (Object recipeObj : (List<?>) anyOf) {
+                RedeemRecipe recipe = parseRedeemRecipe(recipeObj);
+                if (recipe.hasRequirements()) {
+                    recipes.add(recipe);
+                }
+            }
+        } else {
+            RedeemRecipe recipe = parseRedeemRecipe(map);
+            recipes = recipe.hasRequirements()
+                    ? Collections.singletonList(recipe)
+                    : Collections.emptyList();
+        }
+        return recipes.isEmpty()
+                ? new RedeemRequirements(Collections.emptyList(), allowRedeemAll, stringOf(map.get("failure_message")))
+                : new RedeemRequirements(recipes, allowRedeemAll, stringOf(map.get("failure_message")));
+    }
+
+    private boolean hasTopLevelRecipeFields(Map<?, ?> map) {
+        return map.containsKey("requires_held")
+                || map.containsKey("requires_redeemed")
+                || map.containsKey("consumes")
+                || map.containsKey("requires_any")
+                || map.containsKey("requires_count")
+                || map.containsKey("requires_count_from");
+    }
+
+    private RedeemRecipe parseRedeemRecipe(Object obj) {
+        Map<?, ?> map = asMap(obj);
+        if (map == null) {
+            logger.warning("Invalid redeem_requirements recipe entry; expected map.");
+            return new RedeemRecipe(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(),
+                    Collections.emptyList(), 0, Collections.emptyList());
+        }
+        return new RedeemRecipe(
+                parseRedeemIngredients(map.get("requires_held"), "requires_held"),
+                parseRedeemIngredients(map.get("consumes"), "consumes"),
+                parseRedeemIngredients(map.get("requires_redeemed"), "requires_redeemed"),
+                toStringList(map.get("requires_any")),
+                parseIntSafe(map.get("requires_count"), 0),
+                toStringList(map.get("requires_count_from")));
+    }
+
+    private List<RedeemIngredient> parseRedeemIngredients(Object obj, String fieldName) {
+        if (obj == null) {
+            return Collections.emptyList();
+        }
+        List<?> raw = obj instanceof List ? (List<?>) obj : Collections.singletonList(obj);
+        List<RedeemIngredient> ingredients = new ArrayList<>();
+        for (Object item : raw) {
+            RedeemIngredient ingredient = parseRedeemIngredient(item, fieldName);
+            if (ingredient != null && ingredient.isValid()) {
+                ingredients.add(ingredient);
+            }
+        }
+        return ingredients;
+    }
+
+    private RedeemIngredient parseRedeemIngredient(Object obj, String fieldName) {
+        if (obj instanceof String) {
+            String gemKey = ((String) obj).trim();
+            if (gemKey.isEmpty()) {
+                logger.warning("Ignoring empty redeem_requirements." + fieldName + " ingredient.");
+                return null;
+            }
+            return new RedeemIngredient(gemKey, 1);
+        }
+        Map<?, ?> map = asMap(obj);
+        if (map != null) {
+            String gemKey = stringOf(map.get("gem"));
+            if (gemKey == null || gemKey.trim().isEmpty()) {
+                logger.warning("Ignoring redeem_requirements." + fieldName + " ingredient without gem key.");
+                return null;
+            }
+            int amount = parseIntSafe(map.get("amount"), 1);
+            if (amount <= 0) {
+                logger.warning("redeem_requirements." + fieldName + " amount for '" + gemKey
+                        + "' must be positive; using 1.");
+                amount = 1;
+            }
+            return new RedeemIngredient(gemKey, amount);
+        }
+        logger.warning("Ignoring invalid redeem_requirements." + fieldName + " ingredient: " + obj);
+        return null;
     }
 
     private Material parseMaterial(String value, Material fallback) {
@@ -358,6 +479,16 @@ public class GemDefinitionParser {
         }
     }
 
+    private Map<?, ?> asMap(Object obj) {
+        if (obj instanceof ConfigurationSection) {
+            return ((ConfigurationSection) obj).getValues(false);
+        }
+        if (obj instanceof Map) {
+            return (Map<?, ?>) obj;
+        }
+        return null;
+    }
+
     private Location[] parseRandomPlaceRange(Map<?, ?> map, String gemKey) {
         Location corner1 = null, corner2 = null;
         Object rangeObj = map.get("random_place_range");
@@ -401,13 +532,158 @@ public class GemDefinitionParser {
         Object powerObj = map.get("power");
         if (powerObj != null) {
             PowerStructure powerStructure = parsePowerStructure(powerObj);
-            PowerStructure rootStructure = parsePowerStructure(map);
+            PowerStructure rootStructure = parseLegacyRootPower(map);
             if (rootStructure.hasAnyContent()) {
+                logger.warning("Gem root power fields are deprecated; move permissions, command_allows, effects, "
+                        + "and permission_groups under power:. future version may remove this compatibility.");
                 powerStructure.merge(rootStructure);
             }
             return powerStructure;
-        } else {
-            return parsePowerStructure(map);
+        }
+        PowerStructure rootStructure = parseLegacyRootPower(map);
+        if (rootStructure.hasAnyContent()) {
+            logger.warning("Gem root power fields without power: are deprecated; move them under power:. "
+                    + "future version may remove this compatibility.");
+        }
+        return rootStructure;
+    }
+
+    private PowerStructure parseLegacyRootPower(Map<?, ?> map) {
+        if (!hasPowerFields(map)) {
+            return new PowerStructure();
+        }
+        return parsePowerStructure(map);
+    }
+
+    private boolean hasPowerFields(Map<?, ?> map) {
+        return map.containsKey("permissions")
+                || map.containsKey("command_allows")
+                || map.containsKey("allowed_commands")
+                || map.containsKey("effects")
+                || map.containsKey("vault_group")
+                || map.containsKey("vault_groups")
+                || map.containsKey("permission_group")
+                || map.containsKey("permission_groups")
+                || map.containsKey("appoints")
+                || map.containsKey("conditions");
+    }
+
+    private void collectLegacyFromYamlFolder(File folder, Set<String> findings, boolean gemFile) {
+        if (folder == null || !folder.isDirectory()) {
+            return;
+        }
+        File[] files = folder.listFiles();
+        if (files == null) {
+            return;
+        }
+        for (File file : files) {
+            if (file.isDirectory()) {
+                collectLegacyFromYamlFolder(file, findings, gemFile);
+            } else if (file.isFile() && file.getName().toLowerCase().endsWith(".yml")) {
+                YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+                for (String key : yaml.getKeys(false)) {
+                    Object value = yaml.get(key);
+                    Map<?, ?> map = asMap(value);
+                    if (map == null) {
+                        continue;
+                    }
+                    collectLegacyFromMap(map, findings);
+                    if (gemFile) {
+                        Object power = map.get("power");
+                        if (power != null && hasPowerFields(map)) {
+                            findings.add("gem root power fields outside power");
+                        }
+                        Object requirements = map.get("redeem_requirements");
+                        Map<?, ?> reqMap = asMap(requirements);
+                        if (reqMap != null && containsMapIngredientList(reqMap)) {
+                            findings.add("redeem_requirements map ingredient list");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void collectLegacyFromMap(Map<?, ?> map, Set<String> findings) {
+        if (map == null) {
+            return;
+        }
+        if (map.containsKey("template")) {
+            findings.add("template -> base");
+        }
+        if (map.containsKey("vault_group")) {
+            findings.add("vault_group -> permission_groups");
+        }
+        if (map.containsKey("vault_groups")) {
+            findings.add("vault_groups -> permission_groups");
+        }
+        if (map.containsKey("permission_group")) {
+            findings.add("permission_group -> permission_groups");
+        }
+        Object power = map.get("power");
+        Map<?, ?> powerMap = asMap(power);
+        if (powerMap != null) {
+            collectLegacyFromMap(powerMap, findings);
+        }
+        Object appoints = map.get("appoints");
+        Map<?, ?> appointsMap = asMap(appoints);
+        if (appointsMap != null) {
+            for (Object appoint : appointsMap.values()) {
+                collectLegacyFromMap(asMap(appoint), findings);
+            }
+        }
+    }
+
+    private boolean containsMapIngredientList(Map<?, ?> requirements) {
+        return containsMapItem(requirements.get("requires_held"))
+                || containsMapItem(requirements.get("requires_redeemed"))
+                || containsMapItem(requirements.get("consumes"));
+    }
+
+    private boolean containsMapItem(Object obj) {
+        if (!(obj instanceof List)) {
+            return false;
+        }
+        for (Object item : (List<?>) obj) {
+            if (asMap(item) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<String> parsePermissionGroups(Map<?, ?> map) {
+        Set<String> groups = new LinkedHashSet<>();
+        addGroups(groups, toStringList(map.get("permission_groups")));
+
+        boolean usedLegacy = false;
+        String group = stringOf(map.get("vault_group"));
+        if (group != null && !group.trim().isEmpty()) {
+            groups.add(group.trim());
+            usedLegacy = true;
+        }
+        List<String> vaultGroups = toStringList(map.get("vault_groups"));
+        if (!vaultGroups.isEmpty()) {
+            addGroups(groups, vaultGroups);
+            usedLegacy = true;
+        }
+        String permissionGroup = stringOf(map.get("permission_group"));
+        if (permissionGroup != null && !permissionGroup.trim().isEmpty()) {
+            groups.add(permissionGroup.trim());
+            usedLegacy = true;
+        }
+        if (usedLegacy) {
+            logger.warning("Power group keys vault_group/vault_groups/permission_group are deprecated; "
+                    + "use permission_groups. future version may remove this compatibility.");
+        }
+        return new ArrayList<>(groups);
+    }
+
+    private void addGroups(Set<String> groups, List<String> values) {
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) {
+                groups.add(value.trim());
+            }
         }
     }
 
@@ -602,6 +878,13 @@ public class GemDefinitionParser {
                 if (item instanceof String) {
                     String templateName = (String) item;
                     PowerStructure template = powerTemplates.get(templateName);
+                    if (template == null && rawPowerTemplates.containsKey(templateName)) {
+                        Object raw = rawPowerTemplates.remove(templateName);
+                        if (raw != null) {
+                            template = parsePowerStructure(raw);
+                            powerTemplates.put(templateName, template);
+                        }
+                    }
                     if (template != null) {
                         combined.merge(template);
                     } else {
@@ -619,18 +902,17 @@ public class GemDefinitionParser {
         // 2. Map 解析
         if (obj instanceof Map || obj instanceof ConfigurationSection) {
             Map<?, ?> map;
-            if (obj instanceof ConfigurationSection) {
-                map = ((ConfigurationSection) obj).getValues(false);
-            } else {
-                map = (Map<?, ?>) obj;
-            }
+            map = asMap(obj);
 
             PowerStructure structure = new PowerStructure();
 
             // 检查是否有 base/template 字段用于继承
             Object baseObj = map.get("base");
-            if (baseObj == null)
+            if (baseObj == null && map.containsKey("template")) {
                 baseObj = map.get("template");
+                logger.warning("Power field 'template' is deprecated; use 'base' instead. "
+                        + "future version may remove this compatibility.");
+            }
 
             if (baseObj instanceof String) {
                 PowerStructure template = parsePowerStructure((String) baseObj);
@@ -655,14 +937,13 @@ public class GemDefinitionParser {
                 structure.getPermissions().addAll(perms);
             }
 
-            String group = stringOf(map.get("vault_group"));
-            if (group != null && !group.isEmpty()) {
-                structure.getVaultGroups().add(group);
-            }
-
-            List<String> groups = toStringList(map.get("vault_groups"));
+            List<String> groups = parsePermissionGroups(map);
             if (!groups.isEmpty()) {
-                structure.getVaultGroups().addAll(groups);
+                for (String group : groups) {
+                    if (!structure.getVaultGroups().contains(group)) {
+                        structure.getVaultGroups().add(group);
+                    }
+                }
             }
 
             List<AllowedCommand> allowed = parseAllowedCommands(map.get("command_allows"));
@@ -714,11 +995,8 @@ public class GemDefinitionParser {
             return null;
 
         Map<?, ?> map;
-        if (obj instanceof ConfigurationSection) {
-            map = ((ConfigurationSection) obj).getValues(false);
-        } else if (obj instanceof Map) {
-            map = (Map<?, ?>) obj;
-        } else {
+        map = asMap(obj);
+        if (map == null) {
             return null;
         }
 
@@ -761,7 +1039,9 @@ public class GemDefinitionParser {
 
         // 如果当前节点包含 permissions/effects/allowed_commands，也视为内联定义
         if (map.containsKey("permissions") || map.containsKey("allowed_commands") ||
-                map.containsKey("effects") || map.containsKey("command_allows") || map.containsKey("vault_groups")) {
+                map.containsKey("effects") || map.containsKey("command_allows") || map.containsKey("vault_groups")
+                || map.containsKey("vault_group") || map.containsKey("permission_group")
+                || map.containsKey("permission_groups")) {
             PowerStructure implicit = parsePowerStructure(map);
             if (power == null) {
                 power = implicit;

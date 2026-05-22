@@ -13,7 +13,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.permissions.PermissionAttachment;
 
 import org.cubexmc.RuleGems;
-// Removed unused import: AllowedCommand
+import org.cubexmc.features.rule.RuleGateFeature;
 import org.cubexmc.model.EffectConfig;
 import org.cubexmc.model.PowerCondition;
 import org.cubexmc.model.PowerStructure;
@@ -39,8 +39,14 @@ public class PowerStructureManager {
     // 已应用的药水效果（用于追踪和撤销）: namespace -> playerUuid -> sourceId -> List<EffectConfig>
     private final Map<String, Map<UUID, Map<String, List<EffectConfig>>>> appliedEffects = new HashMap<>();
 
+    private RuleGateFeature ruleGateFeature;
+
     public PowerStructureManager(RuleGems plugin) {
         this.plugin = plugin;
+    }
+
+    public void setRuleGateFeature(RuleGateFeature feature) {
+        this.ruleGateFeature = feature;
     }
 
     // ==================== 权限应用 ====================
@@ -59,6 +65,10 @@ public class PowerStructureManager {
             String namespace, String sourceId, boolean checkCondition) {
         if (player == null || structure == null)
             return false;
+
+        if (ruleGateFeature != null && !canUsePower(player, namespace, sourceId)) {
+            return false;
+        }
 
         // 检查条件
         if (checkCondition && structure.hasConditions()) {
@@ -94,6 +104,13 @@ public class PowerStructureManager {
 
         player.recalculatePermissions();
         return true;
+    }
+
+    private boolean canUsePower(Player player, String namespace, String sourceId) {
+        if (namespace != null && namespace.startsWith("gem")) {
+            return ruleGateFeature.canUsePower(player, sourceId);
+        }
+        return ruleGateFeature.canUsePower(player);
     }
 
     /**

@@ -1,8 +1,11 @@
 package org.cubexmc.manager;
 
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -28,7 +31,12 @@ import org.cubexmc.event.GemPlaceEvent;
 import org.cubexmc.event.GemRedeemEvent;
 import org.cubexmc.model.ExecuteConfig;
 import org.cubexmc.model.GemDefinition;
+import org.cubexmc.model.RedeemIngredient;
+import org.cubexmc.model.RedeemRequirementResult;
+import org.cubexmc.model.RedeemRecipe;
+import org.cubexmc.model.RedeemRequirements;
 import org.cubexmc.utils.EffectUtils;
+import org.cubexmc.utils.ColorUtils;
 import org.cubexmc.utils.SchedulerUtil;
 import org.cubexmc.model.PowerStructure;
 
@@ -79,6 +87,7 @@ public class GemManager {
         // 交叉引用 & 回调
         this.allowanceManager.setSaveCallback(this::saveGems);
         this.allowanceManager.setIsToggledOffCheck(this::isGemIdToggledOff);
+        this.allowanceManager.setGemKeyLookup(stateManager::getGemKey);
         this.permissionManager.setSaveCallback(this::saveGems);
         this.permissionManager.setAllowanceManager(allowanceManager);
         this.placementManager.setEffectUtils(effectUtils);
@@ -255,6 +264,7 @@ public class GemManager {
         String currentGemKey = stateManager.getGemKey(gemId);
         GemDefinition matchedDef = findMatchingAltarGem(placedLoc, currentGemKey);
         if (matchedDef != null) {
+            event.setCancelled(true);
             handlePlaceRedeem(placer, gemId, placedLoc, block, matchedDef);
             return;
         }
@@ -442,6 +452,12 @@ public class GemManager {
         }
 
         GemDefinition def = stateManager.findGemDefinition(targetKey);
+        RedeemRequirementResult requirementResult = evaluateRedeemRequirements(player, def, matchedGemId,
+                GemRedeemEvent.RedeemContext.HAND);
+        if (!requirementResult.isAllowed()) {
+            sendRedeemRequirementFailure(player, requirementResult);
+            return false;
+        }
 
         // Fire GemRedeemEvent before modifying state
         GemRedeemEvent redeemEvent = new GemRedeemEvent(player, matchedGemId, targetKey,
@@ -456,6 +472,7 @@ public class GemManager {
         stateManager.removeGemItemFromInventory(player, matchedGemId);
         stateManager.getGemUuidToHolder().remove(matchedGemId);
         placementManager.randomPlaceGem(matchedGemId);
+        consumeRequirementGems(player, requirementResult);
 
         if (historyLogger != null) {
             historyLogger.logGemRedeem(player, targetKey,
@@ -497,20 +514,33 @@ public class GemManager {
             if (!keyToGemId.containsKey(d.getGemKey().toLowerCase()))
                 return false;
         }
+        for (GemDefinition d : defs) {
+            UUID gid = keyToGemId.get(d.getGemKey().toLowerCase(Locale.ROOT));
+            RedeemRequirementResult requirementResult = evaluateRedeemRequirements(player, d, gid,
+                    GemRedeemEvent.RedeemContext.FULL_SET);
+            if (!requirementResult.isAllowed()) {
+                sendRedeemRequirementFailure(player, requirementResult);
+                return true;
+            }
+        }
 
-        // 依次兑换每颗宝石
+        // Phase 1: validate every redeem event before mutating any internal state.
+        for (GemDefinition d : defs) {
+            String normalizedKey = d.getGemKey().toLowerCase(Locale.ROOT);
+            UUID gid = keyToGemId.get(normalizedKey);
+            GemRedeemEvent redeemEvent = new GemRedeemEvent(player, gid, d.getGemKey(),
+                    GemRedeemEvent.RedeemContext.FULL_SET);
+            Bukkit.getPluginManager().callEvent(redeemEvent);
+            if (redeemEvent.isCancelled())
+                return true;
+        }
+
+        // Phase 2: all events accepted, so the full-set redeem can commit.
         UUID previousFull = permissionManager.getFullSetOwner();
         permissionManager.setFullSetOwner(player.getUniqueId());
         for (GemDefinition d : defs) {
             String normalizedKey = d.getGemKey().toLowerCase(Locale.ROOT);
             UUID gid = keyToGemId.get(normalizedKey);
-
-            // Fire GemRedeemEvent per gem (FULL_SET context)
-            GemRedeemEvent redeemEvent = new GemRedeemEvent(player, gid, d.getGemKey(),
-                    GemRedeemEvent.RedeemContext.FULL_SET);
-            Bukkit.getPluginManager().callEvent(redeemEvent);
-            if (redeemEvent.isCancelled())
-                continue; // skip this gem if cancelled
 
             permissionManager.markGemRedeemed(player, d.getGemKey());
             if (gid != null) {
@@ -591,9 +621,16 @@ public class GemManager {
         return null;
     }
 
-    private void handlePlaceRedeem(Player player, UUID gemId, Location placedLoc, Block block, GemDefinition def) {
+    private enum PlaceRedeemResult {
+        SUCCESS,
+        REJECTED,
+        CANCELLED_BY_EVENT,
+        INVALID
+    }
+
+    private PlaceRedeemResult handlePlaceRedeem(Player player, UUID gemId, Location placedLoc, Block block, GemDefinition def) {
         if (player == null || gemId == null || def == null)
-            return;
+            return PlaceRedeemResult.INVALID;
         String targetKey = def.getGemKey();
 
         // 互斥检查
@@ -601,14 +638,21 @@ public class GemManager {
         if (alreadyRedeemed != null && permissionManager.conflictsWithSelected(targetKey, alreadyRedeemed)) {
             languageManager.sendMessage(player, "command.redeem.conflict");
             effectUtils.playLocalSound(player.getLocation(), "ENTITY_VILLAGER_NO", 1.0f, 1.0f);
-            return;
+            return PlaceRedeemResult.REJECTED;
         }
 
         // Fire GemRedeemEvent (altar context) before modifying state
+        RedeemRequirementResult requirementResult = evaluateRedeemRequirements(player, def, gemId,
+                GemRedeemEvent.RedeemContext.ALTAR);
+        if (!requirementResult.isAllowed()) {
+            sendRedeemRequirementFailure(player, requirementResult);
+            return PlaceRedeemResult.REJECTED;
+        }
+
         GemRedeemEvent redeemEvent = new GemRedeemEvent(player, gemId, targetKey, GemRedeemEvent.RedeemContext.ALTAR);
         Bukkit.getPluginManager().callEvent(redeemEvent);
         if (redeemEvent.isCancelled()) {
-            return;
+            return PlaceRedeemResult.CANCELLED_BY_EVENT;
         }
 
         placementManager.playPlaceRedeemEffects(placedLoc);
@@ -633,6 +677,7 @@ public class GemManager {
         stateManager.getGemUuidToHolder().remove(gemId);
         SchedulerUtil.regionRun(plugin, placedLoc, () -> block.setType(Material.AIR), 1L, -1L);
         placementManager.randomPlaceGem(gemId);
+        consumeRequirementGems(player, requirementResult);
 
         SchedulerUtil.entityRun(plugin, player, () -> {
             stateManager.removeGemItemFromInventory(player, gemId);
@@ -642,6 +687,238 @@ public class GemManager {
                 plugin.getLogger().fine("Failed to update player inventory: " + e.getMessage());
             }
         }, 1L, -1L);
+        return PlaceRedeemResult.SUCCESS;
+    }
+
+    private RedeemRequirementResult evaluateRedeemRequirements(Player player, GemDefinition def, UUID targetGemId,
+            GemRedeemEvent.RedeemContext context) {
+        if (player == null || def == null || def.getRedeemRequirements() == null) {
+            return RedeemRequirementResult.ALLOWED;
+        }
+        RedeemRequirements requirements = def.getRedeemRequirements();
+        if (!requirements.hasRequirements()) {
+            return RedeemRequirementResult.ALLOWED;
+        }
+        if (context == GemRedeemEvent.RedeemContext.FULL_SET) {
+            if (requirements.isAllowRedeemAll()) {
+                return RedeemRequirementResult.ALLOWED;
+            }
+            return deniedRequirement(requirements, "command.redeem.requirements_redeemall_blocked", "gem",
+                    def.getGemKey());
+        }
+
+        Map<String, List<UUID>> heldGemIds = collectHeldGemIds(player, targetGemId);
+        Map<String, Integer> redeemedCounts = normalizedRedeemedCounts(player);
+        RedeemRequirementResult lastDenied = null;
+
+        for (RedeemRecipe recipe : requirements.getRecipes()) {
+            RedeemRequirementResult result = evaluateRedeemRecipe(requirements, recipe, heldGemIds, redeemedCounts,
+                    targetGemId);
+            if (result.isAllowed()) {
+                return result;
+            }
+            lastDenied = result;
+        }
+        return lastDenied != null ? lastDenied
+                : deniedRequirement(requirements, "command.redeem.requirements_missing_held", "gem",
+                        def.getGemKey());
+    }
+
+    private RedeemRequirementResult evaluateRedeemRecipe(RedeemRequirements requirements, RedeemRecipe recipe,
+            Map<String, List<UUID>> heldGemIds, Map<String, Integer> redeemedCounts, UUID targetGemId) {
+        Set<UUID> usedGemIds = new HashSet<>();
+        for (RedeemIngredient ingredient : recipe.getRequiresHeld()) {
+            if (!reserveHeldIngredient(heldGemIds, usedGemIds, ingredient)) {
+                return deniedRequirement(requirements, "command.redeem.requirements_missing_held",
+                        ingredientPlaceholders(ingredient));
+            }
+        }
+        for (RedeemIngredient ingredient : recipe.getRequiresRedeemed()) {
+            int owned = redeemedCounts.getOrDefault(normalizeKey(ingredient.getGemKey()), 0);
+            if (owned < ingredient.getAmount()) {
+                return deniedRequirement(requirements, "command.redeem.requirements_missing_redeemed",
+                        ingredientPlaceholders(ingredient));
+            }
+        }
+        if (!recipe.getRequiresAny().isEmpty()) {
+            boolean matched = false;
+            for (String candidate : recipe.getRequiresAny()) {
+                String key = normalizeKey(candidate);
+                if (heldGemIds.containsKey(key) || redeemedCounts.getOrDefault(key, 0) > 0) {
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                return deniedRequirement(requirements, "command.redeem.requirements_missing_any", "gem",
+                        String.join(", ", recipe.getRequiresAny()));
+            }
+        }
+        if (recipe.getRequiresCount() > 0 && !recipe.getRequiresCountFrom().isEmpty()) {
+            int matched = 0;
+            for (String candidate : recipe.getRequiresCountFrom()) {
+                String key = normalizeKey(candidate);
+                if (heldGemIds.containsKey(key) || redeemedCounts.getOrDefault(key, 0) > 0) {
+                    matched++;
+                }
+            }
+            if (matched < recipe.getRequiresCount()) {
+                Map<String, String> placeholders = new HashMap<>();
+                placeholders.put("count", String.valueOf(recipe.getRequiresCount()));
+                placeholders.put("gems", String.join(", ", recipe.getRequiresCountFrom()));
+                return deniedRequirement(requirements, "command.redeem.requirements_missing_count", placeholders);
+            }
+        }
+
+        List<UUID> consumedGemIds = new ArrayList<>();
+        for (RedeemIngredient ingredient : recipe.getConsumes()) {
+            List<UUID> selected = reserveIngredient(heldGemIds, usedGemIds, ingredient);
+            if (selected.size() < ingredient.getAmount()) {
+                return deniedRequirement(requirements, "command.redeem.requirements_missing_consumed",
+                        ingredientPlaceholders(ingredient));
+            }
+            for (UUID consumedGemId : selected) {
+                if (!consumedGemId.equals(targetGemId)) {
+                    consumedGemIds.add(consumedGemId);
+                }
+            }
+        }
+        return RedeemRequirementResult.allowed(consumedGemIds, recipe);
+    }
+
+    private boolean reserveHeldIngredient(Map<String, List<UUID>> heldGemIds, Set<UUID> usedGemIds,
+            RedeemIngredient ingredient) {
+        return reserveIngredient(heldGemIds, usedGemIds, ingredient).size() == ingredient.getAmount();
+    }
+
+    private List<UUID> reserveIngredient(Map<String, List<UUID>> heldGemIds, Set<UUID> usedGemIds,
+            RedeemIngredient ingredient) {
+        List<UUID> ids = heldGemIds.getOrDefault(normalizeKey(ingredient.getGemKey()), Collections.emptyList());
+        List<UUID> selected = new ArrayList<>();
+        for (UUID id : ids) {
+            if (usedGemIds.contains(id)) {
+                continue;
+            }
+            selected.add(id);
+            usedGemIds.add(id);
+            if (selected.size() >= ingredient.getAmount()) {
+                break;
+            }
+        }
+        return selected;
+    }
+
+    private Map<String, String> ingredientPlaceholders(RedeemIngredient ingredient) {
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("gem", ingredient.getGemKey());
+        placeholders.put("amount", String.valueOf(ingredient.getAmount()));
+        return placeholders;
+    }
+
+    private RedeemRequirementResult deniedRequirement(RedeemRequirements requirements, String fallbackKey,
+            String placeholderKey, String placeholderValue) {
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put(placeholderKey, placeholderValue);
+        return deniedRequirement(requirements, fallbackKey, placeholders);
+    }
+
+    private RedeemRequirementResult deniedRequirement(RedeemRequirements requirements, String fallbackKey,
+            Map<String, String> placeholders) {
+        String custom = requirements.getFailureMessage();
+        if (custom != null && !custom.trim().isEmpty()) {
+            return RedeemRequirementResult.denied(custom, false, placeholders);
+        }
+        return RedeemRequirementResult.denied(fallbackKey, true, placeholders);
+    }
+
+    private void sendRedeemRequirementFailure(Player player, RedeemRequirementResult result) {
+        if (player == null || result == null || result.isAllowed()) {
+            return;
+        }
+        if (result.isMessageLanguageKey()) {
+            languageManager.sendMessage(player, result.getMessage(), result.getPlaceholders());
+        } else {
+            Map<String, String> placeholders = new HashMap<>(result.getPlaceholders());
+            placeholders.putIfAbsent("prefix", languageManager.getMessage("prefix"));
+            player.sendMessage(ColorUtils.translateColorCodes(languageManager.formatText(result.getMessage(), placeholders)));
+        }
+    }
+
+    private void consumeRequirementGems(Player player, RedeemRequirementResult result) {
+        if (player == null || result == null || result.getConsumedGemIds().isEmpty()) {
+            return;
+        }
+        Set<UUID> uniqueConsumed = new LinkedHashSet<>(result.getConsumedGemIds());
+        for (UUID consumedGemId : uniqueConsumed) {
+            stateManager.removeGemItemFromInventory(player, consumedGemId);
+            stateManager.getGemUuidToHolder().remove(consumedGemId);
+            placementManager.randomPlaceGem(consumedGemId);
+        }
+        recalculateGrants(player);
+    }
+
+    private Map<String, List<UUID>> collectHeldGemIds(Player player, UUID targetGemId) {
+        Map<String, List<UUID>> result = new LinkedHashMap<>();
+        Set<UUID> seen = new HashSet<>();
+        if (player == null || player.getInventory() == null) {
+            addHeldGemId(result, seen, targetGemId);
+            return result;
+        }
+        collectHeldGemIdsFromItems(result, seen, player.getInventory().getContents());
+        ItemStack offHand = player.getInventory().getItemInOffHand();
+        collectHeldGemIdsFromItems(result, seen, new ItemStack[] { offHand });
+        addHeldGemId(result, seen, targetGemId);
+        return result;
+    }
+
+    private void collectHeldGemIdsFromItems(Map<String, List<UUID>> result, Set<UUID> seen, ItemStack[] items) {
+        if (items == null) {
+            return;
+        }
+        for (ItemStack item : items) {
+            if (!stateManager.isRuleGem(item)) {
+                continue;
+            }
+            UUID id = stateManager.getGemUUID(item);
+            addHeldGemId(result, seen, id);
+        }
+    }
+
+    private void addHeldGemId(Map<String, List<UUID>> result, Set<UUID> seen, UUID id) {
+        if (id == null || !seen.add(id)) {
+            return;
+        }
+        String key = stateManager.getGemKey(id);
+        if (key == null || key.isEmpty()) {
+            return;
+        }
+        result.computeIfAbsent(normalizeKey(key), ignored -> new ArrayList<>()).add(id);
+    }
+
+    private Map<String, Integer> normalizedRedeemedCounts(Player player) {
+        Map<String, Integer> result = new HashMap<>();
+        if (player == null) {
+            return result;
+        }
+        Map<String, Integer> ownedCounts = permissionManager.getOwnerKeyCount().get(player.getUniqueId());
+        if (ownedCounts != null) {
+            for (Map.Entry<String, Integer> entry : ownedCounts.entrySet()) {
+                if (entry.getKey() != null && entry.getValue() != null && entry.getValue() > 0) {
+                    result.put(normalizeKey(entry.getKey()), entry.getValue());
+                }
+            }
+        }
+        Set<String> redeemed = permissionManager.getPlayerUuidToRedeemedKeys().get(player.getUniqueId());
+        if (redeemed != null) {
+            for (String key : redeemed) {
+                result.putIfAbsent(normalizeKey(key), 1);
+            }
+        }
+        return result;
+    }
+
+    private String normalizeKey(String key) {
+        return key == null ? "" : key.toLowerCase(Locale.ROOT);
     }
 
     private void applyRedeemRewards(Player player, GemDefinition def) {

@@ -48,3 +48,12 @@ buildNumber.properties
 *.class
 test.java
 configuration_gemocracy/
+
+# Agent / local harness workflow
+AGENTS.md
+docs/agent-*.md
+skills/
+.codex/
+
+Plugins/
+newnan-plugins/

@@ -1,0 +1,20 @@
+# Revoke-power feature.
+# Disabled by default so existing servers keep current behavior.
+enabled: false
+
+# Seconds a player has to run /rg revoke-power confirm after starting a revoke.
+confirm_timeout: 30
+
+rules:
+  judgment:
+    display_name: "&cJudgment Gem"
+    trigger_gem: judgment
+    target_powers:
+      - territory
+      - jailer
+    require_held: true
+    consume_gem: false
+    cooldown: 3600
+    confirm_required: true
+    broadcast: true
+    allow_offline_target: true

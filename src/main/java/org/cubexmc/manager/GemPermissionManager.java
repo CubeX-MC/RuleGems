@@ -58,6 +58,8 @@ public class GemPermissionManager {
     private final Map<UUID, PendingRevoke> pendingRevokes = new ConcurrentHashMap<>();
     // 玩家手动关闭能力的宝石集合 (UUID -> Set<gemKey>)
     private final Map<UUID, Set<String>> toggledOffGems = new ConcurrentHashMap<>();
+    // 阶梯式收集组（UUID -> 已由 RuleGems 应用的组）
+    private final Map<UUID, Set<String>> collectThresholdGroups = new ConcurrentHashMap<>();
 
     // 保存回调
     private Runnable saveCallback;
@@ -222,6 +224,7 @@ public class GemPermissionManager {
         pendingRevokes.clear();
         fullSetOwner = null;
         toggledOffGems.clear();
+        collectThresholdGroups.clear();
     }
 
     /**
@@ -247,6 +250,7 @@ public class GemPermissionManager {
             psm.clearNamespace(player, "gem_redeem_all");
             psm.clearNamespace(player, "gem_inv");
         }
+        clearCollectThresholdGroups(player);
 
         PermissionAttachment invAtt = invAttachments.remove(player.getUniqueId());
         if (invAtt != null) {
@@ -400,6 +404,7 @@ public class GemPermissionManager {
             psm.clearNamespace(player, "gem_appoint");
             psm.clearNamespace(player, "gem_redeem_all");
         }
+        clearCollectThresholdGroups(player);
 
         Map<String, Integer> ownedKeys = ownerKeyCount.getOrDefault(playerId, Collections.emptyMap());
         for (Map.Entry<String, Integer> entry : ownedKeys.entrySet()) {
@@ -430,6 +435,7 @@ public class GemPermissionManager {
             }
         }
 
+        reconcileCollectThresholdGroups(player);
         player.recalculatePermissions();
     }
 
@@ -717,6 +723,7 @@ public class GemPermissionManager {
                     }
                 }
                 grantAppointPermissions(p, def);
+                reconcileCollectThresholdGroups(p);
                 try {
                     p.recalculatePermissions();
                 } catch (Throwable e) {
@@ -778,6 +785,7 @@ public class GemPermissionManager {
 
                 // 离线撤销：药水效果
                 queueOfflineEffectRevokes(owner, def.getEffects());
+                queueOfflineThresholdGroupRevokes(owner);
 
                 // === 即时处理（不需要等待上线）===
 
@@ -824,7 +832,92 @@ public class GemPermissionManager {
                                     : "Ownership change: lost last gem of this type (offline revoke)");
                 }
             }
+            if (p != null && p.isOnline()) {
+                reconcileCollectThresholdGroups(p);
+            }
         }
+    }
+
+    private void reconcileCollectThresholdGroups(Player player) {
+        if (player == null) {
+            return;
+        }
+        UUID playerId = player.getUniqueId();
+        if (playerId == null) {
+            return;
+        }
+        Set<String> desired = desiredCollectThresholdGroups(playerId);
+        Set<String> applied = collectThresholdGroups.computeIfAbsent(playerId, unused -> ConcurrentHashMap.newKeySet());
+
+        for (String group : new HashSet<>(applied)) {
+            if (!desired.contains(group)) {
+                plugin.getPermissionProvider().removeGroup(player, group);
+                applied.remove(group);
+            }
+        }
+        for (String group : desired) {
+            if (applied.add(group)) {
+                plugin.getPermissionProvider().addGroup(player, group);
+            }
+        }
+        if (applied.isEmpty()) {
+            collectThresholdGroups.remove(playerId);
+        }
+    }
+
+    private Set<String> desiredCollectThresholdGroups(UUID playerId) {
+        Map<Integer, String> thresholds = gameplayConfig.getGemCollectThresholdGroups();
+        if (thresholds == null || thresholds.isEmpty()) {
+            return Collections.emptySet();
+        }
+        int ownedTypes = countOwnedGemTypes(playerId);
+        Set<String> desired = new LinkedHashSet<>();
+        for (Map.Entry<Integer, String> entry : thresholds.entrySet()) {
+            if (entry.getKey() != null && entry.getKey() <= ownedTypes
+                    && entry.getValue() != null && !entry.getValue().trim().isEmpty()) {
+                desired.add(entry.getValue().trim());
+            }
+        }
+        return desired;
+    }
+
+    private int countOwnedGemTypes(UUID playerId) {
+        Map<String, Integer> counts = ownerKeyCount.get(playerId);
+        if (counts == null || counts.isEmpty()) {
+            return 0;
+        }
+        int ownedTypes = 0;
+        for (Integer count : counts.values()) {
+            if (count != null && count > 0) {
+                ownedTypes++;
+            }
+        }
+        return ownedTypes;
+    }
+
+    private void clearCollectThresholdGroups(Player player) {
+        if (player == null) {
+            return;
+        }
+        UUID playerId = player.getUniqueId();
+        if (playerId == null) {
+            return;
+        }
+        Set<String> applied = collectThresholdGroups.remove(playerId);
+        if (applied == null || applied.isEmpty()) {
+            return;
+        }
+        for (String group : applied) {
+            plugin.getPermissionProvider().removeGroup(player, group);
+        }
+    }
+
+    private void queueOfflineThresholdGroupRevokes(UUID owner) {
+        Map<Integer, String> thresholds = gameplayConfig.getGemCollectThresholdGroups();
+        if (thresholds == null || thresholds.isEmpty()) {
+            return;
+        }
+        queueOfflineRevokes(owner, Collections.emptyList(), thresholds.values());
     }
 
     // ==================== Appoint 权限管理（PSM 集成）====================
@@ -1046,6 +1139,7 @@ public class GemPermissionManager {
                 psm.clearNamespace(player, "gem_appoint");
                 psm.clearNamespace(player, "gem_inv");
             }
+            clearCollectThresholdGroups(player);
             counts.clear();
         }
 

@@ -112,26 +112,15 @@ public class RuleGems extends JavaPlugin {
         // 初始化功能管理器
         this.featureManager = new FeatureManager(this, gemManager);
         featureManager.registerFeatures();
+
+        // Propagate RuleGateFeature to sub-managers
+        if (featureManager.getRuleGateFeature() != null) {
+            getPowerStructureManager().setRuleGateFeature(featureManager.getRuleGateFeature());
+            gemManager.getAllowanceManager().setRuleGateFeature(featureManager.getRuleGateFeature());
+        }
         new RuleGemsDoctor(this).logWarnings();
 
-        // Setup permissions provider (Vault or Fallback)
-        if (getServer().getPluginManager().getPlugin("Vault") != null) {
-            try {
-                org.bukkit.plugin.RegisteredServiceProvider<Permission> rsp = getServer().getServicesManager()
-                        .getRegistration(Permission.class);
-                if (rsp != null) {
-                    this.permissionProvider = new org.cubexmc.provider.VaultPermissionProvider(this, rsp.getProvider());
-                    getLogger().info("Successfully hooked into Vault for permissions.");
-                }
-            } catch (Exception e) {
-                getLogger().warning("Failed to initialize Vault permissions (will use fallback): " + e.getMessage());
-            }
-        }
-
-        if (this.permissionProvider == null) {
-            this.permissionProvider = new org.cubexmc.provider.FallbackPermissionProvider();
-            getLogger().info("Vault not found or failed to load. Using FallbackPermissionProvider.");
-        }
+        initializePermissionProvider();
 
         SchedulerUtil.globalRun(
                 this,
@@ -154,6 +143,34 @@ public class RuleGems extends JavaPlugin {
         refreshAllowedCommandProxies();
 
         languageManager.logMessage("plugin_enabled");
+        languageManager.logMessage("documentation", linkPlaceholders());
+    }
+
+    private void initializePermissionProvider() {
+        org.cubexmc.provider.LuckPermsPermissionProvider luckPermsProvider =
+                new org.cubexmc.provider.LuckPermsPermissionProvider(this);
+        if (luckPermsProvider.isAvailable()) {
+            this.permissionProvider = luckPermsProvider;
+            getLogger().info("Using LuckPerms permission provider.");
+            return;
+        }
+
+        if (getServer().getPluginManager().getPlugin("Vault") != null) {
+            try {
+                org.bukkit.plugin.RegisteredServiceProvider<Permission> rsp = getServer().getServicesManager()
+                        .getRegistration(Permission.class);
+                if (rsp != null) {
+                    this.permissionProvider = new org.cubexmc.provider.VaultPermissionProvider(this, rsp.getProvider());
+                    getLogger().info("Using Vault permission provider.");
+                    return;
+                }
+            } catch (Exception e) {
+                getLogger().warning("Failed to initialize Vault permissions: " + e.getMessage());
+            }
+        }
+
+        this.permissionProvider = new org.cubexmc.provider.BukkitPermissionProvider();
+        getLogger().info("Using Bukkit permission provider.");
     }
 
     @Override
@@ -252,6 +269,14 @@ public class RuleGems extends JavaPlugin {
 
     public PowerStructureManager getPowerStructureManager() {
         return powerStructureManager;
+    }
+
+    private Map<String, String> linkPlaceholders() {
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("docs", getConfig().getString("links.documentation", "https://github.com/angushushu/RuleGems"));
+        placeholders.put("discord", getConfig().getString("links.discord", "https://discord.com/invite/7tJeSZPZgv"));
+        placeholders.put("qq", getConfig().getString("links.qq", "https://pd.qq.com/s/1n3hpe4e7?b=9"));
+        return placeholders;
     }
 
     public void refreshAllowedCommandProxies() {

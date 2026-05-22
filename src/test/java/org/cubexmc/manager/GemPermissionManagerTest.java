@@ -187,6 +187,44 @@ class GemPermissionManagerTest {
             assertEquals(2, counts.get("fire_gem"));
             assertEquals(1, counts.get("ice_gem"));
         }
+
+        @Test
+        void thresholdGroupGrantedAndRevokedWhenOwnedTypeCountChanges() {
+            Player player = mock(Player.class);
+            when(player.getUniqueId()).thenReturn(PLAYER_A);
+            when(player.isOnline()).thenReturn(true);
+            mockedBukkit.when(() -> Bukkit.getPlayer(PLAYER_A)).thenReturn(player);
+            lenient().when(plugin.getPowerStructureManager()).thenReturn(null);
+            Map<Integer, String> thresholds = new LinkedHashMap<>();
+            thresholds.put(2, "noble");
+            when(gameplayConfig.getGemCollectThresholdGroups()).thenReturn(thresholds);
+
+            GemDefinition defFire = createSimpleGemDef("fire_gem", null, null);
+            GemDefinition defIce = createSimpleGemDef("ice_gem", null, null);
+
+            manager.incrementOwnerKeyCount(PLAYER_A, "fire_gem", defFire);
+            manager.incrementOwnerKeyCount(PLAYER_A, "ice_gem", defIce);
+            manager.decrementOwnerKeyCount(PLAYER_A, "ice_gem", defIce);
+
+            verify(permissionProvider, times(1)).addGroup(player, "noble");
+            verify(permissionProvider, times(1)).removeGroup(player, "noble");
+        }
+
+        @Test
+        void offlineThresholdGroupsAreQueuedForRevoke() {
+            Runnable mockSave = mock(Runnable.class);
+            manager.setSaveCallback(mockSave);
+            Map<Integer, String> thresholds = new LinkedHashMap<>();
+            thresholds.put(2, "noble");
+            thresholds.put(4, "lord");
+            when(gameplayConfig.getGemCollectThresholdGroups()).thenReturn(thresholds);
+            GemDefinition def = createSimpleGemDef("ice_gem", null, null);
+            manager.getOwnerKeyCount().computeIfAbsent(PLAYER_A, unused -> new HashMap<>()).put("ice_gem", 1);
+
+            manager.decrementOwnerKeyCount(PLAYER_A, "ice_gem", def);
+
+            assertEquals(Set.of("noble", "lord"), manager.getPendingGroupRevokes().get(PLAYER_A));
+        }
     }
 
     // ==================== Offline Revoke Queue ====================

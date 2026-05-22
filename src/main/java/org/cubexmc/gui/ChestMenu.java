@@ -44,6 +44,14 @@ public abstract class ChestMenu {
     }
 
     /**
+     * Fills the inventory with buttons and items with access to the viewer.
+     * Existing screens can keep overriding {@link #populate(Inventory, GUIHolder)}.
+     */
+    protected void populate(Inventory inv, GUIHolder holder, Player player) {
+        populate(inv, holder);
+    }
+
+    /**
      * Handles a click on a non-navigation item.
      * Navigation items (prev / next / close / refresh / back) are
      * intercepted by {@link GUIManager} before this method is called.
@@ -74,7 +82,7 @@ public abstract class ChestMenu {
         GUIHolder holder = new GUIHolder(getHolderType(), player.getUniqueId(), isAdmin);
         Inventory inv = Bukkit.createInventory(holder, getSize(), getTitle());
         holder.setInventory(inv);
-        populate(inv, holder);
+        populate(inv, holder, player);
         player.openInventory(inv);
     }
 

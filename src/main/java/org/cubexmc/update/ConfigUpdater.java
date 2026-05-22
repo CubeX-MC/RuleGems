@@ -23,8 +23,6 @@ public final class ConfigUpdater {
         merge(plugin, CONFIG_RESOURCE);
         merge(plugin, "features/appoint.yml");
         merge(plugin, "features/navigate.yml");
-        merge(plugin, "gems/gems.yml");
-        merge(plugin, "powers/powers.yml");
     }
 
     public static void merge(JavaPlugin plugin, String resourcePath) {

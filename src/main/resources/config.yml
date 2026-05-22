@@ -11,6 +11,18 @@
 # 语言设置 (示例: zh_CN / en_US)
 language: zh_CN
 
+# 文档与社区链接，会显示在 /rg help 和启动日志中
+links:
+  documentation: "https://github.com/angushushu/RuleGems"
+  discord: "https://discord.com/invite/7tJeSZPZgv"
+  qq: "https://pd.qq.com/s/1n3hpe4e7?b=9"
+
+# 数据存储后端。支持 yaml 与 sqlite。
+storage:
+  type: yaml
+  sqlite:
+    file: data/rulegems.db
+
 # 安全设置
 # allow_op_escalation: 是否允许使用临时 OP 执行限次命令（不推荐）
 # 设为 false 时，player-op 类型命令将回退为以控制台身份执行
@@ -37,6 +49,7 @@ redeem_all:
     - "&e获得了至高权力！"
   sound: ENTITY_ENDER_DRAGON_GROWL
   permissions: []  # 额外授予的永久权限
+  permission_groups: [] # 集齐全部宝石后授予的权限组（LuckPerms/Vault/Bukkit provider）
   # 集齐后额外授予的限次自定义指令
   # command_allows 格式说明：
   #   - command: 玩家输入的命令
@@ -45,6 +58,13 @@ redeem_all:
   #     cooldown: 冷却时间（秒）
   # 占位符：%player%=玩家名, %arg1%=第1个参数, %arg2|默认%=第2个参数或默认值
   command_allows: []
+
+# 阶梯式收集组：当玩家兑换的不同宝石类型数量达到阈值时授予对应权限组
+# 示例:
+# gem_collect_thresholds:
+#   2: "noble"
+#   4: "lord"
+gem_collect_thresholds: {}
 
 # ==========================================
 # 全局事件配置
@@ -57,7 +77,7 @@ revoke_power:
   sound: ENTITY_ENDERMAN_TELEPORT
   particle: FLAME
 
-# 宝石集齐时触发
+# 宝石集齐时触发（预留给集齐全套事件；当前 redeem_all 使用 redeem_all 配置）
 gem_union_execute:
   commands:
     - "say §a%player% 集齐了所有宝石！"

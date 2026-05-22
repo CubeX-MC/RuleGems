@@ -1,7 +1,9 @@
 package org.cubexmc.manager;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.List;
+import java.util.TreeMap;
 import java.util.logging.Logger;
 
 import org.bukkit.Location;
@@ -33,6 +35,7 @@ public class GameplayConfig {
     private Boolean redeemAllBroadcast = null; // null => inherit global
     private String redeemAllSound = "ENTITY_ENDER_DRAGON_GROWL";
     private PowerStructure redeemAllPowerStructure = new PowerStructure();
+    private Map<Integer, String> gemCollectThresholdGroups = Collections.emptyMap();
 
     // ==================== 放置 / 散落 ====================
     private ExecuteConfig gemScatterExecute;
@@ -125,6 +128,9 @@ public class GameplayConfig {
             this.redeemAllPowerStructure = new PowerStructure();
         }
 
+        this.gemCollectThresholdGroups = parseThresholdGroups(
+                config.getConfigurationSection("gem_collect_thresholds"), logger);
+
         // 散落效果
         this.gemScatterExecute = new ExecuteConfig(
                 config.getStringList("gem_scatter_execute.commands"),
@@ -203,6 +209,7 @@ public class GameplayConfig {
     public Boolean getRedeemAllBroadcastOverride() { return redeemAllBroadcast; }
     public String getRedeemAllSound() { return redeemAllSound; }
     public PowerStructure getRedeemAllPowerStructure() { return redeemAllPowerStructure; }
+    public Map<Integer, String> getGemCollectThresholdGroups() { return gemCollectThresholdGroups; }
 
     public ExecuteConfig getGemScatterExecute() { return gemScatterExecute; }
     public Location getRandomPlaceCorner1() { return randomPlaceCorner1; }
@@ -227,6 +234,27 @@ public class GameplayConfig {
     public int getHoldToRedeemDurationTicks() { return holdToRedeemDurationTicks; }
 
     public boolean isOpEscalationAllowed() { return opEscalationAllowed; }
+
+    private Map<Integer, String> parseThresholdGroups(ConfigurationSection section, Logger logger) {
+        if (section == null) {
+            return Collections.emptyMap();
+        }
+        Map<Integer, String> result = new TreeMap<>();
+        for (String rawKey : section.getKeys(false)) {
+            try {
+                int threshold = Integer.parseInt(rawKey);
+                String group = section.getString(rawKey);
+                if (threshold > 0 && group != null && !group.trim().isEmpty()) {
+                    result.put(threshold, group.trim());
+                }
+            } catch (NumberFormatException e) {
+                if (logger != null) {
+                    logger.warning("Ignoring invalid gem_collect_thresholds key '" + rawKey + "': expected number");
+                }
+            }
+        }
+        return result.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(result);
+    }
 
     // ==================== 辅助接口 ====================
 

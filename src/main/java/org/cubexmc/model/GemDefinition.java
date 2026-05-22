@@ -1,6 +1,5 @@
 package org.cubexmc.model;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -31,104 +30,10 @@ public class GemDefinition {
     private final Location randomPlaceCorner1; // 随机生成范围角落1（可选，null则使用全局默认）
     private final Location randomPlaceCorner2; // 随机生成范围角落2（可选，null则使用全局默认）
     private Location altarLocation; // 放置兑换祭坛位置（可选，null则该宝石不支持祭坛兑换）
+    private final RedeemRequirements redeemRequirements;
 
     // 使用 PowerStructure 统一管理权限结构
     private final PowerStructure powerStructure;
-
-    /**
-     * 完整构造函数（向后兼容）
-     * 
-     * @deprecated Use {@link Builder} instead.
-     */
-    @Deprecated
-    public GemDefinition(String gemKey,
-            Material material,
-            String displayName,
-            Particle particle,
-            Sound sound,
-            ExecuteConfig onPickup,
-            ExecuteConfig onScatter,
-            ExecuteConfig onRedeem,
-            List<String> permissions,
-            String vaultGroup,
-            List<String> lore,
-            List<String> redeemTitle,
-            boolean enchanted,
-            List<AllowedCommand> allowedCommands,
-            List<String> mutualExclusive,
-            int count,
-            Location randomPlaceCorner1,
-            Location randomPlaceCorner2,
-            Location altarLocation) {
-        this.gemKey = gemKey;
-        this.material = material;
-        this.displayName = displayName;
-        this.particle = particle;
-        this.sound = sound;
-        this.onPickup = onPickup;
-        this.onScatter = onScatter;
-        this.onRedeem = onRedeem;
-        this.lore = lore;
-        this.redeemTitle = redeemTitle;
-        this.enchanted = enchanted;
-        this.mutualExclusive = mutualExclusive == null ? Collections.emptyList() : mutualExclusive;
-        this.count = Math.max(1, count);
-        this.randomPlaceCorner1 = randomPlaceCorner1;
-        this.randomPlaceCorner2 = randomPlaceCorner2;
-        this.altarLocation = altarLocation;
-
-        // 构建 PowerStructure
-        this.powerStructure = new PowerStructure();
-        this.powerStructure.setPermissions(permissions != null ? permissions : new ArrayList<>());
-        if (vaultGroup != null && !vaultGroup.isEmpty()) {
-            List<String> groups = new ArrayList<>();
-            groups.add(vaultGroup);
-            this.powerStructure.setVaultGroups(groups);
-        }
-        this.powerStructure.setAllowedCommands(allowedCommands != null ? allowedCommands : new ArrayList<>());
-    }
-
-    /**
-     * 使用 PowerStructure 的构造函数（新 API）
-     * 
-     * @deprecated Use {@link Builder} instead.
-     */
-    @Deprecated
-    public GemDefinition(String gemKey,
-            Material material,
-            String displayName,
-            Particle particle,
-            Sound sound,
-            ExecuteConfig onPickup,
-            ExecuteConfig onScatter,
-            ExecuteConfig onRedeem,
-            PowerStructure powerStructure,
-            List<String> lore,
-            List<String> redeemTitle,
-            boolean enchanted,
-            List<String> mutualExclusive,
-            int count,
-            Location randomPlaceCorner1,
-            Location randomPlaceCorner2,
-            Location altarLocation) {
-        this.gemKey = gemKey;
-        this.material = material;
-        this.displayName = displayName;
-        this.particle = particle;
-        this.sound = sound;
-        this.onPickup = onPickup;
-        this.onScatter = onScatter;
-        this.onRedeem = onRedeem;
-        this.powerStructure = powerStructure != null ? powerStructure : new PowerStructure();
-        this.lore = lore;
-        this.redeemTitle = redeemTitle;
-        this.enchanted = enchanted;
-        this.mutualExclusive = mutualExclusive == null ? Collections.emptyList() : mutualExclusive;
-        this.count = Math.max(1, count);
-        this.randomPlaceCorner1 = randomPlaceCorner1;
-        this.randomPlaceCorner2 = randomPlaceCorner2;
-        this.altarLocation = altarLocation;
-    }
 
     // ==================== 基本属性 Getters ====================
 
@@ -198,6 +103,10 @@ public class GemDefinition {
 
     public void setAltarLocation(Location altarLocation) {
         this.altarLocation = altarLocation;
+    }
+
+    public RedeemRequirements getRedeemRequirements() {
+        return redeemRequirements;
     }
 
     // ==================== PowerStructure 委托方法 ====================
@@ -288,6 +197,7 @@ public class GemDefinition {
         this.randomPlaceCorner1 = b.randomPlaceCorner1;
         this.randomPlaceCorner2 = b.randomPlaceCorner2;
         this.altarLocation = b.altarLocation;
+        this.redeemRequirements = b.redeemRequirements != null ? b.redeemRequirements : RedeemRequirements.NONE;
     }
 
     /**
@@ -314,6 +224,7 @@ public class GemDefinition {
         private Location randomPlaceCorner1;
         private Location randomPlaceCorner2;
         private Location altarLocation;
+        private RedeemRequirements redeemRequirements = RedeemRequirements.NONE;
 
         public Builder(String gemKey) {
             this.gemKey = gemKey;
@@ -396,6 +307,11 @@ public class GemDefinition {
 
         public Builder altarLocation(Location v) {
             this.altarLocation = v;
+            return this;
+        }
+
+        public Builder redeemRequirements(RedeemRequirements v) {
+            this.redeemRequirements = v;
             return this;
         }
 

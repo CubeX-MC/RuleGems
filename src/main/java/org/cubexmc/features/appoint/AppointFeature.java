@@ -332,7 +332,7 @@ public class AppointFeature extends Feature {
                 .put(appointee.getUniqueId(), appointment);
 
         // 应用权限
-        applyPermissions(appointee);
+        applyPermissionsOnEntity(appointee);
 
         // 执行任命命令
         executeCommands(def.getOnAppoint(), appointer, appointee, permSetKey);
@@ -379,13 +379,15 @@ public class AppointFeature extends Feature {
         // 移除权限
         Player appointee = Bukkit.getPlayer(appointeeUuid);
         if (appointee != null) {
-            applyPermissions(appointee);
+            runEntityTask(appointee, () -> {
+                applyPermissions(appointee);
 
-            // 执行撤销命令
-            executeCommands(def.getOnRevoke(), dismisser, appointee, permSetKey);
+                // 执行撤销命令
+                executeCommands(def.getOnRevoke(), dismisser, appointee, permSetKey);
 
-            // 播放音效
-            playSound(appointee, def.getRevokeSound());
+                // 播放音效
+                playSoundNow(appointee, def.getRevokeSound());
+            });
         }
 
         // 保存数据
@@ -574,7 +576,7 @@ public class AppointFeature extends Feature {
                 SchedulerUtil.globalRun(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), consoleCmd), 0L, -1L);
             } else if (processed.startsWith("player: ")) {
                 String playerCmd = processed.substring(8);
-                appointer.performCommand(playerCmd);
+                runEntityTask(appointer, () -> appointer.performCommand(playerCmd));
             } else {
                 final String finalProcessed = processed;
                 SchedulerUtil.globalRun(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalProcessed), 0L, -1L);
@@ -586,6 +588,10 @@ public class AppointFeature extends Feature {
      * 播放音效
      */
     private void playSound(Player player, String soundName) {
+        runEntityTask(player, () -> playSoundNow(player, soundName));
+    }
+
+    private void playSoundNow(Player player, String soundName) {
         if (soundName == null || soundName.isEmpty())
             return;
         try {
@@ -599,7 +605,7 @@ public class AppointFeature extends Feature {
      * 玩家加入时恢复权限
      */
     public void onPlayerJoin(Player player) {
-        applyPermissions(player);
+        applyPermissionsOnEntity(player);
     }
 
     /**
@@ -717,6 +723,10 @@ public class AppointFeature extends Feature {
      * 撤销在线被任命者的权限、执行撤销命令、播放音效
      */
     private void revokeOnlineAppointee(Player appointee, Player appointer, AppointDefinition def, String permSetKey) {
+        runEntityTask(appointee, () -> revokeOnlineAppointeeNow(appointee, appointer, def, permSetKey));
+    }
+
+    private void revokeOnlineAppointeeNow(Player appointee, Player appointer, AppointDefinition def, String permSetKey) {
         applyPermissions(appointee);
 
         if (def != null && def.getOnRevoke() != null) {
@@ -742,7 +752,7 @@ public class AppointFeature extends Feature {
         }
 
         if (def != null) {
-            playSound(appointee, def.getRevokeSound());
+            playSoundNow(appointee, def.getRevokeSound());
         }
     }
 
@@ -863,10 +873,12 @@ public class AppointFeature extends Feature {
         long intervalTicks = conditionRefreshInterval * 20L;
         refreshTaskHandle = org.cubexmc.utils.SchedulerUtil.globalRun(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
-                // 检查玩家是否有任命
-                if (!getPlayerAppointments(player.getUniqueId()).isEmpty()) {
-                    applyPermissions(player);
-                }
+                runEntityTask(player, () -> {
+                    // 检查玩家是否有任命
+                    if (player.isOnline() && !getPlayerAppointments(player.getUniqueId()).isEmpty()) {
+                        applyPermissions(player);
+                    }
+                });
             }
         }, intervalTicks, intervalTicks);
 
@@ -880,6 +892,20 @@ public class AppointFeature extends Feature {
         if (refreshTaskHandle != null) {
             org.cubexmc.utils.SchedulerUtil.cancelTask(refreshTaskHandle);
             refreshTaskHandle = null;
+        }
+    }
+
+    private void applyPermissionsOnEntity(Player player) {
+        runEntityTask(player, () -> applyPermissions(player));
+    }
+
+    private void runEntityTask(Player player, Runnable task) {
+        if (player == null || task == null)
+            return;
+        if (SchedulerUtil.isFolia()) {
+            SchedulerUtil.entityRun(plugin, player, task, 0L, -1L);
+        } else {
+            task.run();
         }
     }
 

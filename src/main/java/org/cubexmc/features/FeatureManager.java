@@ -6,6 +6,8 @@ import java.util.Map;
 import org.bukkit.entity.Player;
 import org.cubexmc.RuleGems;
 import org.cubexmc.features.appoint.AppointFeature;
+import org.cubexmc.features.revoke.RevokeFeature;
+import org.cubexmc.features.rule.RuleGateFeature;
 import org.cubexmc.manager.GemManager;
 
 /**
@@ -20,6 +22,8 @@ public class FeatureManager {
     
     // 特定功能的快捷引用
     private AppointFeature appointFeature;
+    private RuleGateFeature ruleGateFeature;
+    private RevokeFeature revokeFeature;
 
     public FeatureManager(RuleGems plugin, GemManager gemManager) {
         this.plugin = plugin;
@@ -32,10 +36,18 @@ public class FeatureManager {
     public void registerFeatures() {
         // 注册指南针导航功能
         registerFeature(new GemNavigator(plugin, gemManager));
-        
+
         // 注册委任功能
         appointFeature = new AppointFeature(plugin);
         registerFeature(appointFeature);
+
+        // 注册 Rule 权力门控功能
+        ruleGateFeature = new RuleGateFeature(plugin, gemManager);
+        registerFeature(ruleGateFeature);
+
+        // 注册撤销宝石制衡功能
+        revokeFeature = new RevokeFeature(plugin, gemManager);
+        registerFeature(revokeFeature);
     }
 
     /**
@@ -63,6 +75,14 @@ public class FeatureManager {
      */
     public AppointFeature getAppointFeature() {
         return appointFeature;
+    }
+
+    public RuleGateFeature getRuleGateFeature() {
+        return ruleGateFeature;
+    }
+
+    public RevokeFeature getRevokeFeature() {
+        return revokeFeature;
     }
 
     /**

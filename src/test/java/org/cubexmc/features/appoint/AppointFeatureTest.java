@@ -1,6 +1,7 @@
 package org.cubexmc.features.appoint;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -16,11 +17,13 @@ import java.io.File;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -31,7 +34,9 @@ import org.cubexmc.manager.GemManager;
 import org.cubexmc.manager.PowerStructureManager;
 import org.cubexmc.model.AppointDefinition;
 import org.cubexmc.model.EffectConfig;
+import org.cubexmc.model.PowerCondition;
 import org.cubexmc.model.PowerStructure;
+import org.cubexmc.utils.SchedulerUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -172,6 +177,37 @@ class AppointFeatureTest {
         assertTrue(feature.isAppointed(APPOINTEE_ID, "guard"));
     }
 
+    @Test
+    void conditionRefreshSchedulesPermissionRefreshOnPlayerEntityThread() throws Exception {
+        Player appointee = mockPlayer(APPOINTEE_ID, "Knight");
+        AppointDefinition guard = createDefinition("guard", List.of("perm.guard"), List.of(), List.of(), Map.of());
+        PowerCondition condition = new PowerCondition();
+        condition.setTimeEnabled(true);
+        condition.setTimeType(PowerCondition.TimeType.DAY);
+        guard.getPowerStructure().setCondition(condition);
+        appointDefinitions(feature).put("guard", guard);
+
+        mockedBukkit.when(Bukkit::getOnlinePlayers).thenReturn(List.of(appointee));
+
+        AtomicReference<Runnable> refreshTask = new AtomicReference<>();
+        try (MockedStatic<SchedulerUtil> scheduler = org.mockito.Mockito.mockStatic(SchedulerUtil.class)) {
+            scheduler.when(() -> SchedulerUtil.globalRun(eq(plugin), any(Runnable.class), eq(600L), eq(600L)))
+                    .thenAnswer(invocation -> {
+                        refreshTask.set(invocation.getArgument(1));
+                        return new Object();
+                    });
+            scheduler.when(SchedulerUtil::isFolia).thenReturn(true);
+
+            invokeStartConditionRefreshTask();
+            assertNotNull(refreshTask.get());
+
+            refreshTask.get().run();
+
+            scheduler.verify(() -> SchedulerUtil.entityRun(eq(plugin), eq(appointee), any(Runnable.class),
+                    eq(0L), eq(-1L)));
+        }
+    }
+
     private Player mockPlayer(UUID uuid, String name) {
         Player player = mock(Player.class);
         when(player.getUniqueId()).thenReturn(uuid);
@@ -218,5 +254,11 @@ class AppointFeatureTest {
         Field field = AppointFeature.class.getDeclaredField(fieldName);
         field.setAccessible(true);
         field.set(target, value);
+    }
+
+    private void invokeStartConditionRefreshTask() throws Exception {
+        Method method = AppointFeature.class.getDeclaredMethod("startConditionRefreshTask");
+        method.setAccessible(true);
+        method.invoke(feature);
     }
 }

@@ -10,11 +10,19 @@
 2. 启动服务器自动生成配置
 3. 在 `config.yml` 与 `gems/`、`powers/`、`features/` 目录配置中按需调整
 
+## 开服与预设
+- 开服流程、烟测清单与生产服建议见 [server-ready-guide.md](docs/server-ready-guide.md)。
+- 可复制玩法包位于 [presets/](presets/)，当前包含王权政治服预设 `kingdom-power`。
+- 预设不会自动加载；复制到 `plugins/RuleGems/` 对应目录后执行 `/rg reload` 和 `/rg doctor`。
+- 如果使用 `permission_groups` 或阶梯组晋升，推荐安装 LuckPerms；Bukkit 默认后端没有持久权限组模型。
+
 ## 命令
 - 所有 `/rulegems ...` 命令均可用别名 `/rg ...`（见 plugin.yml 的 `aliases: [rg]`）
 - `/rulegems place <gemId> <x|~> <y|~> <z|~>` 将指定宝石实例放置到坐标
 - `/rulegems tp <gemId>` 传送到指定宝石位置
 - `/rulegems revoke <玩家>` 强制清理指定玩家的宝石权限与限次额度（管理员干预）。若启用了 `inventory_grants` 且玩家仍持有宝石，下一次背包重算时权限会再次授予。
+- `/rulegems revoke-power list` 查看已配置的撤销规则
+- `/rulegems revoke-power <规则> <玩家> <权力>` 使用指定撤销规则制衡玩家已兑换的宝石权力；默认需要 `/rg revoke-power confirm` 二次确认，可用 `/rg revoke-power cancel` 取消。
 - `/rulegems reload` 重载配置
 - `/rulegems rulers` 查看当前权力持有者
 - `/rulegems gems` 查看宝石状态
@@ -37,6 +45,10 @@
 - `rulegems.gems` 查看宝石列表（默认 true）
 - `rulegems.help` 查看帮助信息（默认 true）
 - `rulegems.navigate` 使用指南针导航到最近宝石（默认 false）
+- `rulegems.rule` 在 RuleGate 启用时允许使用所有宝石权力（默认 false）
+- `rulegems.rule.<宝石key>` 在 RuleGate 启用时只允许使用指定宝石权力（默认 false）
+- `rulegems.revoke` 使用已配置的撤销宝石规则（默认 false）
+- `rulegems.revoke.admin` 管理撤销宝石规则的预留权限（默认 OP）
 - `rulegems.appoint.<权限集>` 任命其他玩家获得指定权限集
 
 ## 兼容性
@@ -73,6 +85,8 @@
 
 ## 特性与配置要点
 - 每颗宝石唯一：每件宝石有独立 UUID（实例级归属），可通过 `/rulegems place <gemId> ...` 精确放置。
+- 帮助链接：`links.documentation` / `links.discord` / `links.qq` 会显示在 `/rg help` 页脚与插件启动日志中。
+- 内置宝石与 power 示例只是初始模板；已有 `gems/`、`powers/` 文件不会在 reload 时自动补回被删除的示例定义，删除不用的默认节点后会保持停用。
 - 每类宝石数量：`gems.<key>.count: <int>`，散落与补齐按 count 生成；“集齐种类”判定为每个 key 至少 1 件。
 - 互斥：`gems.<key>.mutual_exclusive: [otherKey, ...]`；仅在 inventory_grants 与 redeem 生效，redeem_all 忽略互斥。
 - 限次指令：`gems.<key>.command_allows` 支持映射与列表两种写法：
@@ -88,8 +102,20 @@
 - redeem_all 额外特权：根级 `redeem_all` 节支持：
   - `broadcast/titles/sound`（已从旧 `titles.redeem_all` 扁平化）
   - `permissions`: `redeemall` 成功时的额外权限
+  - `permission_groups`: `redeemall` 成功时授予的权限组列表
   - `command_allows`: `redeemall` 成功时的额外限次指令（语法同上）
-- 与 Vault 配合时，权限组的授予 / 撤销通过当前权限后端执行。
+- 阶梯式组晋升：根级 `gem_collect_thresholds` 可按“已兑换不同宝石类型数”授予权限组，例如 `2: noble`、`4: lord`；跌破阈值时会撤销对应组。
+- 兑换前置要求：在单个宝石配置中添加 `redeem_requirements` 可提高危险权力门槛：
+  - `requires_held`: 兑换时必须持有指定 gem key，不消耗，支持 `{ gem, amount }`；
+  - `requires_redeemed`: 必须已经兑换过指定 gem key，支持 `{ gem, amount }`；
+  - `consumes`: 兑换成功且兑换事件未取消后，消耗并重新散落指定 gem key，支持 `{ gem, amount }`；
+  - `any_of`: 配置多套等价 recipe，按顺序使用第一套满足的配方；
+  - `requires_any` / `requires_count` + `requires_count_from`: 旧式多选一或至少 N 项条件；
+  - `allow_redeem_all`: 默认 `false`，避免 `/rg redeemall` 绕过前置要求。
+- 配置升级：启动或 reload 检测到 `template`、根节点隐式 power、`vault_group` / `vault_groups` / `permission_group` 或旧 requirement 写法时，会先备份到 `backups/config-optimization-<yyyyMMdd-HHmmss>/`，再以粗兼容读取并输出 warning。建议手动迁移到 `base`、`permission_groups` 和 recipe/ingredient 写法；未来版本可能移除这些兼容。
+- 权限后端按 LuckPerms → Vault → Bukkit 自动选择；权限组的授予 / 撤销通过当前后端执行。
+- 存储：`storage.type: yaml` 使用默认 `data/gems.yml` 数据文件；`storage.type: sqlite` 使用 `storage.sqlite.file` 指定的 SQLite 数据库文件。SQLite 会保留现有数据结构，并在空库首次启动时从 `data/gems.yml` 导入。
+- 权力门控：`features/rule.yml` 默认关闭。启用后可用 `rulegems.rule` 授权所有宝石权力，或用 `rulegems.rule.<宝石key>` 只授权单个宝石；这适合测试阶段只让可信玩家实际获得 power。
 - 额外兑换方式：
   - `grant_policy.place_redeem_enabled: true` 启用祭坛放置兑换（配合 `/rulegems setaltar`）
   - `grant_policy.hold_to_redeem_enabled: true` 启用长按右键兑换（`hold_to_redeem` 配置）
@@ -100,6 +126,34 @@
 持有 `rulegems.navigate` 权限的玩家可以使用指南针右键导航到最近的宝石位置。
 - 配置文件：`features/navigate.yml`
 - 启用后，玩家右键指南针会显示最近宝石的方向和距离
+
+### 撤销宝石 (Revoke Power)
+`features/revoke.yml` 默认关闭。启用后，服主可以配置某类宝石用于撤销目标玩家已经兑换的指定宝石权力，适合做“审判”“制衡”类玩法。
+
+```yaml
+enabled: true
+confirm_timeout: 30
+rules:
+  judgment:
+    display_name: "&c审判宝石"
+    trigger_gem: judgment
+    target_powers:
+      - territory
+      - jailer
+    require_held: true
+    consume_gem: false
+    cooldown: 3600
+    confirm_required: true
+    broadcast: true
+    allow_offline_target: true
+```
+
+- `trigger_gem` 是发起撤销所需的宝石 key。
+- `target_powers` 目前按已兑换的宝石 key 撤销对应权力。
+- `require_held` 要求发起者当前持有撤销宝石；`consume_gem` 成功后会消耗并重新散落该宝石。
+- `cooldown` 是每名玩家每条规则的冷却秒数，记录在 `data/revokes.yml`。
+- `confirm_required` 会要求二次确认，确认内容包含目标、权力、是否消耗宝石和是否广播。
+- `allow_offline_target` 允许对离线目标清理已记录的兑换权力。
 
 ### 委任系统 (Appoint)
 允许统治者将部分权限委任给其他玩家，形成权力树结构。

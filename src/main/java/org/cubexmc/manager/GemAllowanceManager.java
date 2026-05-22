@@ -8,11 +8,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.cubexmc.features.rule.RuleGateFeature;
 import org.cubexmc.model.AllowedCommand;
 import org.cubexmc.model.GemDefinition;
 
@@ -47,6 +49,8 @@ public class GemAllowanceManager {
     private Runnable saveCallback;
     // 检查宝石是否被关闭的回调 (playerId, gemId) -> boolean
     private java.util.function.BiPredicate<UUID, UUID> isToggledOffCheck;
+    private Function<UUID, String> gemKeyLookup;
+    private RuleGateFeature ruleGateFeature;
 
     public GemAllowanceManager(GemDefinitionParser gemParser, GameplayConfig gameplayConfig) {
         this.gemParser = gemParser;
@@ -59,6 +63,14 @@ public class GemAllowanceManager {
 
     public void setIsToggledOffCheck(java.util.function.BiPredicate<UUID, UUID> check) {
         this.isToggledOffCheck = check;
+    }
+
+    public void setGemKeyLookup(Function<UUID, String> lookup) {
+        this.gemKeyLookup = lookup;
+    }
+
+    public void setRuleGateFeature(RuleGateFeature feature) {
+        this.ruleGateFeature = feature;
     }
 
     // ==================== 状态访问器 ====================
@@ -188,6 +200,19 @@ public class GemAllowanceManager {
         invalidateLabelIndex(uid);
     }
 
+    public void removeRedeemInstanceAllowance(UUID uid, UUID gemId) {
+        if (uid == null || gemId == null)
+            return;
+        Map<UUID, Map<String, Integer>> byGem = playerGemRedeemUses.get(uid);
+        if (byGem == null)
+            return;
+        byGem.remove(gemId);
+        if (byGem.isEmpty()) {
+            playerGemRedeemUses.remove(uid);
+        }
+        markDirty(uid);
+    }
+
     // ==================== 额度查询 ====================
 
     /**
@@ -246,6 +271,7 @@ public class GemAllowanceManager {
             ids.sort(UUID::compareTo);
             for (UUID gid : ids) {
                 if (isToggledOffCheck != null && isToggledOffCheck.test(uid, gid)) continue;
+                if (!canUseSource(uid, gid)) continue;
                 Map<String, Integer> byLabel = perHeld.get(gid);
                 if (byLabel == null)
                     continue;
@@ -271,6 +297,7 @@ public class GemAllowanceManager {
             ids.sort(UUID::compareTo);
             for (UUID gid : ids) {
                 if (isToggledOffCheck != null && isToggledOffCheck.test(uid, gid)) continue;
+                if (!canUseSource(uid, gid)) continue;
                 Map<String, Integer> byLabel = perRed.get(gid);
                 if (byLabel == null)
                     continue;
@@ -292,6 +319,9 @@ public class GemAllowanceManager {
         // 最后尝试全局
         Map<String, Integer> glob = playerGlobalAllowedUses.get(uid);
         if (glob != null) {
+            if (!canUseGlobal(uid)) {
+                return false;
+            }
             Integer v = glob.get(l);
             if (v == null)
                 v = 0;
@@ -437,6 +467,8 @@ public class GemAllowanceManager {
     public void grantGlobalAllowedCommands(Player player, GemDefinition def) {
         if (player == null || def == null)
             return;
+        if (ruleGateFeature != null && !ruleGateFeature.canUsePower(player, def.getGemKey()))
+            return;
         List<AllowedCommand> allows = def.getAllowedCommands();
         if (allows == null || allows.isEmpty())
             return;
@@ -457,6 +489,11 @@ public class GemAllowanceManager {
     public void reassignHeldInstanceAllowance(UUID gemId, UUID newOwner, GemDefinition def) {
         if (gemId == null || newOwner == null || def == null)
             return;
+        if (ruleGateFeature != null) {
+            Player player = Bukkit.getPlayer(newOwner);
+            if (player != null && !ruleGateFeature.canUsePower(player, def.getGemKey()))
+                return;
+        }
 
         // 查找旧拥有者
         UUID oldOwner = null;
@@ -499,6 +536,11 @@ public class GemAllowanceManager {
             boolean resetEvenIfSameOwner) {
         if (gemId == null || newOwner == null || def == null)
             return;
+        if (ruleGateFeature != null) {
+            Player player = Bukkit.getPlayer(newOwner);
+            if (player != null && !ruleGateFeature.canUsePower(player, def.getGemKey()))
+                return;
+        }
 
         UUID oldOwner = null;
         for (Map.Entry<UUID, Map<UUID, Map<String, Integer>>> e : playerGemRedeemUses.entrySet()) {
@@ -638,5 +680,25 @@ public class GemAllowanceManager {
      */
     public boolean isDirty() {
         return dirty;
+    }
+
+    private boolean canUseSource(UUID playerId, UUID gemId) {
+        if (ruleGateFeature == null) {
+            return true;
+        }
+        Player player = Bukkit.getPlayer(playerId);
+        if (player == null) {
+            return true;
+        }
+        String gemKey = gemKeyLookup != null ? gemKeyLookup.apply(gemId) : null;
+        return ruleGateFeature.canUsePower(player, gemKey);
+    }
+
+    private boolean canUseGlobal(UUID playerId) {
+        if (ruleGateFeature == null) {
+            return true;
+        }
+        Player player = Bukkit.getPlayer(playerId);
+        return player == null || ruleGateFeature.canUsePower(player);
     }
 }

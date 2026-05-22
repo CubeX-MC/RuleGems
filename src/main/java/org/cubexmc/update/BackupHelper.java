@@ -54,4 +54,63 @@ public final class BackupHelper {
             return null;
         }
     }
+
+    /**
+     * Copies the main mutable RuleGems configuration surfaces into one timestamped
+     * upgrade backup directory without changing the source files.
+     */
+    public static File createConfigOptimizationBackup(JavaPlugin plugin) {
+        if (plugin == null) {
+            return null;
+        }
+        File backupDir = new File(plugin.getDataFolder(),
+                "backups/config-optimization-" + TIMESTAMP.format(new Date()));
+        if (!backupDir.exists() && !backupDir.mkdirs()) {
+            plugin.getLogger().warning("Failed to create backup directory: " + backupDir.getAbsolutePath());
+            return null;
+        }
+
+        copyIfExists(plugin, new File(plugin.getDataFolder(), "config.yml"), new File(backupDir, "config.yml"));
+        copyIfExists(plugin, new File(plugin.getDataFolder(), "gems"), new File(backupDir, "gems"));
+        copyIfExists(plugin, new File(plugin.getDataFolder(), "powers"), new File(backupDir, "powers"));
+        copyIfExists(plugin, new File(plugin.getDataFolder(), "features"), new File(backupDir, "features"));
+        copyIfExists(plugin, new File(plugin.getDataFolder(), "data"), new File(backupDir, "data"));
+        copyIfExists(plugin, new File(plugin.getDataFolder(), "gems.yml"), new File(backupDir, "gems.yml"));
+        return backupDir;
+    }
+
+    private static void copyIfExists(JavaPlugin plugin, File source, File target) {
+        if (source == null || !source.exists()) {
+            return;
+        }
+        try {
+            if (source.isDirectory()) {
+                Files.walk(source.toPath()).forEach(path -> copyWalkPath(plugin, source.toPath(), target.toPath(), path));
+            } else {
+                File parent = target.getParentFile();
+                if (parent != null && !parent.exists()) {
+                    parent.mkdirs();
+                }
+                Files.copy(source.toPath(), target.toPath(), StandardCopyOption.COPY_ATTRIBUTES,
+                        StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException ex) {
+            plugin.getLogger().warning("Failed to backup " + source.getName() + ": " + ex.getMessage());
+        }
+    }
+
+    private static void copyWalkPath(JavaPlugin plugin, Path sourceRoot, Path targetRoot, Path path) {
+        try {
+            Path relative = sourceRoot.relativize(path);
+            Path target = targetRoot.resolve(relative);
+            if (Files.isDirectory(path)) {
+                Files.createDirectories(target);
+            } else {
+                Files.createDirectories(target.getParent());
+                Files.copy(path, target, StandardCopyOption.COPY_ATTRIBUTES, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException ex) {
+            plugin.getLogger().warning("Failed to backup path " + path + ": " + ex.getMessage());
+        }
+    }
 }

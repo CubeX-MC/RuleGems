@@ -141,6 +141,10 @@ public class GUIManager implements Listener {
      * 打开宝石列表 GUI（指定页码和筛选）
      */
     public void openGemsGUI(Player player, boolean isAdmin, int page, String filter) {
+        if (!canOpenGems(player)) {
+            lang.sendMessage(player, "command.no_permission");
+            return;
+        }
         gemsGUI.open(player, isAdmin, page, filter);
     }
 
@@ -155,6 +159,10 @@ public class GUIManager implements Listener {
      * 打开统治者列表 GUI（指定页码）
      */
     public void openRulersGUI(Player player, boolean isAdmin, int page) {
+        if (!canOpenRulers(player)) {
+            lang.sendMessage(player, "command.no_permission");
+            return;
+        }
         rulersGUI.open(player, isAdmin, page);
     }
 
@@ -216,6 +224,16 @@ public class GUIManager implements Listener {
                 .anyMatch(key -> player.hasPermission("rulegems.appoint." + key)
                         || player.hasPermission("rulegems.appoint."
                                 + key.toLowerCase(java.util.Locale.ROOT)));
+    }
+
+    public boolean canOpenGems(Player player) {
+        return player != null && (player.hasPermission("rulegems.admin")
+                || player.hasPermission("rulegems.gems"));
+    }
+
+    public boolean canOpenRulers(Player player) {
+        return player != null && (player.hasPermission("rulegems.admin")
+                || player.hasPermission("rulegems.rulers"));
     }
 
     // ========== 布局辅助方法 ==========
@@ -383,11 +401,9 @@ public class GUIManager implements Listener {
                 cycleGemFilter(player, holder);
                 break;
             case "open_gems":
-                // 从主菜单打开宝石列表
                 openGemsGUI(player, holder.isAdmin());
                 break;
             case "open_rulers":
-                // 从主菜单打开统治者列表
                 openRulersGUI(player, holder.isAdmin());
                 break;
             case "show_redeem_help":

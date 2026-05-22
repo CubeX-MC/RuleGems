@@ -158,6 +158,29 @@ life:
 #   name: "&a稀有宝石"
 #   count: 1
 #   power: "inspector"
+#   # 兑换前置要求（可选）
+#   # 未配置 redeem_requirements 的宝石保持原有兑换逻辑
+#   redeem_requirements:
+#     requires_redeemed:
+#       - justice
+#     requires_held:
+#       - gem: truth
+#         amount: 1
+#     consumes:
+#       - gem: life
+#         amount: 2
+#     allow_redeem_all: false
+#     failure_message: "&c你还缺少兑换这颗宝石所需的前置条件。"
+#
+#   # 多套等价配方示例：不要与顶层 recipe 字段混用
+#   # redeem_requirements:
+#     any_of:
+#       - consumes:
+#           - { gem: dragon, amount: 3 }
+#       - consumes:
+#           - { gem: dragon, amount: 1 }
+#           - { gem: egg, amount: 1 }
+#     allow_redeem_all: false
 #   # 宝石专属生成范围（不使用全局默认）
 #   random_place_range:
 #     world: world_nether

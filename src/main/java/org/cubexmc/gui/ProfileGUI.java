@@ -15,6 +15,8 @@ import org.bukkit.inventory.ItemStack;
 import org.cubexmc.RuleGems;
 import org.cubexmc.features.appoint.AppointFeature;
 import org.cubexmc.features.appoint.Appointment;
+import org.cubexmc.features.revoke.RevokeFeature;
+import org.cubexmc.features.revoke.RevokeRule;
 import org.cubexmc.manager.CustomCommandExecutor;
 import org.cubexmc.manager.GemAllowanceManager;
 import org.cubexmc.manager.GemManager;
@@ -81,6 +83,7 @@ public class ProfileGUI extends ChestMenu {
         gui.setItem(2, createAppointmentsItem(player));
         gui.setItem(3, createCommandsSummaryItem(commands.size()));
         gui.setItem(4, createManagePowersItem(player));
+        gui.setItem(5, createRevokeRulesItem(player));
 
         if (commands.isEmpty()) {
             gui.setItem(22, new ItemBuilder(Material.BARRIER)
@@ -182,6 +185,30 @@ public class ProfileGUI extends ChestMenu {
                 .build();
     }
 
+    private ItemStack createRevokeRulesItem(Player player) {
+        RevokeFeature revokeFeature = getRevokeFeature();
+        List<RevokeRule> rules = revokeFeature != null
+                ? revokeFeature.getAvailableRules(player)
+                : java.util.Collections.emptyList();
+        ItemBuilder builder = new ItemBuilder(rules.isEmpty() ? Material.GRAY_DYE : Material.NETHER_STAR)
+                .name("&c" + rawMsg("profile.revoke_title"))
+                .addEmptyLore();
+        if (rules.isEmpty()) {
+            return builder.addLore("&7" + rawMsg("profile.revoke_none"))
+                    .hideAttributes()
+                    .build();
+        }
+        builder.addLore("&e▸ " + rawMsg("profile.revoke_count") + ": &f" + rules.size());
+        for (RevokeRule rule : rules) {
+            builder.addLore("&f- " + rule.getKey() + " &7→ " + String.join(", ", rule.getTargetPowers()));
+        }
+        return builder.addEmptyLore()
+                .addLore("&7" + rawMsg("profile.revoke_hint"))
+                .glow()
+                .hideAttributes()
+                .build();
+    }
+
     private ItemStack createCommandItem(CommandEntry entry) {
         ItemBuilder builder = new ItemBuilder(entry.cooldownSeconds > 0 ? Material.CLOCK : Material.PAPER)
                 .name("&e/" + entry.label)
@@ -216,6 +243,10 @@ public class ProfileGUI extends ChestMenu {
 
     private AppointFeature getAppointFeature() {
         return plugin.getFeatureManager() != null ? plugin.getFeatureManager().getAppointFeature() : null;
+    }
+
+    private RevokeFeature getRevokeFeature() {
+        return plugin.getFeatureManager() != null ? plugin.getFeatureManager().getRevokeFeature() : null;
     }
 
     private String msg(String path) {

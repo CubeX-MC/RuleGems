@@ -3,6 +3,7 @@ package org.cubexmc.manager;
 import java.io.File;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -118,6 +119,19 @@ public class LanguageManager {
         return path;
     }
 
+    public List<String> getMessageList(String path) {
+        return getMessageList(path, this.language);
+    }
+
+    public List<String> getMessageList(String path, String lang) {
+        List<String> messages = lookupMessageList(lang, path);
+        if (messages != null && !messages.isEmpty()) {
+            return messages;
+        }
+        warnMissingKey(path, lang);
+        return Collections.emptyList();
+    }
+
     private String lookupMessage(String lang, String path) {
         if (path == null || path.isEmpty()) {
             return "";
@@ -152,6 +166,36 @@ public class LanguageManager {
             FileConfiguration defaultConfig = getLanguageConfig(DEFAULT_LANGUAGE);
             if (defaultConfig != null) {
                 return defaultConfig.getString(path);
+            }
+        }
+        return null;
+    }
+
+    private List<String> lookupMessageList(String lang, String path) {
+        if (path == null || path.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        FileConfiguration preferred = getLanguageConfig(lang);
+        if (preferred != null && preferred.isList(path)) {
+            return preferred.getStringList(path);
+        }
+
+        if (langConfig != null && preferred != langConfig && langConfig.isList(path)) {
+            return langConfig.getStringList(path);
+        }
+
+        if (!FALLBACK_LANGUAGE.equalsIgnoreCase(lang)) {
+            FileConfiguration fallback = getLanguageConfig(FALLBACK_LANGUAGE);
+            if (fallback != null && fallback.isList(path)) {
+                return fallback.getStringList(path);
+            }
+        }
+
+        if (!DEFAULT_LANGUAGE.equalsIgnoreCase(lang) && !DEFAULT_LANGUAGE.equalsIgnoreCase(FALLBACK_LANGUAGE)) {
+            FileConfiguration defaultConfig = getLanguageConfig(DEFAULT_LANGUAGE);
+            if (defaultConfig != null && defaultConfig.isList(path)) {
+                return defaultConfig.getStringList(path);
             }
         }
         return null;

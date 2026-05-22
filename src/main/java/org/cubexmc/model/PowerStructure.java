@@ -28,37 +28,6 @@ public class PowerStructure {
         this.condition = new PowerCondition();
     }
 
-    /**
-     * 完整构造函数
-     */
-    public PowerStructure(List<String> permissions, List<String> vaultGroups, 
-                          List<AllowedCommand> allowedCommands, List<EffectConfig> effects,
-                          Map<String, AppointDefinition> appoints, PowerCondition condition) {
-        this.permissions = permissions != null ? new ArrayList<>(permissions) : new ArrayList<>();
-        this.vaultGroups = vaultGroups != null ? new ArrayList<>(vaultGroups) : new ArrayList<>();
-        this.allowedCommands = allowedCommands != null ? new ArrayList<>(allowedCommands) : new ArrayList<>();
-        this.effects = effects != null ? new ArrayList<>(effects) : new ArrayList<>();
-        this.appoints = appoints != null ? new HashMap<>(appoints) : new HashMap<>();
-        this.condition = condition != null ? condition : new PowerCondition();
-    }
-
-    /**
-     * 向后兼容的构造函数
-     */
-    public PowerStructure(List<String> permissions, List<String> vaultGroups, 
-                          List<AllowedCommand> allowedCommands, List<EffectConfig> effects,
-                          PowerCondition condition) {
-        this(permissions, vaultGroups, allowedCommands, effects, null, condition);
-    }
-
-    /**
-     * 向后兼容的构造函数（无 effects）
-     */
-    public PowerStructure(List<String> permissions, List<String> vaultGroups, 
-                          List<AllowedCommand> allowedCommands, PowerCondition condition) {
-        this(permissions, vaultGroups, allowedCommands, null, null, condition);
-    }
-
     // ==================== Getters & Setters ====================
 
     public List<String> getPermissions() {
@@ -196,14 +165,14 @@ public class PowerStructure {
         Map<String, AppointDefinition> appointsCopy = new HashMap<>(this.appoints);
         // AppointDefinition 暂不深拷贝，因为通常是静态配置
         
-        return new PowerStructure(
-            new ArrayList<>(this.permissions),
-            new ArrayList<>(this.vaultGroups),
-            new ArrayList<>(this.allowedCommands),
-            effectsCopy,
-            appointsCopy,
-            this.condition != null ? this.condition.copy() : new PowerCondition()
-        );
+        PowerStructure copy = new PowerStructure();
+        copy.setPermissions(new ArrayList<>(this.permissions));
+        copy.setVaultGroups(new ArrayList<>(this.vaultGroups));
+        copy.setAllowedCommands(new ArrayList<>(this.allowedCommands));
+        copy.setEffects(effectsCopy);
+        copy.setAppoints(appointsCopy);
+        copy.setCondition(this.condition != null ? this.condition.copy() : new PowerCondition());
+        return copy;
     }
 
     /**

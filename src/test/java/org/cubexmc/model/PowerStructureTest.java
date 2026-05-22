@@ -316,11 +316,18 @@ class PowerStructureTest {
         assertTrue(s.contains("vaultGroups=0"));
     }
 
-    // ==================== 完整构造函数 null-safety ====================
+    // ==================== setter null-safety ====================
 
     @Test
-    void fullConstructor_nullLists_becomeEmptyCollections() {
-        PowerStructure ps = new PowerStructure(null, null, null, null, null, null);
+    void setters_nullValues_becomeEmptyCollections() {
+        PowerStructure ps = new PowerStructure();
+        ps.setPermissions(null);
+        ps.setVaultGroups(null);
+        ps.setAllowedCommands(null);
+        ps.setEffects(null);
+        ps.setAppoints(null);
+        ps.setCondition(null);
+
         assertNotNull(ps.getPermissions());
         assertNotNull(ps.getVaultGroups());
         assertNotNull(ps.getAllowedCommands());

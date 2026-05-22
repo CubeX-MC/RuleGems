@@ -1,6 +1,7 @@
 package org.cubexmc.gui;
 
 import org.bukkit.Material;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.cubexmc.manager.GemManager;
 import org.cubexmc.manager.LanguageManager;
@@ -59,14 +60,19 @@ public class MainMenuGUI extends ChestMenu {
     }
 
     @Override
-    protected void populate(org.bukkit.inventory.Inventory gui, GUIHolder holder) {
+    protected void populate(org.bukkit.inventory.Inventory gui, GUIHolder holder, Player player) {
         // 填充背景
         ItemStack filler = ItemBuilder.filler();
         for (int i = 0; i < GUI_SIZE; i++)
             gui.setItem(i, filler);
 
-        gui.setItem(SLOT_GEMS, createGemsButton(gemManager.getAllGemUuids().size(), holder.isAdmin()));
-        gui.setItem(SLOT_RULERS, createRulersButton(gemManager.getCurrentRulers().size(), holder.isAdmin()));
+        boolean isAdmin = player != null ? player.hasPermission("rulegems.admin") : holder.isAdmin();
+        if (manager.canOpenGems(player)) {
+            gui.setItem(SLOT_GEMS, createGemsButton(gemManager.getAllGemUuids().size(), isAdmin));
+        }
+        if (manager.canOpenRulers(player)) {
+            gui.setItem(SLOT_RULERS, createRulersButton(gemManager.getCurrentRulers().size(), isAdmin));
+        }
         gui.setItem(SLOT_CLOSE, ItemBuilder.closeButton(manager.getNavActionKey(), rawMsg("control.close")));
     }
 

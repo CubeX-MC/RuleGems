@@ -10,11 +10,14 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.cubexmc.RuleGems;
 import org.cubexmc.model.AllowedCommand;
 import org.cubexmc.model.GemDefinition;
 import org.cubexmc.model.PowerStructure;
+import org.cubexmc.storage.SqliteStorageProvider;
+import org.cubexmc.storage.StorageProvider;
+import org.cubexmc.storage.YamlStorageProvider;
+import org.cubexmc.update.BackupHelper;
 import org.cubexmc.update.ConfigUpdater;
 
 /**
@@ -31,8 +34,8 @@ public class ConfigManager {
 
     private FileConfiguration config;
     private FileConfiguration gemsData;
-    private File gemsFile;
     private String language;
+    private StorageProvider storageProvider;
 
     // 内部委托对象
     private final GemDefinitionParser gemParser;
@@ -64,10 +67,12 @@ public class ConfigManager {
         ConfigUpdater.merge(plugin);
         plugin.reloadConfig();
         this.config = plugin.getConfig();
+        initStorageProvider();
 
         // 确保默认资源存在
         ensurePowersFolder();
         initGemsFolder();
+        backupLegacyConfigIfNeeded();
 
         this.language = config.getString("language", "zh_CN");
 
@@ -114,43 +119,15 @@ public class ConfigManager {
     // ==================== 数据文件 I/O ====================
 
     public void initGemFile() {
-        File dataFolder = new File(this.plugin.getDataFolder(), "data");
-        if (!dataFolder.exists()) {
-            dataFolder.mkdirs();
-        }
-        gemsFile = new File(dataFolder, "gems.yml");
-
-        // 迁移旧数据文件
-        File oldDataFile = new File(this.plugin.getDataFolder(), "data.yml");
-        if (oldDataFile.exists() && !gemsFile.exists()) {
-            try {
-                java.nio.file.Files.move(oldDataFile.toPath(), gemsFile.toPath());
-                plugin.getLogger().info("Migrated data.yml to data/gems.yml");
-            } catch (Exception e) {
-                plugin.getLogger().warning("Failed to migrate data.yml: " + e.getMessage());
-            }
-        }
-
-        if (!gemsFile.exists()) {
-            try {
-                gemsFile.createNewFile();
-            } catch (Exception e) {
-                plugin.getLogger().warning("Failed to create data/gems.yml: " + e.getMessage());
-            }
-        }
+        getStorageProvider().initialize();
     }
 
     public void saveGemData(FileConfiguration data) {
-        try {
-            data.save(gemsFile);
-        } catch (Exception e) {
-            plugin.getLogger().log(java.util.logging.Level.SEVERE, "Failed to save gem data", e);
-        }
+        getStorageProvider().saveGemData(data);
     }
 
     public FileConfiguration readGemsData() {
-        initGemFile();
-        gemsData = YamlConfiguration.loadConfiguration(gemsFile);
+        gemsData = getStorageProvider().readGemData();
         return gemsData;
     }
 
@@ -159,6 +136,13 @@ public class ConfigManager {
             readGemsData();
         }
         return gemsData;
+    }
+
+    public StorageProvider getStorageProvider() {
+        if (storageProvider == null) {
+            initStorageProvider();
+        }
+        return storageProvider;
     }
 
     // ==================== 跨域查询 ====================
@@ -202,9 +186,6 @@ public class ConfigManager {
         if (!gemsFolder.exists()) {
             gemsFolder.mkdirs();
             plugin.getLogger().info("Creating gems folder");
-        }
-        File defaultGemsFile = new File(gemsFolder, "gems.yml");
-        if (!defaultGemsFile.exists()) {
             try {
                 plugin.saveResource("gems/gems.yml", false);
                 plugin.getLogger().info("Creating default gem config file: gems/gems.yml");
@@ -214,12 +195,42 @@ public class ConfigManager {
         }
     }
 
+    private void initStorageProvider() {
+        String type = config != null ? config.getString("storage.type", "yaml") : "yaml";
+        if (type == null || type.isBlank()) {
+            type = "yaml";
+        }
+        if ("sqlite".equalsIgnoreCase(type)) {
+            this.storageProvider = new SqliteStorageProvider(plugin, config);
+            return;
+        }
+        if (!"yaml".equalsIgnoreCase(type)) {
+            plugin.getLogger().warning("storage.type '" + type
+                    + "' is not supported. Falling back to YAML storage.");
+        }
+        this.storageProvider = new YamlStorageProvider(plugin);
+    }
+
     private void ensurePowersFolder() {
         File powersFolder = new File(plugin.getDataFolder(), "powers");
         if (!powersFolder.exists()) {
             powersFolder.mkdirs();
             plugin.saveResource("powers/powers.yml", false);
         }
+    }
+
+    private void backupLegacyConfigIfNeeded() {
+        List<String> findings = gemParser.detectLegacySyntax(config, plugin.getDataFolder());
+        if (findings.isEmpty()) {
+            return;
+        }
+        File backupDir = BackupHelper.createConfigOptimizationBackup(plugin);
+        plugin.getLogger().warning("Detected legacy RuleGems configuration syntax: "
+                + String.join(", ", findings)
+                + ". Backup directory: "
+                + (backupDir != null ? backupDir.getAbsolutePath() : "backup failed")
+                + ". Please migrate to power.base, power.permission_groups, and recipe-style redeem_requirements; "
+                + "future version may remove this compatibility.");
     }
 
     private Location getLocationFromConfig(ConfigurationSection configSection, String path, World world) {

@@ -9,6 +9,7 @@ import org.bukkit.inventory.ItemStack;
 import org.cubexmc.RuleGems;
 import org.cubexmc.features.appoint.Appointment;
 import org.cubexmc.features.appoint.AppointFeature;
+import org.cubexmc.features.revoke.RevokeFeature;
 import org.cubexmc.manager.GemManager;
 import org.cubexmc.manager.LanguageManager;
 import org.cubexmc.model.GemDefinition;
@@ -139,7 +140,7 @@ public class RulersGUI extends ChestMenu {
             for (int i = startIndex; i < endIndex; i++) {
                 int slot = i - startIndex;
                 Map.Entry<UUID, Set<String>> entry = rulerList.get(i);
-                ItemStack item = createRulerItem(entry.getKey(), entry.getValue(), isAdmin);
+                ItemStack item = createRulerItem(player, entry.getKey(), entry.getValue(), isAdmin);
                 gui.setItem(slot, item);
             }
         }
@@ -160,7 +161,7 @@ public class RulersGUI extends ChestMenu {
     /**
      * 创建统治者展示物品
      */
-    private ItemStack createRulerItem(UUID playerUuid, Set<String> gemKeys, boolean isAdmin) {
+    private ItemStack createRulerItem(Player viewer, UUID playerUuid, Set<String> gemKeys, boolean isAdmin) {
         Player ruler = Bukkit.getPlayer(playerUuid);
         String playerName = gemManager.getCachedPlayerName(playerUuid);
         boolean isOnline = ruler != null && ruler.isOnline();
@@ -237,6 +238,15 @@ public class RulersGUI extends ChestMenu {
             builder.addLore(
                     "&d▸ " + rawMsg("rulers.appointee_count").replace("%count%", String.valueOf(appointeeCount)));
         }
+        List<String> revokablePowers = getRevokablePowers(viewer, playerUuid, gemKeys);
+        if (!revokablePowers.isEmpty()) {
+            builder.addEmptyLore();
+            builder.addLore("&c▸ " + rawMsg("rulers.revokable_powers") + " &7(" + revokablePowers.size() + ")");
+            for (String power : revokablePowers) {
+                builder.addLore("&8  • " + power);
+            }
+            builder.addLore("&7" + rawMsg("rulers.revoke_command_hint"));
+        }
 
         // 管理员信息
         if (isAdmin) {
@@ -268,6 +278,15 @@ public class RulersGUI extends ChestMenu {
 
         List<Appointment> appointments = appointFeature.getAppointmentsByAppointer(rulerUuid);
         return appointments.size();
+    }
+
+    private List<String> getRevokablePowers(Player viewer, UUID targetUuid, Set<String> gemKeys) {
+        RuleGems plugin = getPlugin();
+        if (plugin.getFeatureManager() == null || plugin.getFeatureManager().getRevokeFeature() == null) {
+            return java.util.Collections.emptyList();
+        }
+        RevokeFeature revokeFeature = plugin.getFeatureManager().getRevokeFeature();
+        return revokeFeature.getRevokablePowers(viewer, targetUuid, gemKeys);
     }
 
     private ItemStack createProfileButton() {
