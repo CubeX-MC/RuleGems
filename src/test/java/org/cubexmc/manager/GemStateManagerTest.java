@@ -1,16 +1,17 @@
 package org.cubexmc.manager;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.plugin.java.JavaPlugin;
 import org.cubexmc.RuleGems;
 import org.cubexmc.model.GemDefinition;
 import org.cubexmc.model.PowerStructure;
@@ -81,6 +82,15 @@ class GemStateManagerTest {
         return new GemDefinition.Builder(key)
                 .material(Material.DIAMOND_BLOCK).displayName(displayName)
                 .powerStructure(ps).build();
+    }
+
+    private void putPlacedGem(YamlConfiguration data, UUID gemId, String gemKey) {
+        String path = "placed-gems." + gemId;
+        data.set(path + ".world", "world");
+        data.set(path + ".x", 10.0D);
+        data.set(path + ".y", 64.0D);
+        data.set(path + ".z", 20.0D);
+        data.set(path + ".gem_key", gemKey);
     }
 
     // ==================== Mapping Consistency ====================
@@ -670,6 +680,62 @@ class GemStateManagerTest {
             assertEquals(2, all.size());
             assertEquals(loc1, all.get(GEM_1));
             assertEquals(loc2, all.get(GEM_2));
+        }
+    }
+
+    // ==================== loadData ====================
+
+    @Nested
+    class LoadData {
+
+        @Test
+        void skipsPersistedGemsWhoseKeysAreNoLongerConfigured() {
+            GemDefinition justice = createSimpleDef("justice", "Justice");
+            GemDefinition navigation = createSimpleDef("navigation", "Navigation");
+            when(gemParser.getGemDefinitions()).thenReturn(Arrays.asList(justice, navigation));
+
+            YamlConfiguration data = new YamlConfiguration();
+            putPlacedGem(data, GEM_1, "life");
+            putPlacedGem(data, GEM_2, "justice");
+
+            World world = mock(World.class);
+
+            try (MockedStatic<Bukkit> bukkit = mockStatic(Bukkit.class)) {
+                bukkit.when(() -> Bukkit.getWorld("world")).thenReturn(world);
+
+                manager.loadData(data, id -> fail("placed gems should not be scattered while loading"));
+            }
+
+            assertNull(manager.getGemKey(GEM_1));
+            assertEquals("justice", manager.getGemKey(GEM_2));
+            assertEquals(1, manager.getPlacedCount());
+            assertEquals(1, manager.getAllGemUuids().size());
+
+            List<UUID> created = new ArrayList<>();
+            manager.ensureConfiguredGemsPresent(created::add);
+
+            assertEquals(1, created.size());
+            assertEquals("navigation", manager.getGemKey(created.get(0)));
+            assertEquals(2, manager.getAllGemUuids().size());
+        }
+
+        @Test
+        void keepsPersistedGemKeysWhenDefinitionsAreUnavailable() {
+            when(gemParser.getGemDefinitions()).thenReturn(Collections.emptyList());
+
+            YamlConfiguration data = new YamlConfiguration();
+            putPlacedGem(data, GEM_1, "life");
+
+            World world = mock(World.class);
+
+            try (MockedStatic<Bukkit> bukkit = mockStatic(Bukkit.class)) {
+                bukkit.when(() -> Bukkit.getWorld("world")).thenReturn(world);
+
+                manager.loadData(data, id -> fail("placed gems should not be scattered while loading"));
+            }
+
+            assertEquals("life", manager.getGemKey(GEM_1));
+            assertEquals(1, manager.getPlacedCount());
         }
     }
 

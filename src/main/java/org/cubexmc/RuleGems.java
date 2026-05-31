@@ -300,7 +300,8 @@ public class RuleGems extends JavaPlugin {
             Command existing = map.getCommand(normalized);
             if (existing != null && !(existing instanceof org.cubexmc.commands.AllowedCommandProxy)) {
                 getLogger().warning("Skipping proxy registration for /" + normalized
-                        + " because another plugin already provides it.");
+                        + " because another plugin already provides it. RuleGems will still intercept this command"
+                        + " for players with matching allowed-command uses.");
                 continue;
             }
 

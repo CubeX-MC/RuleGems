@@ -180,6 +180,33 @@ public class GemStateManager {
         playerNameCache.clear();
     }
 
+    private Set<String> configuredGemKeys() {
+        Set<String> keys = new HashSet<>();
+        List<GemDefinition> defs = gemParser.getGemDefinitions();
+        if (defs == null)
+            return keys;
+        for (GemDefinition def : defs) {
+            if (def != null && def.getGemKey() != null && !def.getGemKey().trim().isEmpty()) {
+                keys.add(def.getGemKey().toLowerCase(ROOT_LOCALE));
+            }
+        }
+        return keys;
+    }
+
+    private boolean shouldLoadPersistedGem(String gemKey, Set<String> configuredKeys) {
+        if (configuredKeys == null || configuredKeys.isEmpty())
+            return true;
+        if (gemKey == null || gemKey.trim().isEmpty())
+            return false;
+        return configuredKeys.contains(gemKey.toLowerCase(ROOT_LOCALE));
+    }
+
+    private void warnSkippedUnknownGem(String section, UUID gemId, String gemKey) {
+        plugin.getLogger().warning("Skipping saved " + section + " gem " + gemId
+                + " with unknown configured gem_key '" + gemKey
+                + "'. Re-add that key in gems/*.yml to restore the instance.");
+    }
+
     // ==================== 加载 / 保存 ====================
 
     /**
@@ -189,6 +216,7 @@ public class GemStateManager {
      * @param randomPlaceGemFn 当持有者离线时的放置回调
      */
     public void loadData(FileConfiguration gemsData, Consumer<UUID> randomPlaceGemFn) {
+        Set<String> configuredKeys = configuredGemKeys();
         // 放置的宝石（兼容旧键名 "placed-gams"）
         ConfigurationSection placedGemsSection = gemsData.getConfigurationSection("placed-gems");
         if (placedGemsSection == null) {
@@ -201,16 +229,20 @@ public class GemStateManager {
                 double y = placedGemsSection.getDouble(uuidStr + ".y");
                 double z = placedGemsSection.getDouble(uuidStr + ".z");
                 String gemKey = placedGemsSection.getString(uuidStr + ".gem_key", "default");
-                World w = Bukkit.getWorld(worldName);
-                if (w == null)
-                    continue;
-                Location loc = new Location(w, x, y, z);
                 UUID gemId;
                 try {
                     gemId = UUID.fromString(uuidStr);
                 } catch (Exception ignored) {
                     continue;
                 }
+                if (!shouldLoadPersistedGem(gemKey, configuredKeys)) {
+                    warnSkippedUnknownGem("placed", gemId, gemKey);
+                    continue;
+                }
+                World w = Bukkit.getWorld(worldName);
+                if (w == null)
+                    continue;
+                Location loc = new Location(w, x, y, z);
                 locationToGemUuid.put(loc, gemId);
                 gemUuidToLocation.put(gemId, loc);
                 gemUuidToKey.put(gemId, gemKey);
@@ -229,6 +261,10 @@ public class GemStateManager {
                     playerUUID = UUID.fromString(playerUUIDStr);
                     gemId = UUID.fromString(uuidStr);
                 } catch (Exception ignored) {
+                    continue;
+                }
+                if (!shouldLoadPersistedGem(gemKey, configuredKeys)) {
+                    warnSkippedUnknownGem("held", gemId, gemKey);
                     continue;
                 }
                 gemUuidToKey.put(gemId, gemKey);

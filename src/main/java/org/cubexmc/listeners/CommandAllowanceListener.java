@@ -117,7 +117,7 @@ public class CommandAllowanceListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onPlayerCommand(PlayerCommandPreprocessEvent event) {
         String msg = event.getMessage();
         Player player = event.getPlayer();
@@ -260,6 +260,5 @@ public class CommandAllowanceListener implements Listener {
         return new ArrayList<>(new LinkedHashSet<>(values));
     }
 }
-
 
 
