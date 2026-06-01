@@ -1,0 +1,212 @@
+# ==========================================
+# RuleGems 权力结构模板配置
+# ==========================================
+# 在这里定义可复用的权力结构模板
+# 可以在 gems/*.yml 中通过 power: "template_name" 引用
+#
+# 使用方式:
+#   1. 直接引用: power: "template_name"
+#   2. 组合引用: power: ["template1", "template2"]
+#   3. 继承扩展: power: { base: "template_name", permissions: [...] }
+# ==========================================
+
+# ==========================================
+# 战斗类模板
+# ==========================================
+
+# 基础战斗能力
+fighter:
+  permissions:
+    - "combat.bypass"
+  effects:
+    - "STRENGTH"
+    - "SPEED"
+
+# 防御者
+defender:
+  permissions:
+    - "defense.shield"
+  effects:
+    - type: "DAMAGE_RESISTANCE"
+      amplifier: 1
+      particles: false
+
+# ==========================================
+# 管理类模板
+# ==========================================
+
+# 基础管理能力 - CoreProtect 检查
+inspector:
+  permissions:
+    - "coreprotect.inspect"
+    - "coreprotect.lookup"
+
+# 高级管理 - 包含封禁等限次命令
+admin_basic:
+  permissions:
+    - "coreprotect.inspect"
+    - "coreprotect.lookup"
+  command_allows:
+    - command: "/ban"
+      execute: 
+        - "console:ban %arg1%"
+      time_limit: 5
+      cooldown: 60
+
+# ==========================================
+# 生活类模板
+# ==========================================
+
+# 夜视能力
+night_vision:
+  effects:
+    - "NIGHT_VISION"
+
+# 飞行能力（限次）
+flight:
+  command_allows:
+    - command: "/tempfly"
+      execute:
+        - "console:cmi tfly %player% 60"
+        - "console:tellraw %player% {\"text\":\"✈ 你获得了60秒飞行时间！\",\"color\":\"green\"}"
+      time_limit: 3
+      cooldown: 300
+  effects:
+    - "SLOW_FALLING"
+
+# 治愈能力
+healer:
+  permissions:
+    - "cmi.command.heal"
+  effects:
+    - type: "REGENERATION"
+      amplifier: 1
+      particles: false
+    - type: "HEALTH_BOOST"
+      amplifier: 0
+
+# ==========================================
+# 司法类模板
+# ==========================================
+
+# 正义执行者 - 监禁权限
+justice:
+  command_allows:
+    - command: "/rgjail"
+      execute:
+        - "console:cmi jail %arg1% %arg2|jailed% %arg3|5m%"
+      time_limit: 5
+      cooldown: 60
+
+# ==========================================
+# 带条件的模板
+# ==========================================
+
+# 夜行者（仅夜晚生效）
+nightwalker:
+  effects:
+    - "NIGHT_VISION"
+    - "INVISIBILITY"
+  conditions:
+    time:
+      enabled: true
+      type: NIGHT
+
+# 主世界限定
+overworld_only:
+  conditions:
+    worlds:
+      enabled: true
+      mode: whitelist
+      list:
+        - world
+
+# ==========================================
+# 带委任能力的模板（核心功能）
+# ==========================================
+# 获得此 power 后，玩家可以任命其他玩家获得指定的职位
+# 被任命者将获得对应的 power 能力
+
+# 国王 - 可任命骑士和大臣
+king:
+  permissions:
+    - "kingdom.ruler"
+  # 可委任的职位定义
+  appoints:
+    knight:
+      display_name: "&6骑士"
+      max_count: 5
+      # 使用 power 引用模板（与 gems.yml 格式一致）
+      power: knight
+      on_appoint:
+        - "console:broadcast &e%player% &6册封 &e%target% &6为骑士！"
+      on_revoke:
+        - "console:broadcast &e%target% &c的骑士头衔被撤销！"
+      appoint_sound: ENTITY_PLAYER_LEVELUP
+      revoke_sound: ENTITY_ITEM_BREAK
+    minister:
+      display_name: "&4大臣"
+      max_count: 2
+      # 也可以组合多个 power: power: [admin_basic, inspector]
+      power: admin_basic
+      on_appoint:
+        - "console:broadcast &e%player% &4任命 &e%target% &4为大臣！"
+      on_revoke:
+        - "console:broadcast &e%target% &c被免职！"
+
+# 骑士 - 可任命侍从（形成权力树）
+knight:
+  permissions:
+    - "kingdom.knight"
+  effects:
+    - "DAMAGE_RESISTANCE"
+  # 骑士也可以任命下级
+  appoints:
+    squire:
+      display_name: "&e侍从"
+      max_count: 3
+      # 也可以直接内联定义 permissions/effects（无需引用其他模板）
+      power: squire
+      on_appoint:
+        - "console:broadcast &e%target% &7成为了 &e%player% &7的侍从"
+      on_revoke:
+        - "console:broadcast &e%target% &7不再是侍从"
+      appoint_sound: ENTITY_EXPERIENCE_ORB_PICKUP
+      revoke_sound: BLOCK_NOTE_BLOCK_BASS
+
+# 侍从（最底层，没有委任能力）
+squire:
+  effects:
+    - "SPEED"
+
+# ==========================================
+# Appoint 定义方式示例（三种方式）
+# ==========================================
+
+# 示例：展示 appoints 的三种定义方式
+guild_leader:
+  permissions:
+    - "guild.leader"
+  appoints:
+    # 方式1: 引用已有模板
+    guild_officer:
+      display_name: "&b公会干部"
+      max_count: 3
+      power: fighter  # 引用上面定义的 fighter 模板
+    
+    # 方式2: 组合多个模板
+    guild_elite:
+      display_name: "&d公会精英"
+      max_count: 5
+      power: [fighter, night_vision]  # 组合多个模板
+    
+    # 方式3: 直接内联定义（不需要引用）
+    guild_member:
+      display_name: "&7公会成员"
+      max_count: -1  # 无限制
+      # 直接在这里定义 permissions/effects/command_allows
+      permissions:
+        - "guild.member"
+      effects:
+        - type: SPEED
+          amplifier: 0

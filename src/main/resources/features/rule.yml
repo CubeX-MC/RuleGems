@@ -1,0 +1,28 @@
+# ==========================================
+# Rule 功能配置 (Power Gate)
+# ==========================================
+# 启用后，玩家必须通过至少一种门控，才能实际获得宝石提供的权限、
+# 权限组、限次命令和药水效果。
+#
+# 默认权限门控：
+#   - rulegems.rule          允许使用所有宝石权力
+#   - rulegems.rule.<gemKey> 只允许使用指定宝石权力
+#
+# required_permission / required_power_set / required_gem 是可选附加门控。
+# 如果配置了它们，任意一种满足即可使用权力。
+
+# 是否启用此功能
+enabled: false
+
+# 是否启用 rulegems.rule / rulegems.rule.<gemKey> 权限门控
+permission_gate:
+  enabled: true
+
+# 模式1: 需要固定权限节点（最简单）
+# required_permission: "rulegems.ruler"
+
+# 模式2: 需要已委任过某个权限集（配合 appoint.yml）
+# required_power_set: "ruler"
+
+# 模式3: 需要持有/兑换过特定宝石 key
+# required_gem: "power_gem"

@@ -1,0 +1,21 @@
+# Kingdom Power revoke rules.
+# Copy to plugins/RuleGems/features/revoke.yml if you want this preset's counter-power loop.
+
+enabled: true
+confirm_timeout: 30
+
+rules:
+  judgment:
+    display_name: "&cJudgment"
+    trigger_gem: judgment
+    target_powers:
+      - crown
+      - knight_sword
+      - treasury_seal
+    require_held: true
+    consume_gem: false
+    cooldown: 3600
+    confirm_required: true
+    broadcast: true
+    allow_offline_target: true
+

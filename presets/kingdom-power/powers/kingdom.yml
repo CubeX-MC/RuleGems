@@ -1,0 +1,71 @@
+# Kingdom Power preset templates.
+# Copy to plugins/RuleGems/powers/kingdom.yml.
+
+king_ruler:
+  permissions:
+    - "rulegems.kingdom.ruler"
+  permission_groups:
+    - "king"
+  command_allows:
+    - command: "/kingbroadcast"
+      execute:
+        - "console:broadcast &6[Kingdom] &e%player%: %arg1|decree%"
+      time_limit: 5
+      cooldown: 120
+  appoints:
+    knight:
+      display_name: "&6Knight"
+      max_count: 5
+      power: knight_guard
+      on_appoint:
+        - "console:broadcast &e%player% &6knighted &e%target%&6."
+      on_revoke:
+        - "console:broadcast &e%target% &chas lost knighthood."
+      appoint_sound: ENTITY_PLAYER_LEVELUP
+      revoke_sound: ENTITY_ITEM_BREAK
+    treasurer:
+      display_name: "&eTreasurer"
+      max_count: 2
+      power: treasury_keeper
+      on_appoint:
+        - "console:broadcast &e%player% &6appointed &e%target% &6as treasurer."
+
+knight_guard:
+  permissions:
+    - "rulegems.kingdom.guard"
+  permission_groups:
+    - "knight"
+  command_allows:
+    - command: "/jail"
+      execute:
+        - "console:jail %arg1% %arg2|5m%"
+      time_limit: 3
+      cooldown: 300
+  effects:
+    - type: DAMAGE_RESISTANCE
+      amplifier: 0
+      particles: false
+
+treasury_keeper:
+  permissions:
+    - "rulegems.kingdom.treasury"
+  permission_groups:
+    - "treasurer"
+  command_allows:
+    - command: "/kingpay"
+      execute:
+        - "console:eco give %arg1% %arg2|100%"
+      time_limit: 5
+      cooldown: 600
+
+oath_keeper:
+  permissions:
+    - "rulegems.kingdom.oath"
+  effects:
+    - type: GLOWING
+      amplifier: 0
+      particles: false
+
+judgment_power:
+  permissions:
+    - "rulegems.kingdom.judgment"

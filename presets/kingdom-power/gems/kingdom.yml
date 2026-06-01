@@ -1,0 +1,77 @@
+# Kingdom Power preset gems.
+# Copy to plugins/RuleGems/gems/kingdom.yml.
+
+crown:
+  material: GOLD_BLOCK
+  name: "&6Crown Gem"
+  count: 1
+  lore:
+    - "&7The highest symbol of kingdom authority."
+    - "&eRequires: &fOath Seal"
+  enchanted: true
+  power: king_ruler
+  redeem_requirements:
+    consumes:
+      - gem: oath_seal
+        amount: 1
+    allow_redeem_all: false
+    failure_message: "&cThe Crown requires an Oath Seal."
+  redeem_title:
+    - "&6%player% claimed the Crown"
+    - "&eThe kingdom has a ruler."
+  particle: ENCHANTMENT_TABLE
+  sound: BLOCK_BELL_USE
+
+oath_seal:
+  material: LAPIS_BLOCK
+  name: "&9Oath Seal"
+  count: 2
+  lore:
+    - "&7A pledge needed to claim higher authority."
+  enchanted: true
+  power: oath_keeper
+  particle: GLOW
+  sound: BLOCK_AMETHYST_BLOCK_RESONATE
+
+knight_sword:
+  material: IRON_BLOCK
+  name: "&fKnight Sword"
+  count: 2
+  lore:
+    - "&7A guard power that can enforce order."
+  enchanted: true
+  power: knight_guard
+  redeem_title:
+    - "&f%player% drew the Knight Sword"
+    - "&7Order answers the blade."
+  particle: CRIT
+  sound: ITEM_ARMOR_EQUIP_IRON
+
+treasury_seal:
+  material: EMERALD_BLOCK
+  name: "&aTreasury Seal"
+  count: 1
+  lore:
+    - "&7Controls limited economic actions."
+  enchanted: true
+  power: treasury_keeper
+  redeem_title:
+    - "&a%player% controls the Treasury"
+    - "&7Coin follows authority."
+  particle: VILLAGER_HAPPY
+  sound: ENTITY_VILLAGER_TRADE
+
+judgment:
+  material: REDSTONE_BLOCK
+  name: "&cJudgment Gem"
+  count: 1
+  lore:
+    - "&7A counter-power used by configured revoke rules."
+  enchanted: true
+  power: judgment_power
+  redeem_title:
+    - "&c%player% holds Judgment"
+    - "&7Power can now be challenged."
+  particle: SOUL_FIRE_FLAME
+  sound: ENTITY_WITHER_SPAWN
+

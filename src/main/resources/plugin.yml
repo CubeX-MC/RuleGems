@@ -1,0 +1,51 @@
+name: RuleGems
+version: 1.0.8
+main: org.cubexmc.RuleGems
+author: angushushu
+description: "一个管理 RuleGems（统治宝石）的插件"
+
+# 如果你的插件需要在更高版本的 Spigot/Paper 运行，可以指定 api-version
+api-version: "1.16"
+folia-supported: true
+softdepend: [LuckPerms, Vault]
+
+permissions:
+  rulegems.admin:
+    description: Allows access to all RuleGems admin commands
+    default: op
+  rulegems.redeem:
+    description: Allows using /rulegems redeem
+    default: true
+  rulegems.redeemall:
+    description: Allows using /rulegems redeemall
+    default: true
+  rulegems.rulers:
+    description: Allows using /rulegems rulers
+    default: true
+  rulegems.gems:
+    description: Allows using /rulegems gems to view gem list
+    default: true
+  rulegems.help:
+    description: Allows using /rulegems help
+    default: true
+  rulegems.profile:
+    description: Allows using /rulegems profile
+    default: true
+  rulegems.navigate:
+    description: Allows using compass to navigate to nearest gem
+    default: false
+  rulegems.rule:
+    description: Allows using all gem powers when rule feature is enabled
+    default: false
+  rulegems.rule.*:
+    description: Wildcard-style node for permission plugins; RuleGems treats it as all gem powers
+    default: false
+  rulegems.revoke:
+    description: Allows using configured revoke-power rules
+    default: false
+  rulegems.revoke.admin:
+    description: Allows administrating revoke-power rules
+    default: op
+  rulegems.appoint.*:
+    description: Allows appoint and dismiss commands for configured appointment sets
+    default: false
