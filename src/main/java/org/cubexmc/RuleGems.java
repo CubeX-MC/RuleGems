@@ -12,7 +12,7 @@ import static org.bukkit.Bukkit.getPluginManager;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandMap;
 import org.bukkit.command.SimpleCommandMap;
-import org.bukkit.plugin.java.JavaPlugin;
+import org.cubexmc.core.CubexPlugin;
 import org.cubexmc.commands.CloudCommandManager;
 import org.cubexmc.features.FeatureManager;
 import org.cubexmc.listeners.CommandAllowanceListener;
@@ -38,7 +38,7 @@ import net.milkbowl.vault.permission.Permission;
 /**
  * RuleGems 插件主类
  */
-public class RuleGems extends JavaPlugin {
+public class RuleGems extends CubexPlugin {
 
     private ConfigManager configManager;
     private GemDefinitionParser gemParser;
@@ -65,7 +65,7 @@ public class RuleGems extends JavaPlugin {
     private static final long AUTO_SAVE_INTERVAL = TICKS_PER_SECOND * 60 * 60; // 1 hour
 
     @Override
-    public void onEnable() {
+    protected void enablePlugin() {
         // 初始化配置管理器
         // 初始化配置管理器
         this.languageManager = new LanguageManager(this);
@@ -141,6 +141,7 @@ public class RuleGems extends JavaPlugin {
         // 取消依赖全局粒子设置；如需粒子展示可在 GemManager 内按 per-gem 自行实现
 
         refreshAllowedCommandProxies();
+        bindShutdownActions();
 
         languageManager.logMessage("plugin_enabled");
         languageManager.logMessage("documentation", linkPlaceholders());
@@ -174,22 +175,35 @@ public class RuleGems extends JavaPlugin {
     }
 
     @Override
-    public void onDisable() {
-        // 关闭功能管理器
-        if (featureManager != null) {
-            featureManager.shutdownAll();
-        }
+    protected void disablePlugin() {
+    }
 
-        CommandMap map = getCommandMapSafely();
-        if (map != null) {
-            unregisterProxyCommands(map);
-        }
-        if (gemManager != null) {
-            gemManager.saveGems();
-        }
-        if (languageManager != null) {
-            languageManager.logMessage("plugin_disabled");
-        }
+    private void bindShutdownActions() {
+        Runnable logDisabled = () -> {
+            if (languageManager != null) {
+                languageManager.logMessage("plugin_disabled");
+            }
+        };
+        Runnable saveGems = () -> {
+            if (gemManager != null) {
+                gemManager.saveGems();
+            }
+        };
+        Runnable unregisterProxyCommands = () -> {
+            CommandMap map = getCommandMapSafely();
+            if (map != null) {
+                unregisterProxyCommands(map);
+            }
+        };
+        Runnable shutdownFeatures = () -> {
+            if (featureManager != null) {
+                featureManager.shutdownAll();
+            }
+        };
+        bind(logDisabled);
+        bind(saveGems);
+        bind(unregisterProxyCommands);
+        bind(shutdownFeatures);
     }
 
     /**

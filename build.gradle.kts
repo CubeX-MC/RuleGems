@@ -8,6 +8,7 @@ description = "A Minecraft plugin that grants power through collecting gems"
 dependencies {
     compileOnly(CubexDeps.spigotApi("1.16.5-R0.1-SNAPSHOT"))
     compileOnly("com.github.MilkBowl:VaultAPI:1.7")
+    implementation(project(":modules:cubex-core"))
     implementation("org.incendo:cloud-paper:2.0.0-beta.10")
     implementation("org.incendo:cloud-minecraft-extras:2.0.0-beta.10")
     implementation("org.checkerframework:checker-qual:3.43.0")
