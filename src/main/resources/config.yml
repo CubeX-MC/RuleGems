@@ -8,6 +8,8 @@
 # - powers/*.yml：可复用的能力模板与委任结构
 # 如果你想先跑通玩法，优先只改本文件和 gems/*.yml。
 
+config-version: 2
+
 # 语言设置 (示例: zh_CN / en_US)
 language: zh_CN
 

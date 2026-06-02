@@ -12,6 +12,12 @@ import static org.bukkit.Bukkit.getPluginManager;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandMap;
 import org.bukkit.command.SimpleCommandMap;
+import org.cubexmc.config.LegacyTextToMiniMessageStep;
+import org.cubexmc.config.MigrationException;
+import org.cubexmc.config.MigrationPlan;
+import org.cubexmc.config.MigrationRunner;
+import org.cubexmc.config.NoOpMigrationStep;
+import org.cubexmc.config.ResourceFiles;
 import org.cubexmc.core.CubexPlugin;
 import org.cubexmc.commands.CloudCommandManager;
 import org.cubexmc.features.FeatureManager;
@@ -210,8 +216,14 @@ public class RuleGems extends CubexPlugin {
      * 重新加载本插件的配置
      */
     public void loadPlugin() {
-        saveDefaultConfig();
+        saveDefaultResources();
         reloadConfig(); // Ensure config is loaded for LanguageManager
+        try {
+            migrateConfigAndLang();
+        } catch (MigrationException ex) {
+            getLogger().severe("RuleGems reload aborted: migration failed. " + ex.getMessage());
+            throw new IllegalStateException("RuleGems migration failed. See logs for details.", ex);
+        }
         languageManager.updateBundledLanguages();
         languageManager.loadLanguage();
         configManager.initGemFile();
@@ -235,6 +247,30 @@ public class RuleGems extends CubexPlugin {
             featureManager.reloadAll();
             new RuleGemsDoctor(this).logWarnings();
         }
+    }
+
+    private void saveDefaultResources() {
+        new ResourceFiles(this).saveIfMissing(java.util.List.of(
+                "config.yml",
+                "lang/zh_CN.yml",
+                "lang/en_US.yml"));
+    }
+
+    private void migrateConfigAndLang() throws MigrationException {
+        MigrationRunner migrations = new MigrationRunner(this);
+        migrations.run(MigrationPlan.yaml("RuleGems config", "config.yml")
+                .versionKey("config-version")
+                .targetVersion(2)
+                .addStep(new NoOpMigrationStep(1, 2, "Add RuleGems config-version.")));
+        migrateLang(migrations, "zh_CN");
+        migrateLang(migrations, "en_US");
+    }
+
+    private void migrateLang(MigrationRunner migrations, String locale) throws MigrationException {
+        migrations.run(MigrationPlan.yaml("RuleGems lang " + locale, "lang/" + locale + ".yml")
+                .versionKey("lang-version")
+                .targetVersion(2)
+                .addStep(new LegacyTextToMiniMessageStep(1, 2)));
     }
 
     public ConfigManager getConfigManager() {
