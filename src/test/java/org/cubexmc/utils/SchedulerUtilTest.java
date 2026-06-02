@@ -62,4 +62,51 @@ class SchedulerUtilTest {
         assertSame(task, result);
         verify(scheduler).runTaskLater(org.mockito.ArgumentMatchers.eq(plugin), org.mockito.ArgumentMatchers.any(Runnable.class), org.mockito.ArgumentMatchers.eq(5L));
     }
+
+    @Test
+    void cancelTaskIgnoresNullHandle() {
+        SchedulerUtil.cancelTask(null);
+    }
+
+    @Test
+    void cancelTaskCancelsRepeatingBukkitHandle() {
+        Plugin plugin = mock(Plugin.class);
+        BukkitScheduler scheduler = mock(BukkitScheduler.class);
+        BukkitTask task = mock(BukkitTask.class);
+        mockedBukkit.when(Bukkit::getScheduler).thenReturn(scheduler);
+        when(scheduler.runTaskTimer(
+                org.mockito.ArgumentMatchers.eq(plugin),
+                org.mockito.ArgumentMatchers.any(Runnable.class),
+                org.mockito.ArgumentMatchers.eq(2L),
+                org.mockito.ArgumentMatchers.eq(20L)))
+                .thenReturn(task);
+
+        Object result = SchedulerUtil.globalRun(plugin, () -> {
+        }, 2L, 20L);
+        SchedulerUtil.cancelTask(result);
+
+        assertSame(task, result);
+        verify(task).cancel();
+    }
+
+    @Test
+    void asyncRunPassesDelayTicksToBukkitScheduler() {
+        Plugin plugin = mock(Plugin.class);
+        BukkitScheduler scheduler = mock(BukkitScheduler.class);
+        BukkitTask task = mock(BukkitTask.class);
+        mockedBukkit.when(Bukkit::getScheduler).thenReturn(scheduler);
+        when(scheduler.runTaskLaterAsynchronously(
+                org.mockito.ArgumentMatchers.eq(plugin),
+                org.mockito.ArgumentMatchers.any(Runnable.class),
+                org.mockito.ArgumentMatchers.eq(7L)))
+                .thenReturn(task);
+
+        SchedulerUtil.asyncRun(plugin, () -> {
+        }, 7L);
+
+        verify(scheduler).runTaskLaterAsynchronously(
+                org.mockito.ArgumentMatchers.eq(plugin),
+                org.mockito.ArgumentMatchers.any(Runnable.class),
+                org.mockito.ArgumentMatchers.eq(7L));
+    }
 }
