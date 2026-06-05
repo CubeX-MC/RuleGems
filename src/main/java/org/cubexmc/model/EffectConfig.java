@@ -12,6 +12,17 @@ import java.util.Objects;
  */
 public class EffectConfig {
 
+    /**
+     * 单次施加的持续时间(tick)。配合 {@link #REFRESH_INTERVAL_TICKS} 的周期续期使用。
+     *
+     * <p>效果时长 &gt; 续期间隔,正常情况下效果不间断;一旦不再续期(失去来源/重启/插件停用/配置移除),
+     * 效果会在数秒内自然过期——从根上杜绝"无限时长效果残留在玩家 NBT"的孤儿问题。</p>
+     */
+    public static final int DURATION_TICKS = 100; // 5s
+
+    /** 续期间隔(tick),必须显著小于 {@link #DURATION_TICKS} 以容忍调度抖动。 */
+    public static final int REFRESH_INTERVAL_TICKS = 40; // 2s
+
     private final PotionEffectType effectType;
     private final int amplifier;  // 效果等级（0 = I级, 1 = II级, ...）
     private final boolean ambient;  // 是否为环境效果（粒子效果更少）
@@ -68,25 +79,26 @@ public class EffectConfig {
     // ==================== 应用方法 ====================
 
     /**
-     * 为玩家应用此效果（无限持续时间）
-     * 使用 Integer.MAX_VALUE 作为持续时间，使效果持续直到被手动移除
-     * 
+     * 为玩家应用此效果(有限时长,需由续期任务周期重发)。
+     *
+     * <p>使用 {@link #DURATION_TICKS} 作为时长而非无限:由 PowerStructureManager 的续期任务每
+     * {@link #REFRESH_INTERVAL_TICKS} tick 重发一次。重发时长 &ge; 剩余时长,会刷新而不闪断;
+     * 一旦来源失效不再重发,效果数秒内自然过期,避免无限效果残留 NBT 成为孤儿。</p>
+     *
      * @param player 目标玩家
      */
     public void apply(Player player) {
         if (player == null || !player.isOnline() || effectType == null) return;
-        
-        // 使用很长的持续时间（约68年的 ticks）
-        // 这样效果会一直持续直到被移除
+
         PotionEffect effect = new PotionEffect(
             effectType,
-            Integer.MAX_VALUE,  // 无限持续
+            DURATION_TICKS,  // 有限时长 + 周期续期(见上)
             amplifier,
             ambient,
             particles,
             icon
         );
-        
+
         player.addPotionEffect(effect);
     }
 

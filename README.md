@@ -18,7 +18,7 @@
 
 ## 命令
 - 所有 `/rulegems ...` 命令均可用别名 `/rg ...`（见 plugin.yml 的 `aliases: [rg]`）
-- `/rulegems place <gemId> <x|~> <y|~> <z|~>` 将指定宝石实例放置到坐标
+- `/rulegems place <gemId> [x|~ y|~ z|~]` 将指定宝石实例放置到坐标；省略坐标时等同于 `~ ~ ~`，使用当前位置
 - `/rulegems tp <gemId>` 传送到指定宝石位置
 - `/rulegems revoke <玩家>` 强制清理指定玩家的宝石权限与限次额度（管理员干预）。若启用了 `inventory_grants` 且玩家仍持有宝石，下一次背包重算时权限会再次授予。
 - `/rulegems revoke-power list` 查看已配置的撤销规则
@@ -93,6 +93,8 @@
   - 映射：`command_allows.<label>: <uses>`（如 `fly: 3`）
   - 列表：`- { commands: "/fly"|[...], time_limit: <uses> }`
   - 特殊值：`time_limit: -1` 表示无限次（使用不扣减）；`redeem_all.command_allows` 采用相同语法，额度记录在虚拟 key `ALL` 下。
+  - 执行前缀：`console:` 由后台执行，`player:` 由玩家本人执行但不提权，`player-op:` 会在 `allow_op_escalation: true` 时临时提权。
+  - 同一个指令 label 可在不同来源配置不同效果；执行时会按来源（持有实例、兑换实例、任命、redeem_all）选择对应的 `execute` 与冷却，并扣减同一来源的剩余次数。
 - 持有与扣减：
   - 开启 inventory_grants 时：执行限次指令要求当前持有对应类型宝石，并按该类型额度扣减；
   - `redeem_all` 额外限次不要求持有，对应 key 始终为 `ALL`。
@@ -178,7 +180,7 @@ permission_sets:
     max_appointments: 3  # 每个任命者最多任命人数，-1为无限
     permissions:
       - example.permission1
-    command_allows:  # 限次命令（语法同宝石）
+    command_allows:  # 限次命令（语法同宝石；额度按该任命来源独立保存）
       - command: "/kit warrior"
         time_limit: 3
     delegate_permissions:  # 可再次委任的权限

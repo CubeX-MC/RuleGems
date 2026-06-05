@@ -277,6 +277,97 @@ public class GemPermissionManager {
         }
     }
 
+    /**
+     * 散落专用的状态重置。
+     *
+     * <p>{@link #clearRuntimeState()} 只会剥夺在线玩家的权限；离线统治者通过 redeem 获得的
+     * 持久化权限/Vault 组(LuckPerms)不会被清除，散落后仍然保留，与"权力流转"主题冲突。
+     * 本方法在清空前先按当前归属为离线统治者计算待撤销项，清空后重新入队并持久化，
+     * 这些玩家下次登录时会被 {@link #applyPendingRevokesIfAny} 剥夺。</p>
+     *
+     * <p>注意：仅供 scatter 调用。reload/重启走 {@code clearRuntimeState()}，
+     * 因为它们随后会立刻从磁盘重载归属并恢复权限，不应入队撤销。</p>
+     */
+    public void resetForScatter() {
+        Map<UUID, PendingRevoke> offlinePending = computeOfflineRulerPending();
+        clearRuntimeState(); // 在线玩家立即剥夺；clearAll() 会清空 pendingRevokes
+        if (!offlinePending.isEmpty()) {
+            // clearAll() 后 pendingRevokes 为空，直接放入即可。
+            pendingRevokes.putAll(offlinePending);
+            save();
+        }
+    }
+
+    /**
+     * 基于当前归属，为离线统治者构建待撤销项(权限/Vault 组/药水效果/阶梯组)。
+     * 在线玩家由 clearRuntimeState 直接处理，这里跳过。
+     */
+    private Map<UUID, PendingRevoke> computeOfflineRulerPending() {
+        Map<UUID, PendingRevoke> result = new HashMap<>();
+        Map<Integer, String> thresholds = gameplayConfig.getGemCollectThresholdGroups();
+
+        for (Map.Entry<UUID, Map<String, Integer>> entry : ownerKeyCount.entrySet()) {
+            UUID owner = entry.getKey();
+            if (owner == null) {
+                continue;
+            }
+            Player online = Bukkit.getPlayer(owner);
+            if (online != null && online.isOnline()) {
+                continue; // 在线玩家已由 clearRuntimeState 处理
+            }
+            Map<String, Integer> counts = entry.getValue();
+            if (counts == null) {
+                continue;
+            }
+            for (Map.Entry<String, Integer> keyCount : counts.entrySet()) {
+                if (keyCount.getValue() == null || keyCount.getValue() <= 0) {
+                    continue;
+                }
+                GemDefinition def = stateManager.findGemDefinition(keyCount.getKey());
+                if (def == null) {
+                    continue;
+                }
+                PendingRevoke pr = result.computeIfAbsent(owner, k -> new PendingRevoke());
+                if (def.getPermissions() != null) {
+                    pr.getPermissions().addAll(def.getPermissions());
+                }
+                pr.getPermissions().addAll(getAppointPermissionNodes(def));
+                if (def.getVaultGroup() != null && !def.getVaultGroup().isEmpty()) {
+                    pr.getGroups().add(def.getVaultGroup());
+                }
+                if (def.getEffects() != null) {
+                    for (EffectConfig ec : def.getEffects()) {
+                        if (ec != null && ec.getEffectType() != null) {
+                            pr.getEffects().add(ec.getEffectType().getName());
+                        }
+                    }
+                }
+                pr.getKeys().add(keyCount.getKey().toLowerCase(ROOT_LOCALE));
+            }
+            // 阶梯收集组也是持久化的 Vault 组；离线无法判断已应用哪些，撤销全部已配置项以求安全(移除未持有组为空操作)。
+            if (result.containsKey(owner) && thresholds != null && !thresholds.isEmpty()) {
+                result.get(owner).getGroups().addAll(thresholds.values());
+            }
+        }
+
+        if (fullSetOwner != null) {
+            Player online = Bukkit.getPlayer(fullSetOwner);
+            if (online == null || !online.isOnline()) {
+                PowerStructure redeemAllPower = gameplayConfig.getRedeemAllPowerStructure();
+                if (redeemAllPower != null && redeemAllPower.hasAnyContent()) {
+                    PendingRevoke pr = result.computeIfAbsent(fullSetOwner, k -> new PendingRevoke());
+                    if (redeemAllPower.getPermissions() != null) {
+                        pr.getPermissions().addAll(redeemAllPower.getPermissions());
+                    }
+                    if (redeemAllPower.getVaultGroups() != null) {
+                        pr.getGroups().addAll(redeemAllPower.getVaultGroups());
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
     // ==================== 加载 / 保存 ====================
 
     /**

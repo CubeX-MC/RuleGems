@@ -375,6 +375,7 @@ public class AppointFeature extends Feature {
 
         // 移除任命记录
         setAppointments.remove(appointeeUuid);
+        clearAppointmentAllowance(appointeeUuid, permSetKey);
 
         // 移除权限
         Player appointee = Bukkit.getPlayer(appointeeUuid);
@@ -505,9 +506,11 @@ public class AppointFeature extends Feature {
 
         // 为每个任命应用对应的 PowerStructure
         Set<String> processedSets = new HashSet<>();
+        Set<String> activeAllowanceSets = new HashSet<>();
         for (Appointment appointment : getPlayerAppointments(player.getUniqueId())) {
-            applyAppointmentPowers(appointment.getPermSetKey(), player, processedSets);
+            applyAppointmentPowers(appointment.getPermSetKey(), player, processedSets, activeAllowanceSets);
         }
+        syncAppointmentAllowances(player, activeAllowanceSets);
 
         player.recalculatePermissions();
     }
@@ -515,7 +518,8 @@ public class AppointFeature extends Feature {
     /**
      * 递归应用任命的 PowerStructure（处理继承）
      */
-    private void applyAppointmentPowers(String permSetKey, Player player, Set<String> processedSets) {
+    private void applyAppointmentPowers(String permSetKey, Player player, Set<String> processedSets,
+            Set<String> activeAllowanceSets) {
         if (processedSets.contains(permSetKey))
             return;
         processedSets.add(permSetKey);
@@ -550,7 +554,16 @@ public class AppointFeature extends Feature {
                 }
             }
 
-            psm.applyStructure(player, extendedPower, "appoint", permSetKey, true);
+            boolean applied = psm.applyStructure(player, extendedPower, "appoint", permSetKey, true);
+            if (applied) {
+                org.cubexmc.manager.GemAllowanceManager allowanceManager = getAllowanceManager();
+                if (allowanceManager != null) {
+                    allowanceManager.applyAppointmentAllowedCommands(player, permSetKey, extendedPower, false);
+                }
+                if (activeAllowanceSets != null) {
+                    activeAllowanceSets.add(permSetKey);
+                }
+            }
         }
     }
 
@@ -699,6 +712,7 @@ public class AppointFeature extends Feature {
         // 执行级联撤销
         for (UUID appointeeUuid : toRevoke) {
             setAppointments.remove(appointeeUuid);
+            clearAppointmentAllowance(appointeeUuid, permSetKey);
 
             Player appointee = Bukkit.getPlayer(appointeeUuid);
             if (appointee != null && appointee.isOnline()) {
@@ -897,6 +911,25 @@ public class AppointFeature extends Feature {
 
     private void applyPermissionsOnEntity(Player player) {
         runEntityTask(player, () -> applyPermissions(player));
+    }
+
+    private org.cubexmc.manager.GemAllowanceManager getAllowanceManager() {
+        org.cubexmc.manager.GemManager gm = plugin.getGemManager();
+        return gm != null ? gm.getAllowanceManager() : null;
+    }
+
+    private void syncAppointmentAllowances(Player player, Set<String> activeAllowanceSets) {
+        org.cubexmc.manager.GemAllowanceManager allowanceManager = getAllowanceManager();
+        if (allowanceManager != null && player != null) {
+            allowanceManager.retainAppointmentAllowedCommands(player.getUniqueId(), activeAllowanceSets);
+        }
+    }
+
+    private void clearAppointmentAllowance(UUID playerId, String permSetKey) {
+        org.cubexmc.manager.GemAllowanceManager allowanceManager = getAllowanceManager();
+        if (allowanceManager != null) {
+            allowanceManager.removeAppointmentAllowedCommands(playerId, permSetKey);
+        }
     }
 
     private void runEntityTask(Player player, Runnable task) {

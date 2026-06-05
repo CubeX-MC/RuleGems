@@ -7,6 +7,7 @@ import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.cubexmc.manager.CustomCommandExecutor;
 import org.cubexmc.manager.GameplayConfig;
 import org.cubexmc.manager.GemAllowanceManager;
+import org.cubexmc.manager.GemAllowanceManager.AllowanceSourceType;
 import org.cubexmc.manager.LanguageManager;
 import org.cubexmc.model.AllowedCommand;
 import org.junit.jupiter.api.Test;
@@ -53,10 +54,12 @@ class CommandAllowanceListenerTest {
 
         AllowedCommand command = new AllowedCommand("jail", 1,
                 Collections.singletonList("console:cmi jail %arg1% jailed 10m"), 0);
+        GemAllowanceManager.ResolvedAllowance resolved = new GemAllowanceManager.ResolvedAllowance(playerId,
+                AllowanceSourceType.APPOINTMENT, null, "police_power", "jail", command);
         when(allowanceManager.hasAnyAllowed(playerId, "jail steve jailed 10m")).thenReturn(false);
         when(allowanceManager.hasAnyAllowed(playerId, "jail")).thenReturn(true);
-        when(allowanceManager.getAllowedCommand(playerId, "jail")).thenReturn(command);
-        when(allowanceManager.tryConsumeAllowed(playerId, "jail")).thenReturn(true);
+        when(allowanceManager.resolveAllowedCommand(playerId, "jail")).thenReturn(resolved);
+        when(allowanceManager.tryConsumeAllowed(playerId, resolved)).thenReturn(true);
         when(allowanceManager.getRemainingAllowed(playerId, "jail")).thenReturn(0);
         when(executor.executeExtendedCommand(eq(player), eq(command), any(String[].class))).thenReturn(true);
 
@@ -66,7 +69,7 @@ class CommandAllowanceListenerTest {
         listener.onPlayerCommand(event);
 
         assertTrue(event.isCancelled());
-        verify(allowanceManager).tryConsumeAllowed(playerId, "jail");
+        verify(allowanceManager).tryConsumeAllowed(playerId, resolved);
         verify(executor).executeExtendedCommand(eq(player), eq(command), any(String[].class));
     }
 }

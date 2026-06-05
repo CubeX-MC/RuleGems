@@ -16,16 +16,20 @@ public class GemPlaceListener implements Listener {
         this.gemManager = gemManager;
     }
 
-    // 使用 HIGHEST 优先级确保在领地等保护插件处理后执行
-    // （不使用 MONITOR，因为本方法可能调用 event.setCancelled()，违反 MONITOR 语义）
-    // ignoreCancelled = true 确保被取消的事件不会触发宝石放置逻辑
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    // 宝石被设计为"无视领地保护"：任何玩家都能在受保护区域内拾取/放置宝石，以保证权力能够流转。
+    //
+    // 关键点：必须 ignoreCancelled = false。
+    //   领地/保护插件（Residence、Lands 等，通常在 NORMAL/HIGH 优先级）会在玩家无权限时取消
+    //   BlockPlace/BlockBreak 事件。我们在 HIGHEST（即在它们之后）仍然接收该事件，并在
+    //   handleGemBlockPlace / handleGemBlockBreak 中针对"宝石交互"调用 setCancelled(false) 强制放行。
+    //   若改用 ignoreCancelled = true，被保护插件取消的事件将不再传到这里，宝石就无法在领地内拾取/放置。
+    // 不使用 MONITOR：因为我们需要修改事件的取消状态，违反 MONITOR 的只读语义。
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onBlockPlace(BlockPlaceEvent event) {
         gemManager.handleGemBlockPlace(event.getPlayer(), event.getItemInHand(), event.getBlockPlaced(), event);
     }
 
-    // 破坏事件同样需要在保护插件之后处理
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onBlockBreak(BlockBreakEvent event) {
         gemManager.handleGemBlockBreak(event.getPlayer(), event.getBlock(), event);
     }

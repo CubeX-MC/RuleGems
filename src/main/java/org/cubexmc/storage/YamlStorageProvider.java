@@ -2,6 +2,7 @@ package org.cubexmc.storage;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.logging.Level;
 
 import org.bukkit.configuration.file.FileConfiguration;
@@ -52,8 +53,18 @@ public class YamlStorageProvider implements StorageProvider {
     @Override
     public void saveGemData(FileConfiguration data) {
         initialize();
+        // 原子落盘：先写同目录临时文件，再 ATOMIC_MOVE 覆盖，避免写一半崩溃导致 gems.yml 被截断/损坏。
         try {
-            data.save(gemsFile);
+            File parent = gemsFile.getParentFile();
+            File temp = File.createTempFile("gems", ".tmp", parent);
+            try {
+                data.save(temp);
+                Files.move(temp.toPath(), gemsFile.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (Exception e) {
+                Files.deleteIfExists(temp.toPath());
+                throw e;
+            }
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to save gem data", e);
         }

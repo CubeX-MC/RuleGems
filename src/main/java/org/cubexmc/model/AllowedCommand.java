@@ -5,7 +5,7 @@ import java.util.List;
 
 /**
  * AllowedCommand 描述一条玩家可用的指令以及可用次数。
- * 扩展支持：自定义命令名、多命令链、执行者前缀（console:/player-op:）、冷却时间
+ * 扩展支持：自定义命令名、多命令链、执行者前缀（console:/player:/player-op:）、冷却时间
  */
 public class AllowedCommand {
     private final String label;              // 玩家输入的命令标签（不带斜杠的小写），如 "tfly"
@@ -44,6 +44,7 @@ public class AllowedCommand {
     public boolean isSimpleCommand() {
         return executeCommands.size() == 1 && 
                !executeCommands.get(0).startsWith("console:") && 
+               !executeCommands.get(0).startsWith("player:") &&
                !executeCommands.get(0).startsWith("player-op:") &&
                executeCommands.get(0).equalsIgnoreCase(label);
     }
@@ -51,8 +52,8 @@ public class AllowedCommand {
     /**
      * 解析命令行，返回执行者类型和实际命令。
      * 
-     * @param commandLine 命令行（可能带前缀 console: 或 player-op:）
-     * @return [executor, actualCommand] 数组，executor = "console" 或 "player-op"
+     * @param commandLine 命令行（可能带前缀 console:、player: 或 player-op:）
+     * @return [executor, actualCommand] 数组，executor = "console"、"player" 或 "player-op"
      */
     public static String[] parseExecutor(String commandLine) {
         if (commandLine == null || commandLine.isEmpty()) {
@@ -64,6 +65,8 @@ public class AllowedCommand {
         // 检查是否有前缀
         if (trimmed.startsWith("console:")) {
             return new String[]{"console", trimmed.substring(8).trim()};
+        } else if (trimmed.startsWith("player:")) {
+            return new String[]{"player", trimmed.substring(7).trim()};
         } else if (trimmed.startsWith("player-op:")) {
             return new String[]{"player-op", trimmed.substring(10).trim()};
         } else {

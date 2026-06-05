@@ -2,6 +2,7 @@ package org.cubexmc.manager;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -60,6 +61,29 @@ public class GemStateManager {
     // 玩家名称缓存（用于离线玩家显示）
     private final Map<UUID, String> playerNameCache = new ConcurrentHashMap<>();
 
+    // 加载时世界尚未就绪（例如 Multiverse 在 RuleGems 之后才载入）的已放置宝石。
+    // 暂存其记录，待 WorldLoadEvent 再绑定，既不丢失也不会被 ensureConfiguredGemsPresent 复制。
+    private final Map<UUID, PendingPlacedGem> pendingWorldGems = new ConcurrentHashMap<>();
+
+    /** 世界未加载时延迟绑定的已放置宝石记录。 */
+    private static final class PendingPlacedGem {
+        final UUID gemId;
+        final String worldName;
+        final double x;
+        final double y;
+        final double z;
+        final String gemKey;
+
+        PendingPlacedGem(UUID gemId, String worldName, double x, double y, double z, String gemKey) {
+            this.gemId = gemId;
+            this.worldName = worldName;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.gemKey = gemKey;
+        }
+    }
+
     public GemStateManager(RuleGems plugin, GemDefinitionParser gemParser, LanguageManager languageManager) {
         this.plugin = plugin;
         this.gemParser = gemParser;
@@ -112,8 +136,15 @@ public class GemStateManager {
     public void bindPlacedGem(Location location, UUID gemId) {
         if (location == null || gemId == null)
             return;
-        locationToGemUuid.put(location, gemId);
-        gemUuidToLocation.put(gemId, location);
+        Location previousLocation = gemUuidToLocation.put(gemId, location);
+        if (previousLocation != null && !previousLocation.equals(location)) {
+            locationToGemUuid.remove(previousLocation, gemId);
+        }
+        UUID previousGemId = locationToGemUuid.put(location, gemId);
+        if (previousGemId != null && !previousGemId.equals(gemId)) {
+            gemUuidToLocation.remove(previousGemId, location);
+        }
+        gemUuidToHolder.remove(gemId);
     }
 
     public void unbindPlacedGem(Location location, UUID gemId) {
@@ -127,7 +158,11 @@ public class GemStateManager {
                 locationToGemUuid.remove(old, gemId);
             }
         }
-        gemUuidToLocation.remove(gemId);
+        if (location == null) {
+            gemUuidToLocation.remove(gemId);
+        } else {
+            gemUuidToLocation.remove(gemId, location);
+        }
     }
 
     public void setGemHolder(UUID gemId, Player player) {
@@ -155,6 +190,7 @@ public class GemStateManager {
     public void clearPlacedMappings() {
         locationToGemUuid.clear();
         gemUuidToLocation.clear();
+        pendingWorldGems.clear();
     }
 
     public void clearHolderMappings() {
@@ -178,6 +214,7 @@ public class GemStateManager {
         gemUuidToKey.clear();
         gemDefinitionCache.clear();
         playerNameCache.clear();
+        pendingWorldGems.clear();
     }
 
     private Set<String> configuredGemKeys() {
@@ -239,13 +276,21 @@ public class GemStateManager {
                     warnSkippedUnknownGem("placed", gemId, gemKey);
                     continue;
                 }
+                // 先登记 key，确保 ensureConfiguredGemsPresent 不会因该实例"看似缺失"而复制一颗，
+                // 即使其所在世界此刻尚未加载。
+                gemUuidToKey.put(gemId, gemKey);
                 World w = Bukkit.getWorld(worldName);
-                if (w == null)
+                if (w == null) {
+                    // 世界尚未加载（例如 Multiverse 在本插件之后才载入）。暂存记录，
+                    // 通过 WorldLoadEvent 再绑定，避免被丢弃或重复生成。
+                    pendingWorldGems.put(gemId, new PendingPlacedGem(gemId, worldName, x, y, z, gemKey));
+                    plugin.getLogger().info("Deferring gem " + gemId + " in not-yet-loaded world '"
+                            + worldName + "'; will bind on world load.");
                     continue;
+                }
                 Location loc = new Location(w, x, y, z);
                 locationToGemUuid.put(loc, gemId);
                 gemUuidToLocation.put(gemId, loc);
-                gemUuidToKey.put(gemId, gemKey);
             }
         }
         // 持有的宝石
@@ -313,6 +358,15 @@ public class GemStateManager {
             snapshot.put(path + ".z", loc.getZ());
             snapshot.put(path + ".gem_key", gemUuidToKey.get(gemId));
         }
+        // 暂存于未加载世界的已放置宝石：原样保留其记录，避免自动保存把它们从磁盘抹掉。
+        for (PendingPlacedGem pending : pendingWorldGems.values()) {
+            String path = "placed-gems." + pending.gemId.toString();
+            snapshot.put(path + ".world", pending.worldName);
+            snapshot.put(path + ".x", pending.x);
+            snapshot.put(path + ".y", pending.y);
+            snapshot.put(path + ".z", pending.z);
+            snapshot.put(path + ".gem_key", pending.gemKey);
+        }
         for (Map.Entry<UUID, Player> e : gemUuidToHolder.entrySet()) {
             UUID gemId = e.getKey();
             Player player = e.getValue();
@@ -328,6 +382,34 @@ public class GemStateManager {
         for (Map.Entry<UUID, String> e : playerNameCache.entrySet()) {
             snapshot.put("player_names." + e.getKey().toString(), e.getValue());
         }
+    }
+
+    /**
+     * 当某个此前未加载的世界完成加载时，绑定其暂存的已放置宝石。
+     *
+     * @param world 刚加载完成的世界
+     * @return 本次绑定的 gemId → Location 映射（供放置管理器恢复方块材质），无则空映射
+     */
+    public Map<UUID, Location> bindPendingWorldGems(World world) {
+        Map<UUID, Location> rebound = new HashMap<>();
+        if (world == null || pendingWorldGems.isEmpty()) {
+            return rebound;
+        }
+        String worldName = world.getName();
+        Iterator<Map.Entry<UUID, PendingPlacedGem>> it = pendingWorldGems.entrySet().iterator();
+        while (it.hasNext()) {
+            PendingPlacedGem pending = it.next().getValue();
+            if (!worldName.equals(pending.worldName)) {
+                continue;
+            }
+            Location loc = new Location(world, pending.x, pending.y, pending.z);
+            locationToGemUuid.put(loc, pending.gemId);
+            gemUuidToLocation.put(pending.gemId, loc);
+            // gemUuidToKey 已在 loadData 中登记。
+            rebound.put(pending.gemId, loc);
+            it.remove();
+        }
+        return rebound;
     }
 
     /**

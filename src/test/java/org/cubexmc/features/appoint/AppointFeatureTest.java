@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -31,7 +32,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffectType;
 import org.cubexmc.RuleGems;
 import org.cubexmc.manager.GemManager;
+import org.cubexmc.manager.GemAllowanceManager;
 import org.cubexmc.manager.PowerStructureManager;
+import org.cubexmc.model.AllowedCommand;
 import org.cubexmc.model.AppointDefinition;
 import org.cubexmc.model.EffectConfig;
 import org.cubexmc.model.PowerCondition;
@@ -55,6 +58,7 @@ class AppointFeatureTest {
     private RuleGems plugin;
     private PowerStructureManager psm;
     private GemManager gemManager;
+    private GemAllowanceManager allowanceManager;
     private AppointFeature feature;
     private MockedStatic<Bukkit> mockedBukkit;
 
@@ -63,10 +67,14 @@ class AppointFeatureTest {
         plugin = mock(RuleGems.class);
         psm = mock(PowerStructureManager.class);
         gemManager = mock(GemManager.class);
+        allowanceManager = mock(GemAllowanceManager.class);
 
         when(plugin.getLogger()).thenReturn(Logger.getLogger("AppointFeatureTest"));
         when(plugin.getPowerStructureManager()).thenReturn(psm);
         when(plugin.getGemManager()).thenReturn(gemManager);
+        when(gemManager.getAllowanceManager()).thenReturn(allowanceManager);
+        when(psm.applyStructure(any(Player.class), any(PowerStructure.class), anyString(), anyString(), anyBoolean()))
+                .thenReturn(true);
 
         mockedBukkit = org.mockito.Mockito.mockStatic(Bukkit.class);
         feature = new AppointFeature(plugin);
@@ -90,7 +98,8 @@ class AppointFeatureTest {
         AppointDefinition advisor = createDefinition("advisor", List.of("perm.advisor"), List.of(),
                 List.of(), Map.of());
         AppointDefinition guard = createDefinition("guard", List.of("perm.guard"), List.of("guards"),
-                List.of(new EffectConfig(PotionEffectType.SPEED, 1)), Map.of("advisor", advisor));
+                List.of(new EffectConfig(PotionEffectType.SPEED, 1)), Map.of("advisor", advisor),
+                List.of(new AllowedCommand("cxjail", 2, List.of("console:cmi jail %arg1% guard 5m"), 0)));
         appointDefinitions(feature).put("guard", guard);
 
         assertTrue(feature.appoint(appointer, appointee, "guard"));
@@ -104,6 +113,12 @@ class AppointFeatureTest {
         assertTrue(appliedPower.getValue().getVaultGroups().contains("guards"));
         assertTrue(appliedPower.getValue().getEffects().stream()
                 .anyMatch(effect -> PotionEffectType.SPEED.equals(effect.getEffectType())));
+        assertTrue(appliedPower.getValue().getAllowedCommands().stream()
+                .anyMatch(command -> "cxjail".equals(command.getLabel())));
+        verify(allowanceManager).applyAppointmentAllowedCommands(eq(appointee), eq("guard"),
+                any(PowerStructure.class), eq(false));
+        verify(allowanceManager).retainAppointmentAllowedCommands(eq(APPOINTEE_ID),
+                argThat(active -> active.contains("guard")));
     }
 
     @Test
@@ -118,10 +133,11 @@ class AppointFeatureTest {
         appointDefinitions(feature).put("guard", guard);
         assertTrue(feature.appoint(appointer, appointee, "guard"));
 
-        reset(psm);
+        reset(psm, allowanceManager);
         assertTrue(feature.dismiss(appointer, APPOINTEE_ID, "guard"));
 
         assertFalse(feature.isAppointed(APPOINTEE_ID, "guard"));
+        verify(allowanceManager).removeAppointmentAllowedCommands(APPOINTEE_ID, "guard");
         verify(psm).clearNamespace(appointee, "appoint");
         verify(psm, never()).applyStructure(eq(appointee), any(), eq("appoint"), anyString(), anyBoolean());
     }
@@ -137,7 +153,7 @@ class AppointFeatureTest {
         appointDefinitions(feature).put("guard", guard);
         assertTrue(feature.appoint(appointer, appointee, "guard"));
 
-        reset(psm);
+        reset(psm, allowanceManager);
         when(appointer.hasPermission("rulegems.appoint.guard")).thenReturn(false);
         mockedBukkit.when(() -> Bukkit.getPlayer(APPOINTER_ID)).thenReturn(appointer);
         mockedBukkit.when(() -> Bukkit.getPlayer(APPOINTEE_ID)).thenReturn(appointee);
@@ -145,6 +161,7 @@ class AppointFeatureTest {
         feature.onAppointerLostPermission(APPOINTER_ID, "guard");
 
         assertFalse(feature.isAppointed(APPOINTEE_ID, "guard"));
+        verify(allowanceManager).removeAppointmentAllowedCommands(APPOINTEE_ID, "guard");
         verify(psm).clearNamespace(appointee, "appoint");
     }
 
@@ -218,6 +235,12 @@ class AppointFeatureTest {
 
     private AppointDefinition createDefinition(String key, List<String> permissions, List<String> groups,
             List<EffectConfig> effects, Map<String, AppointDefinition> childAppoints) {
+        return createDefinition(key, permissions, groups, effects, childAppoints, List.of());
+    }
+
+    private AppointDefinition createDefinition(String key, List<String> permissions, List<String> groups,
+            List<EffectConfig> effects, Map<String, AppointDefinition> childAppoints,
+            List<AllowedCommand> allowedCommands) {
         AppointDefinition definition = new AppointDefinition(key);
         definition.setDisplayName(key);
         definition.setAppointSound("");
@@ -230,6 +253,7 @@ class AppointFeatureTest {
         power.setVaultGroups(new ArrayList<>(groups));
         power.setEffects(new ArrayList<>(effects));
         power.setAppoints(new HashMap<>(childAppoints));
+        power.setAllowedCommands(new ArrayList<>(allowedCommands));
         definition.setPowerStructure(power);
         return definition;
     }

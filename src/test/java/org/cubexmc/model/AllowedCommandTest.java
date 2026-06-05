@@ -93,6 +93,13 @@ class AllowedCommandTest {
     }
 
     @Test
+    void isSimpleCommand_falseWhenPlayerPrefixed() {
+        AllowedCommand cmd = new AllowedCommand("jailedit", 1,
+                Collections.singletonList("player:cmi jailedit"), 0);
+        assertFalse(cmd.isSimpleCommand());
+    }
+
+    @Test
     void isSimpleCommand_falseWhenLabelDiffers() {
         AllowedCommand cmd = new AllowedCommand("tfly", 1,
                 Collections.singletonList("fly"), 0);
@@ -113,6 +120,13 @@ class AllowedCommandTest {
         String[] result = AllowedCommand.parseExecutor("player-op:fly");
         assertEquals("player-op", result[0]);
         assertEquals("fly", result[1]);
+    }
+
+    @Test
+    void parseExecutor_playerPrefix() {
+        String[] result = AllowedCommand.parseExecutor("player:cmi jailedit");
+        assertEquals("player", result[0]);
+        assertEquals("cmi jailedit", result[1]);
     }
 
     @Test

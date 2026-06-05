@@ -64,12 +64,34 @@ class GemAllowanceManagerTest {
                 .put(label, uses);
     }
 
+    private void putAppointment(UUID player, String appointKey, String label, int uses) {
+        manager.getPlayerAppointmentAllowedUses()
+                .computeIfAbsent(player, k -> new HashMap<>())
+                .computeIfAbsent(appointKey, k -> new HashMap<>())
+                .put(label, uses);
+    }
+
     private GemDefinition createGemDefWithAllowed(String key, String label, int uses) {
         AllowedCommand ac = new AllowedCommand(label, uses, null, 0);
         PowerStructure ps = new PowerStructure();
         ps.setAllowedCommands(Collections.singletonList(ac));
         return new GemDefinition.Builder(key)
                 .displayName("Test Gem").powerStructure(ps).build();
+    }
+
+    private GemDefinition createGemDefWithCommand(String key, String label, int uses, List<String> execute,
+            int cooldown) {
+        AllowedCommand ac = new AllowedCommand(label, uses, execute, cooldown);
+        PowerStructure ps = new PowerStructure();
+        ps.setAllowedCommands(Collections.singletonList(ac));
+        return new GemDefinition.Builder(key)
+                .displayName("Test Gem").powerStructure(ps).build();
+    }
+
+    private PowerStructure createPowerWithCommand(String label, int uses, List<String> execute, int cooldown) {
+        PowerStructure ps = new PowerStructure();
+        ps.setAllowedCommands(Collections.singletonList(new AllowedCommand(label, uses, execute, cooldown)));
+        return ps;
     }
 
     // ==================== hasAnyAllowed ====================
@@ -140,7 +162,7 @@ class GemAllowanceManagerTest {
         @Test
         void returnsFalseForNullInputs() {
             assertFalse(manager.tryConsumeAllowed(null, "fly"));
-            assertFalse(manager.tryConsumeAllowed(PLAYER_A, null));
+            assertFalse(manager.tryConsumeAllowed(PLAYER_A, (String) null));
         }
 
         @Test
@@ -272,7 +294,7 @@ class GemAllowanceManagerTest {
         void refundIgnoresNullInputs() {
             // Should not throw
             manager.refundAllowed(null, "fly");
-            manager.refundAllowed(PLAYER_A, null);
+            manager.refundAllowed(PLAYER_A, (String) null);
             assertTrue(manager.getPlayerGlobalAllowedUses().isEmpty());
         }
 
@@ -604,6 +626,99 @@ class GemAllowanceManagerTest {
 
             // Reset overrides existing payload → uses definition default (10)
             assertEquals(10, manager.getPlayerGemRedeemUses().get(PLAYER_B).get(GEM_1).get("fireball"));
+        }
+    }
+
+    // ==================== Source-aware resolution ====================
+
+    @Nested
+    class SourceAwareResolution {
+
+        @Test
+        void resolvesRedeemedCommandFromSpecificGemSource() {
+            GemDefinition police = createGemDefWithCommand("police_power", "cxjail", 1,
+                    List.of("console:cmi jail %arg1% police 10m"), 0);
+            GemDefinition justice = createGemDefWithCommand("justice_gem", "cxjail", 1,
+                    List.of("console:cmi jail %arg1% justice 30m"), 0);
+            when(gemParser.getGemDefinitions()).thenReturn(List.of(police, justice));
+            manager.setGemKeyLookup(gemId -> GEM_1.equals(gemId) ? "police_power" : "justice_gem");
+
+            putRedeemed(PLAYER_A, GEM_1, "cxjail", 1);
+            putRedeemed(PLAYER_A, GEM_2, "cxjail", 1);
+
+            GemAllowanceManager.ResolvedAllowance resolved = manager.resolveAllowedCommand(PLAYER_A, "cxjail");
+
+            assertNotNull(resolved);
+            assertEquals(GemAllowanceManager.AllowanceSourceType.REDEEMED, resolved.getSourceType());
+            assertEquals(GEM_1, resolved.getGemId());
+            assertEquals("console:cmi jail %arg1% police 10m", resolved.getCommand().getCommands().get(0));
+
+            assertTrue(manager.tryConsumeAllowed(PLAYER_A, resolved));
+            assertEquals(0, manager.getPlayerGemRedeemUses().get(PLAYER_A).get(GEM_1).get("cxjail"));
+            assertEquals(1, manager.getPlayerGemRedeemUses().get(PLAYER_A).get(GEM_2).get("cxjail"));
+
+            GemAllowanceManager.ResolvedAllowance next = manager.resolveAllowedCommand(PLAYER_A, "cxjail");
+            assertNotNull(next);
+            assertEquals(GEM_2, next.getGemId());
+            assertEquals("console:cmi jail %arg1% justice 30m", next.getCommand().getCommands().get(0));
+        }
+
+        @Test
+        void resolvesConsumesAndRefundsAppointmentSource() {
+            Player player = mock(Player.class);
+            when(player.getUniqueId()).thenReturn(PLAYER_A);
+            PowerStructure policePower = createPowerWithCommand("cxjail", 2,
+                    List.of("console:cmi jail %arg1% appointed 5m"), 12);
+            manager.setAppointmentPowerLookup(key -> "police_power".equals(key) ? policePower : null);
+
+            manager.applyAppointmentAllowedCommands(player, "police_power", policePower, false);
+
+            GemAllowanceManager.ResolvedAllowance resolved = manager.resolveAllowedCommand(PLAYER_A, "cxjail");
+
+            assertNotNull(resolved);
+            assertEquals(GemAllowanceManager.AllowanceSourceType.APPOINTMENT, resolved.getSourceType());
+            assertEquals("police_power", resolved.getSourceKey());
+            assertEquals(12, resolved.getCommand().getCooldown());
+            assertTrue(manager.tryConsumeAllowed(PLAYER_A, resolved));
+            assertEquals(1, manager.getPlayerAppointmentAllowedUses()
+                    .get(PLAYER_A).get("police_power").get("cxjail"));
+
+            manager.refundAllowed(PLAYER_A, resolved);
+            assertEquals(2, manager.getPlayerAppointmentAllowedUses()
+                    .get(PLAYER_A).get("police_power").get("cxjail"));
+            assertTrue(manager.getAvailableCommandLabels(PLAYER_A).contains("cxjail"));
+        }
+
+        @Test
+        void appointmentRefreshKeepsRemainingUsesUnlessResetRequested() {
+            Player player = mock(Player.class);
+            when(player.getUniqueId()).thenReturn(PLAYER_A);
+            PowerStructure policePower = createPowerWithCommand("cxjail", 2,
+                    List.of("console:cmi jail %arg1% appointed 5m"), 0);
+            manager.setAppointmentPowerLookup(key -> "police_power".equals(key) ? policePower : null);
+
+            manager.applyAppointmentAllowedCommands(player, "police_power", policePower, false);
+            GemAllowanceManager.ResolvedAllowance resolved = manager.resolveAllowedCommand(PLAYER_A, "cxjail");
+            assertTrue(manager.tryConsumeAllowed(PLAYER_A, resolved));
+
+            manager.applyAppointmentAllowedCommands(player, "police_power", policePower, false);
+            assertEquals(1, manager.getPlayerAppointmentAllowedUses()
+                    .get(PLAYER_A).get("police_power").get("cxjail"));
+
+            manager.applyAppointmentAllowedCommands(player, "police_power", policePower, true);
+            assertEquals(2, manager.getPlayerAppointmentAllowedUses()
+                    .get(PLAYER_A).get("police_power").get("cxjail"));
+        }
+
+        @Test
+        void retainAppointmentAllowedCommandsRemovesInactiveSources() {
+            putAppointment(PLAYER_A, "police_power", "cxjail", 1);
+            putAppointment(PLAYER_A, "scout_power", "cxfly", 1);
+
+            manager.retainAppointmentAllowedCommands(PLAYER_A, Set.of("police_power"));
+
+            assertTrue(manager.getPlayerAppointmentAllowedUses().get(PLAYER_A).containsKey("police_power"));
+            assertFalse(manager.getPlayerAppointmentAllowedUses().get(PLAYER_A).containsKey("scout_power"));
         }
     }
 

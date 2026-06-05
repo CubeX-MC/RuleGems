@@ -18,7 +18,7 @@ A lightweight plugin that passes player power around through collectible "rule g
 
 ## Commands
 - All `/rulegems ...` commands have the alias `/rg ...` (see `aliases: [rg]` in plugin.yml)
-- `/rulegems place <gemId> <x|~> <y|~> <z|~>` Place a specific gem instance at the given coordinates
+- `/rulegems place <gemId> [x|~ y|~ z|~]` Place a specific gem instance at the given coordinates; omitting coordinates is equivalent to `~ ~ ~` and uses your current location
 - `/rulegems tp <gemId>` Teleport to the current location of the gem instance
 - `/rulegems revoke <player>` Force clear all gem-granted permissions and allowances from a player (admin intervention). If `inventory_grants` is enabled and the player still holds gems, permissions will be re-issued on the next inventory recalculation.
 - `/rulegems revoke-power list` Show configured revoke-power rules
@@ -70,7 +70,7 @@ Each gem type can grant permissions, Vault groups and limited-use commands. Ever
 - Bundled gem and power examples are starter templates only. Existing `gems/` and `powers/` files are not repopulated with removed example definitions on reload.
 - `gems.<key>.count` defines how many instances of a gem type should exist; full-set checks only require at least one per key.
 - `gems.<key>.mutual_exclusive` declares mutually exclusive types (applies to `inventory_grants` and `redeem_enabled`; ignored for `redeem_all`).
-- `gems.<key>.command_allows` supports both map form and list form. `time_limit: -1` means unlimited uses. Extras granted by `redeem_all` live under root `redeem_all.command_allows` with the same syntax, counted under a synthetic `ALL` key.
+- `gems.<key>.command_allows` supports both map form and list form. `time_limit: -1` means unlimited uses. Command executors support `console:` for console dispatch, `player:` for running as the player without elevation, and `player-op:` for temporary OP when `allow_op_escalation: true`. Extras granted by `redeem_all` live under root `redeem_all.command_allows` with the same syntax, counted under a synthetic `ALL` key. The same command label may have different effects in different sources; execution resolves the held instance, redeemed instance, appointment, or `redeem_all` source first, then uses that source's command config, cooldown, and remaining-use counter.
 - Permissions and groups are granted on a per-type counter: 0→1 grants, 1→0 revokes. Limited commands follow the same counters.
 - Root `redeem_all` supports extra perks: `broadcast`, `titles`, `sound`, `permissions`, `permission_groups`, and `command_allows` (same syntax as above, applied when `redeemall` succeeds).
 - Root `gem_collect_thresholds` can grant groups by the number of distinct redeemed gem types, for example `2: noble` and `4: lord`; groups are revoked when the player falls below the threshold.
@@ -144,7 +144,7 @@ permission_sets:
     max_appointments: 3  # Max appointees per appointer, -1 for unlimited
     permissions:
       - example.permission1
-    command_allows:  # Limited commands (same syntax as gems)
+    command_allows:  # Limited commands (same syntax as gems; counters are stored per appointment source)
       - command: "/kit warrior"
         time_limit: 3
     delegate_permissions:  # Permissions that can be further delegated

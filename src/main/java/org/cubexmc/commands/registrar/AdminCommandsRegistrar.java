@@ -1,6 +1,5 @@
 package org.cubexmc.commands.registrar;
 
-import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.cubexmc.RuleGems;
 import org.cubexmc.commands.RuleGemsCommandActor;
@@ -15,7 +14,6 @@ import org.cubexmc.manager.GemManager;
 import org.cubexmc.manager.LanguageManager;
 import org.cubexmc.manager.RuleGemsDoctor;
 import org.incendo.cloud.CommandManager;
-import org.incendo.cloud.bukkit.parser.location.LocationParser;
 import org.incendo.cloud.parser.standard.IntegerParser;
 import org.incendo.cloud.parser.standard.StringParser;
 
@@ -67,7 +65,7 @@ public class AdminCommandsRegistrar implements CommandRegistrar {
                 .literal("reload")
                 .permission("rulegems.admin")
                 .handler(ctx -> {
-                    gemManager.saveGems();
+                    gemManager.saveGemsSync();
                     plugin.loadPlugin();
                     plugin.refreshAllowedCommandProxies();
                     languageManager.sendMessage(ctx.sender().sender(), "command.reload_success");
@@ -109,16 +107,30 @@ public class AdminCommandsRegistrar implements CommandRegistrar {
                 .literal("place")
                 .permission("rulegems.admin")
                 .required("gem_id", StringParser.stringParser(), suggestionProviders.gemKeySuggestions())
-                .required("location", LocationParser.locationParser())
                 .handler(ctx -> {
                     Player player = requirePlayer(ctx.sender());
                     if (player == null) return;
-                    Location loc = ctx.get("location");
+                    String[] args = new String[] {
+                            ctx.get("gem_id")
+                    };
+                    placeSubCommand.execute(player, args);
+                }));
+
+        m.command(m.commandBuilder("rulegems", "rg")
+                .literal("place")
+                .permission("rulegems.admin")
+                .required("gem_id", StringParser.stringParser(), suggestionProviders.gemKeySuggestions())
+                .required("x", StringParser.stringParser())
+                .required("y", StringParser.stringParser())
+                .required("z", StringParser.stringParser())
+                .handler(ctx -> {
+                    Player player = requirePlayer(ctx.sender());
+                    if (player == null) return;
                     String[] args = new String[] {
                             ctx.get("gem_id"),
-                            String.valueOf(loc.getX()),
-                            String.valueOf(loc.getY()),
-                            String.valueOf(loc.getZ())
+                            ctx.get("x"),
+                            ctx.get("y"),
+                            ctx.get("z")
                     };
                     placeSubCommand.execute(player, args);
                 }));

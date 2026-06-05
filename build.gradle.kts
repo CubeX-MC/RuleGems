@@ -2,7 +2,7 @@ import com.github.jengelman.gradle.plugins.shadow.transformers.ServiceFileTransf
 
 plugins { id("cubex-plugin") }
 
-version = "1.0.8"
+version = "1.0.9"
 description = "A Minecraft plugin that grants power through collecting gems"
 
 dependencies {

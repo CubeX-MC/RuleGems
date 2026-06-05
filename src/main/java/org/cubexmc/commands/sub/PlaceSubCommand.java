@@ -1,7 +1,9 @@
 package org.cubexmc.commands.sub;
 
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.cubexmc.commands.SubCommand;
@@ -35,17 +37,18 @@ public class PlaceSubCommand implements SubCommand {
     @Override
     public boolean execute(CommandSender sender, String[] args) {
         Player player = (Player) sender;
-        // subArgs: <gemId> <x|~> <y|~> <z|~>
-        if (args.length < 4) {
+        // subArgs: <gemId> [<x|~> <y|~> <z|~>]
+        if (args.length != 1 && args.length != 4) {
             languageManager.sendMessage(player, "command.place.usage");
             return true;
         }
         World world = player.getWorld();
         String gemIdentifier = args[0];
 
-        String sx = args[1].equals("~") ? String.valueOf(player.getLocation().getX()) : args[1];
-        String sy = args[2].equals("~") ? String.valueOf(player.getLocation().getY()) : args[2];
-        String sz = args[3].equals("~") ? String.valueOf(player.getLocation().getZ()) : args[3];
+        Location playerLocation = player.getLocation();
+        String sx = args.length == 1 || args[1].equals("~") ? String.valueOf(playerLocation.getX()) : args[1];
+        String sy = args.length == 1 || args[2].equals("~") ? String.valueOf(playerLocation.getY()) : args[2];
+        String sz = args.length == 1 || args[3].equals("~") ? String.valueOf(playerLocation.getZ()) : args[3];
 
         double x, y, z;
         try {
@@ -67,7 +70,15 @@ public class PlaceSubCommand implements SubCommand {
         if (!loc.getChunk().isLoaded())
             loc.getChunk().load();
 
-        org.bukkit.Material m = gemManager.getGemMaterial(gemId);
+        Block targetBlock = loc.getBlock();
+        Material currentType = targetBlock.getType();
+        Location currentGemLocation = gemManager.getGemLocation(gemId);
+        if (!isAir(currentType) && !isSameBlock(currentGemLocation, loc)) {
+            languageManager.sendMessage(player, "command.place.failed_occupied");
+            return true;
+        }
+
+        Material m = gemManager.getGemMaterial(gemId);
         if (gemManager.isSupportRequired(m) && !gemManager.hasBlockSupport(loc)) {
             languageManager.sendMessage(player, "command.place.failed_unsupported");
             return true;
@@ -80,5 +91,19 @@ public class PlaceSubCommand implements SubCommand {
         placeholders.put("z", String.valueOf(z));
         languageManager.sendMessage(player, "command.place.success", placeholders);
         return true;
+    }
+
+    private boolean isAir(Material material) {
+        return material == Material.AIR || material == Material.CAVE_AIR || material == Material.VOID_AIR;
+    }
+
+    private boolean isSameBlock(Location first, Location second) {
+        if (first == null || second == null || first.getWorld() == null || second.getWorld() == null) {
+            return false;
+        }
+        return first.getWorld().equals(second.getWorld())
+                && first.getBlockX() == second.getBlockX()
+                && first.getBlockY() == second.getBlockY()
+                && first.getBlockZ() == second.getBlockZ();
     }
 }

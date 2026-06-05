@@ -21,6 +21,7 @@ import org.cubexmc.config.ResourceFiles;
 import org.cubexmc.core.CubexPlugin;
 import org.cubexmc.commands.CloudCommandManager;
 import org.cubexmc.features.FeatureManager;
+import org.cubexmc.features.appoint.AppointFeature;
 import org.cubexmc.listeners.CommandAllowanceListener;
 import org.cubexmc.listeners.GemConsumeListener;
 import org.cubexmc.listeners.GemInventoryListener;
@@ -36,6 +37,7 @@ import org.cubexmc.manager.PowerStructureManager;
 import org.cubexmc.manager.RuleGemsDoctor;
 import org.cubexmc.gui.GUIManager;
 import org.cubexmc.metrics.Metrics;
+import org.cubexmc.model.AppointDefinition;
 import org.cubexmc.utils.EffectUtils;
 import org.cubexmc.utils.SchedulerUtil;
 
@@ -96,6 +98,7 @@ public class RuleGems extends CubexPlugin {
         getPluginManager().registerEvents(new GemPlaceListener(gemManager), this);
         getPluginManager().registerEvents(new GemInventoryListener(gemManager, languageManager), this);
         getPluginManager().registerEvents(new PlayerEventListener(this, gemManager), this);
+        getPluginManager().registerEvents(new org.cubexmc.listeners.WorldLoadListener(gemManager), this);
 
         this.gemConsumeListener = new GemConsumeListener(this, gemManager, gameplayConfig, languageManager);
         if (gameplayConfig.isHoldToRedeemEnabled()) {
@@ -118,6 +121,7 @@ public class RuleGems extends CubexPlugin {
         // 初始化功能管理器
         this.featureManager = new FeatureManager(this, gemManager);
         featureManager.registerFeatures();
+        configureAllowanceSourceLookups();
 
         // Propagate RuleGateFeature to sub-managers
         if (featureManager.getRuleGateFeature() != null) {
@@ -143,6 +147,9 @@ public class RuleGems extends CubexPlugin {
                 () -> gemManager.saveGems(),
                 AUTO_SAVE_INTERVAL,
                 AUTO_SAVE_INTERVAL);
+
+        // 药水效果"有限时长 + 周期续期":失去来源/重启/插件停用后效果数秒内自然过期,杜绝无限效果残留 NBT 的孤儿
+        powerStructureManager.startEffectRefreshTask();
 
         // 取消依赖全局粒子设置；如需粒子展示可在 GemManager 内按 per-gem 自行实现
 
@@ -206,10 +213,16 @@ public class RuleGems extends CubexPlugin {
                 featureManager.shutdownAll();
             }
         };
+        Runnable stopEffectRefresh = () -> {
+            if (powerStructureManager != null) {
+                powerStructureManager.stopEffectRefreshTask();
+            }
+        };
         bind(logDisabled);
         bind(saveGems);
         bind(unregisterProxyCommands);
         bind(shutdownFeatures);
+        bind(stopEffectRefresh);
     }
 
     /**
@@ -245,8 +258,31 @@ public class RuleGems extends CubexPlugin {
 
         if (featureManager != null) {
             featureManager.reloadAll();
+            configureAllowanceSourceLookups();
             new RuleGemsDoctor(this).logWarnings();
         }
+    }
+
+    private void configureAllowanceSourceLookups() {
+        if (gemManager == null || featureManager == null || gemManager.getAllowanceManager() == null) {
+            return;
+        }
+        gemManager.getAllowanceManager().setAppointmentPowerLookup(key -> {
+            AppointFeature appointFeature = featureManager.getAppointFeature();
+            if (appointFeature == null || key == null) {
+                return null;
+            }
+            AppointDefinition def = appointFeature.getAppointDefinition(key);
+            if (def == null) {
+                for (Map.Entry<String, AppointDefinition> entry : appointFeature.getAppointDefinitions().entrySet()) {
+                    if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(key)) {
+                        def = entry.getValue();
+                        break;
+                    }
+                }
+            }
+            return def != null ? def.getPowerStructure() : null;
+        });
     }
 
     private void saveDefaultResources() {

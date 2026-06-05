@@ -90,6 +90,22 @@ public class CustomCommandExecutor {
     }
 
     /**
+     * 以玩家本人身份执行命令，不提权。适合需要玩家上下文且玩家已由 power 授权的交互命令。
+     */
+    private boolean executeAsPlayer(String command, Player player) {
+        if (player == null) {
+            return false;
+        }
+        try {
+            return player.performCommand(command);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to execute player command: " + command);
+            plugin.getLogger().log(java.util.logging.Level.SEVERE, "Player command execution failed", e);
+            return false;
+        }
+    }
+
+    /**
      * 替换占位符，支持默认值语法：%arg1|defaultValue%
      */
     private String replacePlaceholders(String text, Map<String, String> placeholders, String[] args) {
@@ -146,7 +162,7 @@ public class CustomCommandExecutor {
             
             // 解析执行者和命令
             String[] parsed = org.cubexmc.model.AllowedCommand.parseExecutor(commandLine);
-            String executor = parsed[0];  // "console" 或 "player-op"
+            String executor = parsed[0];  // "console"、"player" 或 "player-op"
             String actualCommand = parsed[1];
             
             plugin.getLogger().fine("[Debug] Executor: " + executor + ", actual command: " + actualCommand);
@@ -167,6 +183,8 @@ public class CustomCommandExecutor {
             boolean success = false;
             if ("console".equals(executor)) {
                 success = executeAsConsole(finalCommand, player);
+            } else if ("player".equals(executor)) {
+                success = executeAsPlayer(finalCommand, player);
             } else {
                 // "player-op" 或默认
                 success = executeAsPlayerOp(finalCommand, player);

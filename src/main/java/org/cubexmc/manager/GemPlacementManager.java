@@ -43,6 +43,7 @@ public class GemPlacementManager {
     private final LanguageManager languageManager;
     private final GemStateManager stateManager;
     private EffectUtils effectUtils;
+    private Runnable saveCallback;
 
     // 逃逸任务
     private final Map<UUID, Object> gemEscapeTasks = new ConcurrentHashMap<>();
@@ -64,6 +65,13 @@ public class GemPlacementManager {
         this.effectUtils = effectUtils;
     }
 
+    /**
+     * 设置状态保存回调。放置完成后立即持久化坐标，避免逃逸后重启读到旧位置。
+     */
+    public void setSaveCallback(Runnable saveCallback) {
+        this.saveCallback = saveCallback;
+    }
+
     // ==================== 状态访问器 ====================
 
     public Map<UUID, Object> getGemEscapeTasks() {
@@ -80,20 +88,35 @@ public class GemPlacementManager {
     }
 
     /**
+     * 强制放置一个既有宝石实例（绕过全局数量上限）。
+     *
+     * <p>用于散落/补齐缺失/兑换归还/重载等"为已存在的实例重新安置"的路径：这些实例本就属于
+     * 配置集合，不应被全局上限拦截而搁置——否则在数据超量（某些 key 实例偏多）时，
+     * {@code ensureConfiguredGemsPresent} 想补齐的缺失 key 会因总数已达上限而无法放置，最终丢失。
+     * 上限仍保留在玩家驱动的 {@link #placeRuleGem} 路径（退出/丢弃/死亡）上作为安全网。</p>
+     */
+    private void placeRuleGemForced(Location loc, UUID gemId) {
+        placeRuleGemInternal(loc, gemId, true);
+    }
+
+    /**
      * 内部放置（带完整检查：数量限制、垂直搜索、WorldBorder 校验、回退机制）
      */
     private void placeRuleGemInternal(Location loc, UUID gemId, boolean ignoreLimit) {
-        if (loc == null)
+        if (loc == null || gemId == null)
             return;
-        if (!ignoreLimit && stateManager.getTotalGemCount() >= gemParser.getRequiredCount()) {
-            plugin.getLogger().info("Gem limit reached, skipping placement");
-            return;
-        }
         final Location base = loc.clone();
         SchedulerUtil.regionRun(plugin, base, () -> {
             World world = base.getWorld();
             if (world == null)
                 return;
+            boolean replacingExistingGem = stateManager.findLocationByGemId(gemId) != null
+                    || stateManager.getGemHolder(gemId) != null;
+            if (!ignoreLimit && !replacingExistingGem
+                    && stateManager.getTotalGemCount() >= gemParser.getRequiredCount()) {
+                plugin.getLogger().info("Gem limit reached, skipping placement");
+                return;
+            }
             WorldBorder border = world.getWorldBorder();
             Location target = base.getBlock().getLocation();
             // 垂直向上寻找空气（最多尝试 MAX_VERTICAL_SEARCH 格）
@@ -111,6 +134,7 @@ public class GemPlacementManager {
             target.getBlock().setType(mat);
             stateManager.bindPlacedGem(target, gemId);
             scheduleEscape(gemId);
+            savePlacementState();
         }, 0L, -1L);
     }
 
@@ -118,12 +142,19 @@ public class GemPlacementManager {
      * 取消放置宝石
      */
     public void unplaceRuleGem(Location loc, UUID gemId) {
+        unplaceRuleGemThen(loc, gemId, null);
+    }
+
+    private void unplaceRuleGemThen(Location loc, UUID gemId, Runnable afterUnplace) {
         if (loc == null)
             return;
         final Location fLoc = loc.getBlock().getLocation();
         SchedulerUtil.regionRun(plugin, fLoc, () -> {
             fLoc.getBlock().setType(Material.AIR);
             stateManager.unbindPlacedGem(fLoc, gemId);
+            if (afterUnplace != null) {
+                afterUnplace.run();
+            }
         }, 0L, -1L);
     }
 
@@ -160,7 +191,7 @@ public class GemPlacementManager {
             }
 
             // 清理旧位置（必须在绑定新位置之前，以免解绑时误删新位置的记录）
-            if (oldLoc != null) {
+            if (oldLoc != null && !isSameBlock(oldLoc, t)) {
                 unplaceRuleGem(oldLoc, gemId);
             }
 
@@ -169,6 +200,7 @@ public class GemPlacementManager {
 
             // 调度逃逸
             scheduleEscape(gemId);
+            savePlacementState();
         }, 0L, -1L);
     }
 
@@ -197,7 +229,7 @@ public class GemPlacementManager {
             World defaultWorld = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
             if (defaultWorld != null) {
                 Location spawnLoc = defaultWorld.getSpawnLocation();
-                placeRuleGem(spawnLoc, gemId);
+                placeRuleGemForced(spawnLoc, gemId);
             } else {
                 plugin.getLogger()
                         .severe("Cannot place gem " + gemId + ": no available world! Gem will be in unknown state");
@@ -221,7 +253,7 @@ public class GemPlacementManager {
             World world = corner1.getWorld();
             int y = world.getHighestBlockYAt(centerX, centerZ) + 1;
             Location fallback = new Location(world, centerX, y, centerZ);
-            placeRuleGem(fallback, gemId);
+            placeRuleGemForced(fallback, gemId);
             return;
         }
 
@@ -243,7 +275,7 @@ public class GemPlacementManager {
                     scheduleRandomAttempt(gemId, corner1, corner2, attemptsLeft - 1);
                     return;
                 }
-                placeRuleGem(place, gemId);
+                placeRuleGemForced(place, gemId);
             } catch (Throwable t) {
                 scheduleRandomAttempt(gemId, corner1, corner2, attemptsLeft - 1);
             }
@@ -273,30 +305,6 @@ public class GemPlacementManager {
             return new Location[] { defaultC1, defaultC2 };
         }
         return null;
-    }
-
-    // ==================== 散落逻辑 ====================
-
-    /**
-     * 散落所有宝石
-     */
-    public void scatterGems() {
-        cancelAllEscapeTasks();
-
-        // 清理所有放置的宝石
-        for (Map.Entry<Location, UUID> entry : stateManager.snapshotPlacedGems().entrySet()) {
-            Location loc = entry.getKey();
-            SchedulerUtil.regionRun(plugin, loc, () -> {
-                loc.getBlock().setType(Material.AIR);
-            }, 0L, -1L);
-        }
-        stateManager.clearPlacedMappings();
-        stateManager.clearHolderMappings();
-
-        // 重新随机放置
-        for (UUID gemId : stateManager.getAllGemUuids()) {
-            randomPlaceGem(gemId);
-        }
     }
 
     // ==================== 逃逸机制 ====================
@@ -372,12 +380,27 @@ public class GemPlacementManager {
             return;
 
         playEscapeEffects(oldLocation, gemId);
-        unplaceRuleGem(oldLocation, gemId);
-        randomPlaceGem(gemId);
+        unplaceRuleGemThen(oldLocation, gemId, () -> randomPlaceGem(gemId));
 
         if (gameplayConfig.isGemEscapeBroadcast()) {
             broadcastEscape(gemId);
         }
+    }
+
+    private void savePlacementState() {
+        if (saveCallback != null) {
+            saveCallback.run();
+        }
+    }
+
+    private boolean isSameBlock(Location first, Location second) {
+        if (first == null || second == null || first.getWorld() == null || second.getWorld() == null) {
+            return false;
+        }
+        return first.getWorld().equals(second.getWorld())
+                && first.getBlockX() == second.getBlockX()
+                && first.getBlockY() == second.getBlockY()
+                && first.getBlockZ() == second.getBlockZ();
     }
 
     /**
@@ -558,7 +581,17 @@ public class GemPlacementManager {
      * 初始化已放置宝石的方块材质
      */
     public void initializePlacedGemBlocks() {
-        for (Map.Entry<UUID, Location> entry : stateManager.getGemUuidToLocation().entrySet()) {
+        restoreGemBlocks(stateManager.getGemUuidToLocation());
+    }
+
+    /**
+     * 恢复给定 gem 集合的方块材质（区域线程内执行，必要时加载区块）。
+     * 供启动全量恢复与世界延迟加载后的增量恢复共用。
+     */
+    public void restoreGemBlocks(Map<UUID, Location> gems) {
+        if (gems == null || gems.isEmpty())
+            return;
+        for (Map.Entry<UUID, Location> entry : gems.entrySet()) {
             UUID gemId = entry.getKey();
             Location loc = entry.getValue();
             if (loc == null || loc.getWorld() == null)

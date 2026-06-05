@@ -63,6 +63,10 @@ public class GemManager {
     private final GemPlacementManager placementManager;
     private final GemScatterService scatterService;
 
+    // 保存串行锁：保证任意时刻只有一个保存任务在改写共享的 gemsData 与落盘，
+    // 避免多个异步保存（放置/兑换/逃逸 + 每小时自动保存 + 每60秒额度刷盘）并发写坏 gems.yml。
+    private final Object saveLock = new Object();
+
     public GemManager(RuleGems plugin, ConfigManager configManager, GemDefinitionParser gemParser,
             GameplayConfig gameplayConfig, EffectUtils effectUtils,
             LanguageManager languageManager) {
@@ -80,7 +84,8 @@ public class GemManager {
                 stateManager);
         this.scatterService = new GemScatterService(stateManager, placementManager, gemParser, gameplayConfig,
                 effectUtils, languageManager, () -> {
-                    permissionManager.clearRuntimeState();
+                    // 使用 scatter 专用重置：在线玩家立即剥夺，离线统治者的持久权限入队待下次登录撤销。
+                    permissionManager.resetForScatter();
                     allowanceManager.clearAll();
                 }, this::saveGems);
 
@@ -91,6 +96,7 @@ public class GemManager {
         this.permissionManager.setSaveCallback(this::saveGems);
         this.permissionManager.setAllowanceManager(allowanceManager);
         this.placementManager.setEffectUtils(effectUtils);
+        this.placementManager.setSaveCallback(this::saveGems);
 
         // 定时刷盘：每 60 秒将额度脏数据持久化（避免频繁全量保存）
         SchedulerUtil.globalRun(plugin, () -> allowanceManager.flushIfDirty(),
@@ -192,6 +198,14 @@ public class GemManager {
     public static final String KEY_PLAYER_NAMES = "player_names";
 
     public void saveGems() {
+        saveGemsInternal(true);
+    }
+
+    public void saveGemsSync() {
+        saveGemsInternal(false);
+    }
+
+    private void saveGemsInternal(boolean asyncWhenEnabled) {
         // 步骤 1：主线程中提取全部将要保存的数据为主线程安全的 Map
         Map<String, Object> snapshot = new HashMap<>();
 
@@ -202,26 +216,30 @@ public class GemManager {
 
         // 步骤 2：执行磁盘 I/O (如果插件已禁用，则同步执行；否则异步执行)
         Runnable saveTask = () -> {
-            FileConfiguration gemsData = configManager.getGemsData();
+            // 串行化：共享的 gemsData(FileConfiguration / LinkedHashMap)既非线程安全，
+            // data.save() 也非原子，必须保证同一时刻只有一个保存在改写与落盘。
+            synchronized (saveLock) {
+                FileConfiguration gemsData = configManager.getGemsData();
 
-            // 清理旧节点
-            for (String key : new String[] {
-                    KEY_PLACED_GEMS, KEY_HELD_GEMS, KEY_REDEEMED, KEY_REDEEM_OWNER,
-                    KEY_REDEEM_OWNER_BY_ID, KEY_FULL_SET_OWNER, KEY_PENDING_REVOKES,
-                    KEY_ALLOWED_USES, KEY_PLAYER_NAMES }) {
-                gemsData.set(key, null);
+                // 清理旧节点
+                for (String key : new String[] {
+                        KEY_PLACED_GEMS, KEY_HELD_GEMS, KEY_REDEEMED, KEY_REDEEM_OWNER,
+                        KEY_REDEEM_OWNER_BY_ID, KEY_FULL_SET_OWNER, KEY_PENDING_REVOKES,
+                        KEY_ALLOWED_USES, KEY_PLAYER_NAMES }) {
+                    gemsData.set(key, null);
+                }
+
+                // 将 Snapshot 里的数据写入 YAML
+                for (Map.Entry<String, Object> entry : snapshot.entrySet()) {
+                    gemsData.set(entry.getKey(), entry.getValue());
+                }
+
+                // 保存到磁盘
+                configManager.saveGemData(gemsData);
             }
-
-            // 将 Snapshot 里的数据写入 YAML
-            for (Map.Entry<String, Object> entry : snapshot.entrySet()) {
-                gemsData.set(entry.getKey(), entry.getValue());
-            }
-
-            // 保存到磁盘
-            configManager.saveGemData(gemsData);
         };
 
-        if (plugin.isEnabled()) {
+        if (asyncWhenEnabled && plugin.isEnabled()) {
             SchedulerUtil.asyncRun(plugin, saveTask, 0L);
         } else {
             saveTask.run();
@@ -238,6 +256,25 @@ public class GemManager {
 
     public void initializePlacedGemBlocks() {
         placementManager.initializePlacedGemBlocks();
+    }
+
+    /**
+     * 当某世界完成加载时，绑定其暂存的已放置宝石并恢复方块材质。
+     * 用于处理 Multiverse 等插件在 RuleGems 之后才载入世界的情形，避免宝石丢失或被复制。
+     */
+    public void handleWorldLoad(org.bukkit.World world) {
+        if (world == null)
+            return;
+        Map<UUID, Location> rebound = stateManager.bindPendingWorldGems(world);
+        if (rebound.isEmpty())
+            return;
+        placementManager.restoreGemBlocks(rebound);
+        for (UUID gemId : rebound.keySet()) {
+            placementManager.scheduleEscape(gemId);
+        }
+        plugin.getLogger().info("Bound " + rebound.size() + " deferred gem(s) in world '"
+                + world.getName() + "'.");
+        saveGems();
     }
 
     // ====================================================================
@@ -278,6 +315,9 @@ public class GemManager {
             return;
         }
 
+        // 宝石无视领地保护：强制放行被保护插件（Residence/Lands 等）取消的放置事件，确保宝石方块能落地。
+        event.setCancelled(false);
+
         stateManager.clearGemHolder(gemId);
         stateManager.bindPlacedGem(placedLoc, gemId);
 
@@ -307,6 +347,10 @@ public class GemManager {
     public void handleGemBlockBreak(Player player, Block block, BlockBreakEvent event) {
         if (!stateManager.getLocationToGemUuid().containsKey(block.getLocation()))
             return;
+
+        // 宝石无视领地保护：即使保护插件（Residence/Lands 等）已取消该事件，也强制放行宝石方块的破坏（拾取）。
+        // 若后续因背包已满或 GemPickupEvent 被取消而中止，会重新 setCancelled(true)。
+        event.setCancelled(false);
 
         event.setDropItems(false);
         try {

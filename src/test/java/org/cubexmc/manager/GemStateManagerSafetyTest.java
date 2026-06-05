@@ -51,6 +51,35 @@ class GemStateManagerSafetyTest {
     }
 
     @Test
+    void rebindPlacedGemRemovesPreviousLocationMapping() {
+        UUID gemId = UUID.fromString("10000000-0000-0000-0000-000000000013");
+        Location oldLocation = mock(Location.class);
+        Location newLocation = mock(Location.class);
+
+        manager.bindPlacedGem(oldLocation, gemId);
+        manager.bindPlacedGem(newLocation, gemId);
+
+        assertNull(manager.getGemUuidByLocation(oldLocation));
+        assertEquals(gemId, manager.getGemUuidByLocation(newLocation));
+        assertEquals(newLocation, manager.getGemLocation(gemId));
+    }
+
+    @Test
+    void staleUnbindDoesNotClearNewLocationMapping() {
+        UUID gemId = UUID.fromString("10000000-0000-0000-0000-000000000014");
+        Location oldLocation = mock(Location.class);
+        Location newLocation = mock(Location.class);
+
+        manager.bindPlacedGem(oldLocation, gemId);
+        manager.bindPlacedGem(newLocation, gemId);
+        manager.unbindPlacedGem(oldLocation, gemId);
+
+        assertNull(manager.getGemUuidByLocation(oldLocation));
+        assertEquals(gemId, manager.getGemUuidByLocation(newLocation));
+        assertEquals(newLocation, manager.getGemLocation(gemId));
+    }
+
+    @Test
     void saveDataSkipsEntryWhenWorldMissing() {
         UUID gemId = UUID.fromString("10000000-0000-0000-0000-000000000012");
         Location location = mock(Location.class);

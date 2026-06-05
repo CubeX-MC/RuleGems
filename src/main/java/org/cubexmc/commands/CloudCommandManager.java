@@ -445,7 +445,7 @@ public class CloudCommandManager {
                 if (!requirePermission(sender, "rulegems.admin")) {
                     return true;
                 }
-                gemManager.saveGems();
+                gemManager.saveGemsSync();
                 plugin.loadPlugin();
                 plugin.refreshAllowedCommandProxies();
                 languageManager.sendMessage(sender, "command.reload_success");

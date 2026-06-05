@@ -26,10 +26,11 @@ messages:
       failed: '&#E63946%prefix% Redeem all failed. Ensure you hold all required gems.'
       success: '&#69DB7C%prefix% Redeem all success!'
     place:
-      usage: '&#E63946%prefix% Usage: /rulegems place <gemId> <x|~> <y|~> <z|~>'
+      usage: '&#E63946%prefix% Usage: /rulegems place <gemId> [x|~ y|~ z|~]. Omitting coordinates uses your current location.'
       player_only: '&#E63946%prefix% Only players can execute this command!'
       invalid_coordinates: '&#E63946%prefix% Coordinates must be numbers or ~!'
       invalid_gem: '&#E63946%prefix% Invalid gem id or key.'
+      failed_occupied: '&#E63946%prefix% Target location is occupied; placement cancelled. Use an air block or ~ ~ ~.'
       failed_unsupported: '&#E63946%prefix% This gem requires a supporting block below;
         placement cancelled.'
       success: '&#69DB7C%prefix% Placed a gem at &#FFE066%x% %y% %z%&#69DB7C.'
@@ -45,8 +46,7 @@ messages:
     help:
       header: '&#69DB7C=== RuleGems Help ==='
       gui: '&#FFE066/rulegems gui &#FFFFFF- Open main menu GUI'
-      place: '&#FFE066/rulegems place <gemId> <x|~> <y|~> <z|~> &#FFFFFF- Place a specific gem
-        at coordinates'
+      place: '&#FFE066/rulegems place <gemId> [x|~ y|~ z|~] &#FFFFFF- Place a gem; omit coordinates for your current location'
       revoke: '&#FFE066/rulegems revoke <playerName> &#FFFFFF- Revoke player''s permissions'
       reload: '&#FFE066/rulegems reload &#FFFFFF- Reload configuration'
       rulers: '&#FFE066/rulegems rulers &#FFFFFF- View current ruler'

@@ -12,6 +12,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.cubexmc.RuleGems;
 import org.cubexmc.model.AllowedCommand;
+import org.cubexmc.model.AppointDefinition;
 import org.cubexmc.model.GemDefinition;
 import org.cubexmc.model.PowerStructure;
 import org.cubexmc.storage.SqliteStorageProvider;
@@ -156,19 +157,21 @@ public class ConfigManager {
         List<GemDefinition> defs = gemParser.getGemDefinitions();
         if (defs != null) {
             for (GemDefinition def : defs) {
-                if (def == null || def.getAllowedCommands() == null) continue;
-                for (AllowedCommand cmd : def.getAllowedCommands()) {
-                    if (cmd == null) continue;
-                    String label = cmd.getLabel();
-                    if (label != null && !label.isEmpty()) {
-                        labels.add(label.toLowerCase(Locale.ROOT));
-                    }
-                }
+                if (def == null) continue;
+                collectAllowedLabelsFromPower(def.getPowerStructure(), labels);
             }
         }
         PowerStructure raPower = gameplayConfig.getRedeemAllPowerStructure();
-        if (raPower != null && raPower.getAllowedCommands() != null) {
-            for (AllowedCommand cmd : raPower.getAllowedCommands()) {
+        collectAllowedLabelsFromPower(raPower, labels);
+        return labels;
+    }
+
+    private void collectAllowedLabelsFromPower(PowerStructure power, Set<String> labels) {
+        if (power == null || labels == null) {
+            return;
+        }
+        if (power.getAllowedCommands() != null) {
+            for (AllowedCommand cmd : power.getAllowedCommands()) {
                 if (cmd == null) continue;
                 String label = cmd.getLabel();
                 if (label != null && !label.isEmpty()) {
@@ -176,7 +179,14 @@ public class ConfigManager {
                 }
             }
         }
-        return labels;
+        if (power.getAppoints() == null || power.getAppoints().isEmpty()) {
+            return;
+        }
+        for (AppointDefinition appoint : power.getAppoints().values()) {
+            if (appoint != null) {
+                collectAllowedLabelsFromPower(appoint.getPowerStructure(), labels);
+            }
+        }
     }
 
     // ==================== 内部辅助 ====================

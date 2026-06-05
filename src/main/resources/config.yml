@@ -28,16 +28,19 @@ storage:
 # 安全设置
 # allow_op_escalation: 是否允许使用临时 OP 执行限次命令（不推荐）
 # 设为 false 时，player-op 类型命令将回退为以控制台身份执行
+# 需要玩家上下文但不提权的命令请使用 player: 前缀，并在 power 中授予对应权限
 # 设为 true 时，会临时授予玩家 OP 来执行命令（存在安全风险）
 allow_op_escalation: false
 
 # 宝石随机生成范围（默认）
 # 这是全局默认的生成范围，当宝石没有单独配置生成范围时使用
 # 每个宝石可以在其配置文件中通过 random_place_range 字段设置自己的生成范围
+# 注意：随机放置只使用 corner1/corner2 的 X、Z 范围；Y 会自动取该 X/Z 处的最高方块之上一格，
+#       因此下方的 y 值仅作占位，不参与计算。
 random_place_range:
   world: world
-  corner1: { x: -100, y: 160, z: -100 }
-  corner2: { x: 100, y: 30, z: 100 }
+  corner1: { x: -100, y: 64, z: -100 }
+  corner2: { x: 100, y: 64, z: 100 }
 
 # 全局设置
 toggles:
@@ -55,7 +58,7 @@ redeem_all:
   # 集齐后额外授予的限次自定义指令
   # command_allows 格式说明：
   #   - command: 玩家输入的命令
-  #     execute: 实际执行的命令列表（支持 console: 或 player-op: 前缀）
+  #     execute: 实际执行的命令列表（支持 console:、player: 或 player-op: 前缀）
   #     time_limit: 可用次数（-1=无限）
   #     cooldown: 冷却时间（秒）
   # 占位符：%player%=玩家名, %arg1%=第1个参数, %arg2|默认%=第2个参数或默认值

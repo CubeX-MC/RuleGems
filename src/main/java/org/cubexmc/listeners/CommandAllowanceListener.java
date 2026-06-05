@@ -192,10 +192,17 @@ public class CommandAllowanceListener implements Listener {
         }
 
         String matchedLabel = fullMatch ? rawLower : labelLower;
-        org.cubexmc.model.AllowedCommand allowedCmd = allowanceManager.getAllowedCommand(uid, matchedLabel);
+        GemAllowanceManager.ResolvedAllowance resolved = allowanceManager.resolveAllowedCommand(uid, matchedLabel);
+        if (resolved == null) {
+            languageManager.sendMessage(player, "allowance.none_left");
+            return true;
+        }
+
+        org.cubexmc.model.AllowedCommand allowedCmd = resolved.getCommand();
+        String cooldownKey = resolved.getCooldownKey();
         if (allowedCmd != null && allowedCmd.getCooldown() > 0) {
-            if (!customCommandExecutor.checkCooldown(uid, matchedLabel)) {
-                long remainingSeconds = customCommandExecutor.getRemainingCooldown(uid, matchedLabel);
+            if (!customCommandExecutor.checkCooldown(uid, cooldownKey)) {
+                long remainingSeconds = customCommandExecutor.getRemainingCooldown(uid, cooldownKey);
                 java.util.Map<String, String> cooldownPlaceholders = new java.util.HashMap<>();
                 cooldownPlaceholders.put("seconds", String.valueOf(remainingSeconds));
                 languageManager.sendMessage(player, "allowance.cooldown", cooldownPlaceholders);
@@ -203,7 +210,7 @@ public class CommandAllowanceListener implements Listener {
             }
         }
 
-        boolean consumed = allowanceManager.tryConsumeAllowed(uid, matchedLabel);
+        boolean consumed = allowanceManager.tryConsumeAllowed(uid, resolved);
         if (!consumed) {
             languageManager.sendMessage(player, "allowance.none_left");
             return true;
@@ -238,13 +245,13 @@ public class CommandAllowanceListener implements Listener {
         }
 
         if (!ok) {
-            allowanceManager.refundAllowed(uid, matchedLabel);
+            allowanceManager.refundAllowed(uid, resolved);
             languageManager.sendMessage(player, "allowance.execute_failed");
             return true;
         }
 
         if (allowedCmd != null && allowedCmd.getCooldown() > 0) {
-            customCommandExecutor.setCooldown(uid, matchedLabel, allowedCmd.getCooldown());
+            customCommandExecutor.setCooldown(uid, cooldownKey, allowedCmd.getCooldown());
         }
 
         int remain = allowanceManager.getRemainingAllowed(uid, matchedLabel);
@@ -260,5 +267,4 @@ public class CommandAllowanceListener implements Listener {
         return new ArrayList<>(new LinkedHashSet<>(values));
     }
 }
-
 

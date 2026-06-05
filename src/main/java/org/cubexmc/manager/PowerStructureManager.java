@@ -13,6 +13,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.permissions.PermissionAttachment;
 
 import org.cubexmc.RuleGems;
+import org.cubexmc.utils.SchedulerUtil;
 import org.cubexmc.features.rule.RuleGateFeature;
 import org.cubexmc.model.EffectConfig;
 import org.cubexmc.model.PowerCondition;
@@ -464,6 +465,67 @@ public class PowerStructureManager {
             for (EffectConfig effect : effectList) {
                 if (effect != null) {
                     effect.remove(player);
+                }
+            }
+        }
+    }
+
+    // ==================== 效果续期(有限时长 + 周期重发)====================
+
+    /** 续期任务句柄(Folia 返回 ScheduledTask,Bukkit 返回 BukkitTask)。 */
+    private Object effectRefreshTaskHandle;
+
+    /**
+     * 启动药水效果周期续期任务。
+     *
+     * <p>{@link EffectConfig#apply} 以有限时长施加效果({@link EffectConfig#DURATION_TICKS});本任务每
+     * {@link EffectConfig#REFRESH_INTERVAL_TICKS} tick 为在线玩家重发其当前已登记的效果。续期间隔小于
+     * 效果时长,正常情况下不间断;一旦某来源不再被追踪(失去宝石/取消任命/重启/插件停用/配置移除),
+     * 对应效果不再续期,数秒内自然过期——从架构上杜绝"无限效果残留 NBT"的孤儿问题。</p>
+     */
+    public void startEffectRefreshTask() {
+        if (effectRefreshTaskHandle != null) {
+            return;
+        }
+        long interval = EffectConfig.REFRESH_INTERVAL_TICKS;
+        effectRefreshTaskHandle = SchedulerUtil.globalRun(plugin, () -> {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                SchedulerUtil.entityRun(plugin, player, () -> {
+                    if (player.isOnline()) {
+                        refreshEffects(player);
+                    }
+                }, 0L, -1L);
+            }
+        }, interval, interval);
+    }
+
+    public void stopEffectRefreshTask() {
+        if (effectRefreshTaskHandle != null) {
+            SchedulerUtil.cancelTask(effectRefreshTaskHandle);
+            effectRefreshTaskHandle = null;
+        }
+    }
+
+    /** 重新施加该玩家当前已登记的所有药水效果(续期)。应在玩家所在区域线程调用。 */
+    public void refreshEffects(Player player) {
+        if (player == null) {
+            return;
+        }
+        UUID playerId = player.getUniqueId();
+        for (String namespace : new ArrayList<>(appliedEffects.keySet())) {
+            Map<UUID, Map<String, List<EffectConfig>>> namespaceEffects = appliedEffects.get(namespace);
+            if (namespaceEffects == null) {
+                continue;
+            }
+            Map<String, List<EffectConfig>> playerEffects = namespaceEffects.get(playerId);
+            if (playerEffects == null) {
+                continue;
+            }
+            for (List<EffectConfig> effectList : new ArrayList<>(playerEffects.values())) {
+                for (EffectConfig effect : effectList) {
+                    if (effect != null) {
+                        effect.apply(player);
+                    }
                 }
             }
         }
