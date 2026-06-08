@@ -92,7 +92,7 @@ class RuleGemsDoctor(private val plugin: RuleGems) {
 
         val appointFeature = plugin.featureManager?.appointFeature
         if (appointFeature != null && appointFeature.isEnabled) {
-            val appointCount = appointFeature.appointDefinitions.size
+            val appointCount = appointFeature.getAppointDefinitions().size
             if (appointCount == 0) {
                 entries.add(Entry(Severity.WARNING, localized("委任功能已启用，但没有任何职位定义。", "Appoint feature is enabled, but no roles are defined.")))
             } else {

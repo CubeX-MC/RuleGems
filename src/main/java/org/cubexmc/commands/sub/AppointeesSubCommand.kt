@@ -35,7 +35,7 @@ class AppointeesSubCommand(
     private fun showAll(sender: CommandSender, appointFeature: AppointFeature) {
         languageManager.sendMessage(sender, "command.appointees.header")
 
-        val definitions = appointFeature.appointDefinitions
+        val definitions = appointFeature.getAppointDefinitions()
         if (definitions.isEmpty()) {
             languageManager.sendMessage(sender, "command.appointees.no_perm_sets")
             return
@@ -48,7 +48,7 @@ class AppointeesSubCommand(
 
     private fun showForPermSet(sender: CommandSender, appointFeature: AppointFeature, rawKey: String) {
         var resolvedDefinition: AppointDefinition? = null
-        for ((key, value) in appointFeature.appointDefinitions) {
+        for ((key, value) in appointFeature.getAppointDefinitions()) {
             if (key.equals(rawKey, ignoreCase = true)) {
                 resolvedDefinition = value
                 break

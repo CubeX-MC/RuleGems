@@ -8,6 +8,6 @@ import java.util.UUID
 class Appointment(
     val appointeeUuid: UUID,
     val permSetKey: String,
-    val appointerUuid: UUID,
+    val appointerUuid: UUID?,
     val appointedAt: Long,
 )

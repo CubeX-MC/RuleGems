@@ -432,7 +432,7 @@ class CloudCommandManager(
         val prefix = args[args.size - 1].lowercase(Locale.ROOT)
         if ((sub == "appoint" || sub == "dismiss" || sub == "appointees") && args.size == 2) {
             val feature = plugin.featureManager?.appointFeature ?: return emptyList()
-            return feature.appointDefinitions.keys
+            return feature.getAppointDefinitions().keys
                 .filter { key -> key.lowercase(Locale.ROOT).startsWith(prefix) }
                 .sortedWith(String.CASE_INSENSITIVE_ORDER)
         }

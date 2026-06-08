@@ -37,7 +37,7 @@ class AppointSubCommand(
 
         var resolvedKey: String? = null
         var definition: AppointDefinition? = null
-        for ((key, value) in appointFeature.appointDefinitions) {
+        for ((key, value) in appointFeature.getAppointDefinitions()) {
             if (key.equals(rawKey, ignoreCase = true)) {
                 resolvedKey = key
                 definition = value

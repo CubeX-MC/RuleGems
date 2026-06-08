@@ -16,7 +16,7 @@ class SuggestionProviders(private val plugin: RuleGems) {
             }
             val sender = ctx.sender().sender()
             val suggestions = ArrayList<Suggestion>()
-            for (key in feature.appointDefinitions.keys) {
+            for (key in feature.getAppointDefinitions().keys) {
                 if (sender.hasPermission("rulegems.appoint." + key.lowercase(Locale.ROOT)) ||
                     sender.hasPermission("rulegems.appoint.$key") ||
                     sender.hasPermission("rulegems.admin")
@@ -33,7 +33,7 @@ class SuggestionProviders(private val plugin: RuleGems) {
             if (feature == null) {
                 return@blocking emptyList()
             }
-            feature.appointDefinitions.keys.map { key -> Suggestion.suggestion(key) }
+            feature.getAppointDefinitions().keys.map { key -> Suggestion.suggestion(key) }
         }
 
     fun gemKeySuggestions(): SuggestionProvider<RuleGemsCommandActor> =

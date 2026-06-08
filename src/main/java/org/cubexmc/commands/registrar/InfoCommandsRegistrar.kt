@@ -145,7 +145,7 @@ class InfoCommandsRegistrar(
         }
 
         val navigator = plugin.featureManager?.getNavigator()
-        if (navigator != null && navigator.isEnabled() && sender.hasPermission("rulegems.navigate")) {
+        if (navigator != null && navigator.isEnabled && sender.hasPermission("rulegems.navigate")) {
             if (!hasPlayerSection) {
                 languageManager.sendMessage(sender, "command.help.section_player")
                 hasPlayerSection = true
@@ -207,7 +207,7 @@ class InfoCommandsRegistrar(
         if (sender.hasPermission("rulegems.admin")) {
             return true
         }
-        for (key in feature.appointDefinitions.keys) {
+        for (key in feature.getAppointDefinitions().keys) {
             if (sender.hasPermission("rulegems.appoint." + key.lowercase(Locale.ROOT)) ||
                 sender.hasPermission("rulegems.appoint.$key")
             ) {

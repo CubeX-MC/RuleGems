@@ -274,7 +274,7 @@ class RuleGems : CubexPlugin() {
             }
             var def: AppointDefinition? = appointFeature.getAppointDefinition(key)
             if (def == null) {
-                for ((entryKey, entryValue) in appointFeature.appointDefinitions) {
+                for ((entryKey, entryValue) in appointFeature.getAppointDefinitions()) {
                     if (entryKey != null && entryKey.equals(key, ignoreCase = true)) {
                         def = entryValue
                         break

@@ -150,7 +150,7 @@ class CabinetGUI(
             return emptyList()
         }
         val keys = ArrayList<String>()
-        for (key in appointFeature.appointDefinitions.keys) {
+        for (key in appointFeature.getAppointDefinitions().keys) {
             if (player.hasPermission("rulegems.admin") ||
                 player.hasPermission("rulegems.appoint.$key") ||
                 player.hasPermission("rulegems.appoint." + key.lowercase(Locale.ROOT))
