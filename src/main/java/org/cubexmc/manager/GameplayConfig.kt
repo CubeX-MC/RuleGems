@@ -5,6 +5,7 @@ import org.bukkit.Location
 import org.bukkit.World
 import org.bukkit.configuration.ConfigurationSection
 import org.bukkit.configuration.file.FileConfiguration
+import org.cubexmc.model.EffectConfig
 import org.cubexmc.model.ExecuteConfig
 import org.cubexmc.model.PowerStructure
 import org.cubexmc.utils.ConfigParseUtils.parseTimeToTicks
@@ -87,6 +88,12 @@ class GameplayConfig {
     var isSneakToRedeem = false
         private set
     var holdToRedeemDurationTicks = 0
+        private set
+
+    // ==================== 药水效果时长（限时+周期重施，防孤儿） ====================
+    var effectDurationTicks = EffectConfig.DEFAULT_DURATION_TICKS
+        private set
+    var effectRefreshIntervalTicks = EffectConfig.DEFAULT_REFRESH_INTERVAL_TICKS
         private set
 
     // ==================== 安全 ====================
@@ -217,6 +224,17 @@ class GameplayConfig {
             isPlaceRedeemBeaconBeam = true
             placeRedeemBeaconDuration = 5
         }
+
+        // 药水效果时长配置（以秒为单位填写，内部转 tick）
+        val effectsSection = config.getConfigurationSection("effects")
+        val durationSeconds = effectsSection?.getDouble("duration", 20.0) ?: 20.0
+        val refreshSeconds = effectsSection?.getDouble("refresh_interval", 3.0) ?: 3.0
+        effectDurationTicks = (durationSeconds * 20).toInt()
+        effectRefreshIntervalTicks = (refreshSeconds * 20).toInt()
+        // 钳制以保证不触发夜视闪烁（durationTicks - refreshIntervalTicks > 200），随后回读钳制后的值
+        EffectConfig.configure(effectDurationTicks, effectRefreshIntervalTicks, logger)
+        effectDurationTicks = EffectConfig.durationTicks
+        effectRefreshIntervalTicks = EffectConfig.refreshIntervalTicks
 
         // 安全配置
         isOpEscalationAllowed = config.getBoolean("allow_op_escalation", false)

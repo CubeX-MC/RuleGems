@@ -6,6 +6,7 @@ import org.bukkit.event.Listener
 import org.bukkit.event.block.BlockBreakEvent
 import org.bukkit.event.block.BlockDamageEvent
 import org.bukkit.event.block.BlockPlaceEvent
+import org.bukkit.event.player.PlayerInteractEvent
 import org.cubexmc.manager.GemManager
 
 class GemPlaceListener(private val gemManager: GemManager) : Listener {
@@ -30,5 +31,13 @@ class GemPlaceListener(private val gemManager: GemManager) : Listener {
     @EventHandler
     fun onBlockDamage(event: BlockDamageEvent) {
         gemManager.handleBlockDamage(event)
+    }
+
+    // 与 onBlockPlace/onBlockBreak 对称：BlockPlace/BlockBreak 的绕过覆盖不了"音符盒、按钮、拉杆、
+    // 唱片机、容器"等可交互方块——保护插件（Residence/Lands）对这类材质是在 PlayerInteract 层取消的。
+    // 同样必须 ignoreCancelled = false 才能接到被保护插件取消的事件，并在 HIGHEST(即它们之后)放行。
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    fun onPlayerInteract(event: PlayerInteractEvent) {
+        gemManager.handleGemBlockInteract(event)
     }
 }

@@ -7,7 +7,9 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.event.Event;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -351,6 +353,80 @@ class GemManagerTest {
         assertFalse(manager.getPermissionManager().getPlayerUuidToRedeemedKeys().containsKey(PLAYER_ID));
         assertTrue(manager.getStateManager().getGemUuidToHolder().containsKey(GEM_ID));
         assertTrue(manager.getStateManager().getGemUuidToHolder().containsKey(ICE_GEM_ID));
+    }
+
+    @Test
+    void rightClickGemInteractionDeniedByProtectionAllowsBlockButLeavesItemInHand() {
+        GemManager manager = new GemManager(plugin, configManager, gemParser, gameplayConfig, effectUtils,
+                languageManager);
+        Location gemLoc = new Location(world, 5, 64, 5);
+        manager.getStateManager().getLocationToGemUuid().put(gemLoc, GEM_ID);
+
+        Block gemBlock = mock(Block.class);
+        when(gemBlock.getLocation()).thenReturn(gemLoc);
+        PlayerInteractEvent event = mock(PlayerInteractEvent.class);
+        when(event.getClickedBlock()).thenReturn(gemBlock);
+        when(event.getAction()).thenReturn(Action.RIGHT_CLICK_BLOCK);
+        when(event.useInteractedBlock()).thenReturn(Event.Result.DENY);
+
+        manager.handleGemBlockInteract(event);
+
+        verify(event).setUseInteractedBlock(Event.Result.ALLOW);
+        verify(event, never()).setUseItemInHand(any());
+    }
+
+    @Test
+    void leftClickPickupOnGemBlockForcesBothResultsAllow() {
+        GemManager manager = new GemManager(plugin, configManager, gemParser, gameplayConfig, effectUtils,
+                languageManager);
+        Location gemLoc = new Location(world, 5, 64, 5);
+        manager.getStateManager().getLocationToGemUuid().put(gemLoc, GEM_ID);
+
+        Block gemBlock = mock(Block.class);
+        when(gemBlock.getLocation()).thenReturn(gemLoc);
+        PlayerInteractEvent event = mock(PlayerInteractEvent.class);
+        when(event.getClickedBlock()).thenReturn(gemBlock);
+        when(event.getAction()).thenReturn(Action.LEFT_CLICK_BLOCK);
+        when(event.useInteractedBlock()).thenReturn(Event.Result.DENY);
+        when(event.useItemInHand()).thenReturn(Event.Result.DENY);
+
+        manager.handleGemBlockInteract(event);
+
+        verify(event).setUseInteractedBlock(Event.Result.ALLOW);
+        verify(event).setUseItemInHand(Event.Result.ALLOW);
+    }
+
+    @Test
+    void nonGemBlockInteractionIsLeftUnchanged() {
+        GemManager manager = new GemManager(plugin, configManager, gemParser, gameplayConfig, effectUtils,
+                languageManager);
+
+        Block normalBlock = mock(Block.class);
+        when(normalBlock.getLocation()).thenReturn(new Location(world, 7, 64, 7));
+        PlayerInteractEvent event = mock(PlayerInteractEvent.class);
+        when(event.getClickedBlock()).thenReturn(normalBlock);
+
+        manager.handleGemBlockInteract(event);
+
+        verify(event, never()).setUseInteractedBlock(any());
+    }
+
+    @Test
+    void placedGemInteractionAllowedByProtectionIsLeftUnchanged() {
+        GemManager manager = new GemManager(plugin, configManager, gemParser, gameplayConfig, effectUtils,
+                languageManager);
+        Location gemLoc = new Location(world, 5, 64, 5);
+        manager.getStateManager().getLocationToGemUuid().put(gemLoc, GEM_ID);
+
+        Block gemBlock = mock(Block.class);
+        when(gemBlock.getLocation()).thenReturn(gemLoc);
+        PlayerInteractEvent event = mock(PlayerInteractEvent.class);
+        when(event.getClickedBlock()).thenReturn(gemBlock);
+        when(event.useInteractedBlock()).thenReturn(Event.Result.ALLOW);
+
+        manager.handleGemBlockInteract(event);
+
+        verify(event, never()).setUseInteractedBlock(any());
     }
 
     private GemManager createManagerWithHeldFireGem() {

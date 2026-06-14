@@ -24,6 +24,7 @@ class AllowedCommand(
             !executeCommands[0].startsWith("console:") &&
             !executeCommands[0].startsWith("player:") &&
             !executeCommands[0].startsWith("player-op:") &&
+            !executeCommands[0].startsWith("transfer:") &&
             executeCommands[0].equals(label, ignoreCase = true)
 
     companion object {
@@ -37,6 +38,7 @@ class AllowedCommand(
                 trimmed.startsWith("console:") -> arrayOf("console", trimmed.substring(8).trim())
                 trimmed.startsWith("player:") -> arrayOf("player", trimmed.substring(7).trim())
                 trimmed.startsWith("player-op:") -> arrayOf("player-op", trimmed.substring(10).trim())
+                trimmed.startsWith("transfer:") -> arrayOf("transfer", trimmed.substring(9).trim())
                 else -> arrayOf("player-op", trimmed)
             }
         }

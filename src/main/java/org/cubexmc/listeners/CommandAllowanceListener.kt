@@ -74,7 +74,8 @@ class CommandAllowanceListener(
 
         val withoutSlash = buffer.substring(1)
         val trailingSpace = buffer.endsWith(" ")
-        val parts = withoutSlash.split(" ".toRegex(), -1).toTypedArray()
+        // Kotlin 的 split 不接受负 limit；默认 limit=0 同样保留末尾空串（等价于 Java 的 -1 语义）
+        val parts = withoutSlash.split(" ".toRegex()).toTypedArray()
         if (parts.isEmpty()) {
             return
         }

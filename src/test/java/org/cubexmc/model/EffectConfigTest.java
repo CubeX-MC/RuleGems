@@ -134,4 +134,44 @@ class EffectConfigTest {
         assertTrue(s.contains("amplifier=1"));
         assertTrue(s.contains("ambient=true"));
     }
+
+    // ==================== configure：防夜视闪烁的钳制 ====================
+
+    @Test
+    void configure_safeValues_keptAsIs() {
+        EffectConfig.Companion.configure(400, 60, null);
+        assertEquals(400, EffectConfig.Companion.getDurationTicks());
+        assertEquals(60, EffectConfig.Companion.getRefreshIntervalTicks());
+    }
+
+    @Test
+    void configure_durationBelowFlickerThreshold_isClampedUp() {
+        // 单次 5s(100t) 会持续闪烁；应被上调到至少 200+20+refresh
+        EffectConfig.Companion.configure(100, 60, null);
+        assertEquals(60, EffectConfig.Companion.getRefreshIntervalTicks());
+        assertEquals(
+                EffectConfig.NIGHT_VISION_FLICKER_THRESHOLD_TICKS + 20 + 60,
+                EffectConfig.Companion.getDurationTicks());
+    }
+
+    @Test
+    void configure_nonPositiveRefresh_coercedToOne() {
+        EffectConfig.Companion.configure(400, 0, null);
+        assertEquals(1, EffectConfig.Companion.getRefreshIntervalTicks());
+    }
+
+    @Test
+    void configure_alwaysKeepsRemainingAboveFlickerThreshold() {
+        // 不变性：任意输入下，两次刷新之间的剩余时长都 > 200t
+        int[][] inputs = {{0, 0}, {100, 60}, {220, 200}, {400, 60}, {50, 500}};
+        for (int[] in : inputs) {
+            EffectConfig.Companion.configure(in[0], in[1], null);
+            int duration = EffectConfig.Companion.getDurationTicks();
+            int refresh = EffectConfig.Companion.getRefreshIntervalTicks();
+            assertTrue(
+                    duration - refresh > EffectConfig.NIGHT_VISION_FLICKER_THRESHOLD_TICKS,
+                    "duration(" + duration + ") - refresh(" + refresh + ") 必须 > "
+                            + EffectConfig.NIGHT_VISION_FLICKER_THRESHOLD_TICKS);
+        }
+    }
 }

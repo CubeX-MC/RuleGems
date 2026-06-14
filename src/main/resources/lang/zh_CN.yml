@@ -165,6 +165,10 @@ messages:
     execute_failed: "<prefix> <red>指令执行失败，已为你退回次数。"
     cooldown: "<prefix> <red>命令冷却中，还需等待 <seconds> 秒。"
     command_failed_detail: "<prefix> <red>命令执行失败: <command>"
+    transfer_success: "<prefix> <green>已从 <yellow><from><green> 转出 <yellow><amount><green> 给 <yellow><to><green>。"
+    transfer_insufficient: "<prefix> <red><from> 余额不足，转账已取消。"
+    transfer_failed: "<prefix> <red>转账失败，已为你退回次数。"
+    transfer_no_economy: "<prefix> <red>经济系统(Vault)不可用，转账已取消。"
   inventory:
     drag_denied: "<red><prefix> 不能将宝石拖拽到此处！"
     container_denied: "<red><prefix> 不能将宝石放入容器！"

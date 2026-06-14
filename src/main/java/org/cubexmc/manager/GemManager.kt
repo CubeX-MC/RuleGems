@@ -9,9 +9,12 @@ import org.bukkit.World
 import org.bukkit.block.Block
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
+import org.bukkit.event.Event
+import org.bukkit.event.block.Action
 import org.bukkit.event.block.BlockBreakEvent
 import org.bukkit.event.block.BlockDamageEvent
 import org.bukkit.event.block.BlockPlaceEvent
+import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.inventory.ItemStack
 import org.cubexmc.RuleGems
 import org.cubexmc.event.GemPickupEvent
@@ -179,6 +182,36 @@ class GemManager(
 
     fun handleBlockDamage(event: BlockDamageEvent) {
         stateManager.onGemDamage(event)
+    }
+
+    /**
+     * 让"已放置的宝石方块"无视领地/保护插件在 PlayerInteract 层的额外保护。
+     *
+     * 背景：BlockPlace/BlockBreak 的绕过已由 [handleGemBlockPlace] / [handleGemBlockBreak] 处理。
+     * 但 Residence、Lands 等保护插件对"音符盒、按钮、拉杆、唱片机、容器"等**有特殊交互逻辑的方块**，
+     * 是在 PlayerInteractEvent（而非 BlockPlace/BlockBreak）上做保护的：玩家无权限时它们会取消该事件
+     * 并提示"无权使用此方块"。如果某个宝石的材质恰好是这类方块，它在领地内就会被误伤。
+     *
+     * 关键：**左键破坏**音符盒等可交互方块时，会先触发 LEFT_CLICK_BLOCK 的 PlayerInteractEvent。
+     * 一旦保护插件取消它，挖掘起手就被打断，BlockBreakEvent 根本不会触发，玩家因此"拿不走"宝石。
+     * 仅放行 `useInteractedBlock` 不够：挖掘是否进行取决于 `event.isCancelled()`，而保护插件的
+     * `setCancelled(true)` 同时把 `useItemInHand` 也设成 DENY，所以必须两个结果都放行。
+     *
+     * - 左键（LEFT_CLICK_BLOCK，挖掘起手）：两个结果都强制 ALLOW，确保挖掘照常进行 → 进入
+     *   handleGemBlockBreak 完成拾取。左键不会放置/兑换，放行 useItemInHand 没有副作用。
+     * - 右键（RIGHT_CLICK_BLOCK，与宝石方块交互）：只放行 useInteractedBlock。useItemInHand 留给
+     *   GemConsumeListener（长按兑换，HIGH 优先级）管理，强行放行会导致兑换长按期间误放置手中宝石。
+     */
+    fun handleGemBlockInteract(event: PlayerInteractEvent) {
+        val block = event.clickedBlock ?: return
+        if (!stateManager.locationToGemUuid.containsKey(block.location)) return
+
+        if (event.useInteractedBlock() == Event.Result.DENY) {
+            event.setUseInteractedBlock(Event.Result.ALLOW)
+        }
+        if (event.action == Action.LEFT_CLICK_BLOCK && event.useItemInHand() == Event.Result.DENY) {
+            event.setUseItemInHand(Event.Result.ALLOW)
+        }
     }
 
     fun handleGemBlockPlace(placer: Player, inHand: ItemStack?, block: Block, event: BlockPlaceEvent) {

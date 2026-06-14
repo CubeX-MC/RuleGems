@@ -165,6 +165,10 @@ messages:
     execute_failed: "<prefix> <red>Command execution failed, attempts have been refunded."
     cooldown: "<prefix> <red>Command is on cooldown. Wait <seconds> seconds."
     command_failed_detail: "<prefix> <red>Command execution failed: <command>"
+    transfer_success: "<prefix> <green>Transferred <yellow><amount><green> from <yellow><from><green> to <yellow><to><green>."
+    transfer_insufficient: "<prefix> <red><from> has insufficient balance; transfer cancelled."
+    transfer_failed: "<prefix> <red>Transfer failed; your attempt has been refunded."
+    transfer_no_economy: "<prefix> <red>Economy (Vault) is unavailable; transfer cancelled."
   inventory:
     drag_denied: "<red><prefix> Cannot drag Gem here!"
     container_denied: "<red><prefix> Cannot put Gem into containers!"

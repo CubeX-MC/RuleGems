@@ -338,7 +338,7 @@ class PowerStructureManager(private val plugin: RuleGems) {
         if (effectRefreshTaskHandle != null) {
             return
         }
-        val interval = EffectConfig.REFRESH_INTERVAL_TICKS.toLong()
+        val interval = EffectConfig.refreshIntervalTicks.toLong()
         effectRefreshTaskHandle = SchedulerUtil.globalRun(
             plugin,
             {
@@ -367,6 +367,16 @@ class PowerStructureManager(private val plugin: RuleGems) {
             SchedulerUtil.cancelTask(handle)
             effectRefreshTaskHandle = null
         }
+    }
+
+    /**
+     * reload 后用新的重施间隔重启刷新任务。仅当任务已在运行时才重启；
+     * 首次 enable 时任务尚未启动，交由 onEnable 的 [startEffectRefreshTask] 以最新配置启动。
+     */
+    fun restartEffectRefreshTaskIfRunning() {
+        if (effectRefreshTaskHandle == null) return
+        stopEffectRefreshTask()
+        startEffectRefreshTask()
     }
 
     fun refreshEffects(player: Player?) {

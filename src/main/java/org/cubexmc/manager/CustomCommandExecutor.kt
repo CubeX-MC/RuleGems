@@ -3,6 +3,7 @@ package org.cubexmc.manager
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.cubexmc.RuleGems
+import org.cubexmc.economy.EconomyProvider
 import org.cubexmc.model.AllowedCommand
 import org.cubexmc.utils.SchedulerUtil
 import java.util.UUID
@@ -20,6 +21,7 @@ class CustomCommandExecutor(
     private val plugin: RuleGems,
     private val languageManager: LanguageManager?,
     private val gameplayConfig: GameplayConfig?,
+    private val economyProvider: EconomyProvider? = null,
 ) {
     // 冷却时间管理: 玩家UUID -> (命令名 -> 过期时间戳)
     private val playerCooldowns: MutableMap<UUID, MutableMap<String, Long>> = ConcurrentHashMap()
@@ -98,6 +100,58 @@ class CustomCommandExecutor(
     }
 
     /**
+     * 处理 transfer 指令：格式为 "<付款账户> <收款账户> <金额>"（占位符已替换完毕）。
+     * 经 Vault 做离线安全原子转账，并向玩家反馈结果。返回是否成功。
+     */
+    private fun executeTransfer(player: Player, spec: String): Boolean {
+        val eco = economyProvider
+        if (eco == null) {
+            languageManager?.sendMessage(player, "allowance.transfer_no_economy")
+            plugin.logger.warning("transfer: directive used but Vault economy is unavailable: $spec")
+            return false
+        }
+
+        val parts = spec.trim().split("\\s+".toRegex())
+        if (parts.size != 3) {
+            languageManager?.sendMessage(player, "allowance.transfer_failed")
+            plugin.logger.warning("transfer: directive must be 'transfer:<from> <to> <amount>', got: $spec")
+            return false
+        }
+        val fromName = parts[0]
+        val toName = parts[1]
+        val amount = parts[2].toDoubleOrNull()
+        if (amount == null) {
+            languageManager?.sendMessage(player, "allowance.transfer_failed")
+            plugin.logger.warning("transfer: invalid amount in: $spec")
+            return false
+        }
+
+        val placeholders = HashMap<String, String>()
+        placeholders["from"] = fromName
+        placeholders["to"] = toName
+        placeholders["amount"] = String.format("%.2f", amount)
+
+        return when (eco.transfer(fromName, toName, amount)) {
+            EconomyProvider.Result.SUCCESS -> {
+                languageManager?.sendMessage(player, "allowance.transfer_success", placeholders)
+                true
+            }
+            EconomyProvider.Result.INSUFFICIENT -> {
+                languageManager?.sendMessage(player, "allowance.transfer_insufficient", placeholders)
+                false
+            }
+            EconomyProvider.Result.NO_ECONOMY -> {
+                languageManager?.sendMessage(player, "allowance.transfer_no_economy", placeholders)
+                false
+            }
+            else -> {
+                languageManager?.sendMessage(player, "allowance.transfer_failed", placeholders)
+                false
+            }
+        }
+    }
+
+    /**
      * 替换占位符，支持默认值语法：%arg1|defaultValue%
      */
     private fun replacePlaceholders(text: String, placeholders: Map<String, String>, args: Array<String>): String {
@@ -172,6 +226,15 @@ class CustomCommandExecutor(
             }
 
             plugin.logger.fine("[Debug] Final command: $finalCommand")
+
+            // transfer: 由 Vault 做离线安全原子转账。失败（余额不足/无经济/参数错误）时
+            // 中止整条命令链并返回失败，监听器据此退回次数且不进入冷却。
+            if ("transfer" == executor) {
+                if (!executeTransfer(player, finalCommand)) {
+                    return false
+                }
+                continue
+            }
 
             // 根据执行者类型执行命令
             val success = if ("console" == executor) {

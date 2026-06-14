@@ -17,6 +17,7 @@ import org.cubexmc.config.ResourceFiles
 import org.cubexmc.core.CubexPlugin
 import org.cubexmc.features.FeatureManager
 import org.cubexmc.features.appoint.AppointFeature
+import org.cubexmc.economy.EconomyProvider
 import org.cubexmc.gui.GUIManager
 import org.cubexmc.listeners.CommandAllowanceListener
 import org.cubexmc.listeners.GemConsumeListener
@@ -72,6 +73,8 @@ class RuleGems : CubexPlugin() {
         private set
     var permissionProvider: PermissionProvider? = null
         private set
+    var economyProvider: EconomyProvider? = null
+        private set
 
     @Suppress("unused")
     private var metrics: Metrics? = null
@@ -88,7 +91,13 @@ class RuleGems : CubexPlugin() {
         effectUtils = EffectUtils(this)
         powerStructureManager = PowerStructureManager(this)
         historyLogger = HistoryLogger(this, languageManager)
-        customCommandExecutor = CustomCommandExecutor(this, languageManager, gameplayConfig)
+        economyProvider = EconomyProvider.hook(this)
+        if (economyProvider != null) {
+            logger.info("Vault economy hooked; transfer: directives (safe offline transfers) enabled.")
+        } else {
+            logger.info("Vault economy not found; transfer: directives will be unavailable.")
+        }
+        customCommandExecutor = CustomCommandExecutor(this, languageManager, gameplayConfig, economyProvider)
         gemManager = GemManager(this, configManager, gemParser, gameplayConfig, effectUtils, languageManager)
         gemManager.setHistoryLogger(historyLogger)
         guiManager = GUIManager(this, gemManager, languageManager)
@@ -238,6 +247,10 @@ class RuleGems : CubexPlugin() {
         languageManager.loadLanguage()
         configManager.initGemFile()
         configManager.loadConfigs()
+        // 配置(含 effects.duration/refresh_interval)已刷新；若刷新任务在运行则用新间隔重启
+        if (::powerStructureManager.isInitialized) {
+            powerStructureManager.restartEffectRefreshTaskIfRunning()
+        }
         configManager.getGemsData()
         gemManager.loadGems()
         gemManager.initializePlacedGemBlocks()
