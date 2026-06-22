@@ -21,6 +21,7 @@ import java.io.IOException
 import java.nio.file.Files
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 委任功能
@@ -32,6 +33,7 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
 
     // 任命数据: permSetKey -> appointeeUuid -> Appointment
     private val appointments: MutableMap<String, MutableMap<UUID, Appointment>> = HashMap()
+    private val toggledOffAppointments: MutableMap<UUID, MutableSet<String>> = ConcurrentHashMap()
 
     // 级联撤销（连坐制）
     var isCascadeRevoke: Boolean = true
@@ -175,29 +177,50 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
      */
     private fun loadData() {
         appointments.clear()
+        toggledOffAppointments.clear()
 
-        val appointmentsSection = data.getConfigurationSection("appointments") ?: return
+        val appointmentsSection = data.getConfigurationSection("appointments")
 
-        for (permSetKey in appointmentsSection.getKeys(false)) {
-            val setSection = appointmentsSection.getConfigurationSection(permSetKey) ?: continue
+        if (appointmentsSection != null) {
+            for (permSetKey in appointmentsSection.getKeys(false)) {
+                val setSection = appointmentsSection.getConfigurationSection(permSetKey) ?: continue
 
-            val setAppointments: MutableMap<UUID, Appointment> = HashMap()
-            for (uuidStr in setSection.getKeys(false)) {
+                val setAppointments: MutableMap<UUID, Appointment> = HashMap()
+                for (uuidStr in setSection.getKeys(false)) {
+                    try {
+                        val appointeeUuid = UUID.fromString(uuidStr)
+                        val appointmentSection = setSection.getConfigurationSection(uuidStr) ?: continue
+
+                        val appointerStr = appointmentSection.getString("appointed_by")
+                        val appointerUuid = if (appointerStr != null) UUID.fromString(appointerStr) else null
+                        val appointedAt = appointmentSection.getLong("appointed_at", System.currentTimeMillis())
+
+                        val appointment = Appointment(appointeeUuid, permSetKey, appointerUuid, appointedAt)
+                        setAppointments[appointeeUuid] = appointment
+                    } catch (_: IllegalArgumentException) {
+                        plugin.logger.warning("Invalid UUID in appoint data for perm set '$permSetKey': $uuidStr — skipping entry")
+                    }
+                }
+                appointments[permSetKey] = setAppointments
+            }
+        }
+
+        val toggledSection = data.getConfigurationSection("toggled_off_appointments")
+        if (toggledSection != null) {
+            for (uuidStr in toggledSection.getKeys(false)) {
                 try {
-                    val appointeeUuid = UUID.fromString(uuidStr)
-                    val appointmentSection = setSection.getConfigurationSection(uuidStr) ?: continue
-
-                    val appointerStr = appointmentSection.getString("appointed_by")
-                    val appointerUuid = if (appointerStr != null) UUID.fromString(appointerStr) else null
-                    val appointedAt = appointmentSection.getLong("appointed_at", System.currentTimeMillis())
-
-                    val appointment = Appointment(appointeeUuid, permSetKey, appointerUuid, appointedAt)
-                    setAppointments[appointeeUuid] = appointment
+                    val playerUuid = UUID.fromString(uuidStr)
+                    val keys = toggledSection.getStringList(uuidStr)
+                        .map { normalizeKey(it) }
+                        .filter { it.isNotBlank() }
+                        .toMutableSet()
+                    if (keys.isNotEmpty()) {
+                        toggledOffAppointments[playerUuid] = keys
+                    }
                 } catch (_: IllegalArgumentException) {
-                    plugin.logger.warning("Invalid UUID in appoint data for perm set '$permSetKey': $uuidStr — skipping entry")
+                    plugin.logger.warning("Invalid UUID in toggled_off_appointments data: $uuidStr — skipping entry")
                 }
             }
-            appointments[permSetKey] = setAppointments
         }
     }
 
@@ -206,6 +229,7 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
      */
     fun saveData() {
         data["appointments"] = null
+        data["toggled_off_appointments"] = null
 
         for ((permSetKey, byAppointee) in appointments) {
             for (appointment in byAppointee.values) {
@@ -215,6 +239,11 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
                     data["$path.appointed_by"] = appointer.toString()
                 }
                 data["$path.appointed_at"] = appointment.appointedAt
+            }
+        }
+        for ((playerUuid, keys) in toggledOffAppointments) {
+            if (keys.isNotEmpty()) {
+                data["toggled_off_appointments.$playerUuid"] = ArrayList(keys).sorted()
             }
         }
 
@@ -300,6 +329,7 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
 
         setAppointments.remove(appointeeUuid)
         clearAppointmentAllowance(appointeeUuid, permSetKey)
+        clearAppointmentToggle(appointeeUuid, permSetKey)
 
         val appointee = Bukkit.getPlayer(appointeeUuid)
         if (appointee != null) {
@@ -387,6 +417,38 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
         return result
     }
 
+    fun isAppointmentToggledOff(playerUuid: UUID?, permSetKey: String?): Boolean {
+        if (playerUuid == null || permSetKey == null) return false
+        val toggledOff = toggledOffAppointments[playerUuid] ?: return false
+        return toggledOff.contains(normalizeKey(permSetKey))
+    }
+
+    fun setAppointmentPowerEnabled(player: Player?, permSetKey: String?, enabled: Boolean): Boolean {
+        if (player == null || permSetKey.isNullOrBlank() || !isAppointed(player.uniqueId, permSetKey)) {
+            return false
+        }
+
+        val playerId = player.uniqueId
+        val normalizedKey = normalizeKey(permSetKey)
+        val toggledOff = toggledOffAppointments.computeIfAbsent(playerId) { HashSet() }
+        val currentlyOff = toggledOff.contains(normalizedKey)
+
+        if (enabled && currentlyOff) {
+            toggledOff.remove(normalizedKey)
+            if (toggledOff.isEmpty()) {
+                toggledOffAppointments.remove(playerId)
+            }
+        } else if (!enabled && !currentlyOff) {
+            toggledOff.add(normalizedKey)
+        } else {
+            return true
+        }
+
+        applyPermissions(player)
+        saveData()
+        return true
+    }
+
     /**
      * 获取权限集的所有被任命者
      */
@@ -410,6 +472,9 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
         val processedSets: MutableSet<String> = HashSet()
         val activeAllowanceSets: MutableSet<String> = HashSet()
         for (appointment in getPlayerAppointments(player.uniqueId)) {
+            if (isAppointmentToggledOff(player.uniqueId, appointment.permSetKey)) {
+                continue
+            }
             applyAppointmentPowers(appointment.permSetKey, player, processedSets, activeAllowanceSets)
         }
         syncAppointmentAllowances(player, activeAllowanceSets)
@@ -590,6 +655,7 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
         for (appointeeUuid in toRevoke) {
             setAppointments.remove(appointeeUuid)
             clearAppointmentAllowance(appointeeUuid, permSetKey)
+            clearAppointmentToggle(appointeeUuid, permSetKey)
 
             val appointee = Bukkit.getPlayer(appointeeUuid)
             if (appointee != null && appointee.isOnline) {
@@ -795,6 +861,17 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
             allowanceManager.removeAppointmentAllowedCommands(playerId, permSetKey)
         }
     }
+
+    private fun clearAppointmentToggle(playerId: UUID?, permSetKey: String?) {
+        if (playerId == null || permSetKey == null) return
+        val toggledOff = toggledOffAppointments[playerId] ?: return
+        toggledOff.remove(normalizeKey(permSetKey))
+        if (toggledOff.isEmpty()) {
+            toggledOffAppointments.remove(playerId)
+        }
+    }
+
+    private fun normalizeKey(key: String): String = key.trim().lowercase(Locale.ROOT)
 
     private fun runEntityTask(player: Player?, task: Runnable?) {
         if (player == null || task == null) return

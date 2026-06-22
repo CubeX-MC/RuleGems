@@ -143,6 +143,40 @@ class AppointFeatureTest {
     }
 
     @Test
+    void appointeeCanToggleOwnAppointmentPower() throws Exception {
+        Player appointer = mockPlayer(APPOINTER_ID, "Ruler");
+        Player appointee = mockPlayer(APPOINTEE_ID, "Knight");
+        when(appointer.hasPermission("rulegems.appoint.guard")).thenReturn(true);
+        when(appointer.hasPermission("rulegems.admin")).thenReturn(false);
+
+        AppointDefinition guard = createDefinition("guard", List.of("perm.guard"), List.of(), List.of(), Map.of(),
+                List.of(new AllowedCommand("cxjail", 2, List.of("console:cmi jail %arg1% guard 5m"), 0)));
+        appointDefinitions(feature).put("guard", guard);
+        assertTrue(feature.appoint(appointer, appointee, "guard"));
+
+        reset(psm, allowanceManager);
+        when(psm.applyStructure(any(Player.class), any(PowerStructure.class), anyString(), anyString(), anyBoolean()))
+                .thenReturn(true);
+
+        assertTrue(feature.setAppointmentPowerEnabled(appointee, "guard", false));
+        assertTrue(feature.isAppointmentToggledOff(APPOINTEE_ID, "guard"));
+        verify(psm).clearNamespace(appointee, "appoint");
+        verify(psm, never()).applyStructure(eq(appointee), any(), eq("appoint"), anyString(), anyBoolean());
+        verify(allowanceManager).retainAppointmentAllowedCommands(eq(APPOINTEE_ID),
+                argThat(active -> !active.contains("guard")));
+
+        reset(psm, allowanceManager);
+        when(psm.applyStructure(any(Player.class), any(PowerStructure.class), anyString(), anyString(), anyBoolean()))
+                .thenReturn(true);
+
+        assertTrue(feature.setAppointmentPowerEnabled(appointee, "guard", true));
+        assertFalse(feature.isAppointmentToggledOff(APPOINTEE_ID, "guard"));
+        verify(psm).applyStructure(eq(appointee), any(PowerStructure.class), eq("appoint"), eq("guard"), eq(true));
+        verify(allowanceManager).retainAppointmentAllowedCommands(eq(APPOINTEE_ID),
+                argThat(active -> active.contains("guard")));
+    }
+
+    @Test
     void appointerLosingPermissionCascadeRevokesAppointee() throws Exception {
         Player appointer = mockPlayer(APPOINTER_ID, "Ruler");
         Player appointee = mockPlayer(APPOINTEE_ID, "Knight");

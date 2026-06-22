@@ -10,6 +10,7 @@ import org.bukkit.persistence.PersistentDataContainer
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.GemPermissionManager
 import org.cubexmc.manager.LanguageManager
+import org.cubexmc.features.appoint.AppointFeature
 import org.cubexmc.model.GemDefinition
 import org.cubexmc.utils.ColorUtils
 import java.util.Collections
@@ -27,13 +28,10 @@ class PowerTogglesGUI(
 
     fun open(player: Player, page: Int) {
         val permManager = gemManager.permissionManager
-        val rulerKeys = gemManager.currentRulers.getOrDefault(player.uniqueId, Collections.emptySet())
+        val appointFeature = getAppointFeature()
+        val entries = buildToggleEntries(player, permManager, appointFeature)
 
-        val ownedGems = rulerKeys
-            .filter { key -> key != "ALL" }
-            .sortedWith(String.CASE_INSENSITIVE_ORDER)
-
-        val totalItems = ownedGems.size
+        val totalItems = entries.size
         val totalPages = maxOf(1, kotlin.math.ceil(totalItems / ITEMS_PER_PAGE.toDouble()).toInt())
         val currentPage = page.coerceIn(0, totalPages - 1)
 
@@ -57,48 +55,107 @@ class PowerTogglesGUI(
                 .build(),
         )
 
-        if (ownedGems.isEmpty()) {
+        if (entries.isEmpty()) {
             gui.setItem(
                 22,
                 ItemBuilder(Material.BARRIER)
-                    .name("&c" + rawMsg("power_toggles.no_gems"))
-                    .addLore("&7" + rawMsg("power_toggles.no_gems_lore"))
+                    .name("&c" + rawMsg("power_toggles.no_powers"))
+                    .addLore("&7" + rawMsg("power_toggles.no_powers_lore"))
                     .build(),
             )
         } else {
             val startIndex = currentPage * ITEMS_PER_PAGE
-            val endIndex = minOf(startIndex + ITEMS_PER_PAGE, ownedGems.size)
+            val endIndex = minOf(startIndex + ITEMS_PER_PAGE, entries.size)
             for (i in startIndex until endIndex) {
-                gui.setItem(ITEM_SLOTS[i - startIndex], createGemToggleItem(player, ownedGems[i], permManager))
+                gui.setItem(ITEM_SLOTS[i - startIndex], createToggleItem(entries[i]))
             }
         }
 
         player.openInventory(gui)
     }
 
-    private fun createGemToggleItem(player: Player, gemKey: String, permManager: GemPermissionManager): ItemStack {
-        val definition: GemDefinition? = gemManager.findGemDefinitionByKey(gemKey)
-        val isOff = permManager.isGemToggledOff(player.uniqueId, gemKey)
-
-        val displayName = definition?.displayName ?: gemKey
-        val material = definition?.material ?: Material.EMERALD
-
-        val builder = ItemBuilder(material)
-            .name(ColorUtils.translateColorCodes("&f$displayName") ?: "")
+    private fun createToggleItem(entry: ToggleEntry): ItemStack {
+        val builder = ItemBuilder(entry.material)
+            .name(ColorUtils.translateColorCodes("&f${entry.displayName}") ?: "")
             .hideAttributes()
             .addEmptyLore()
 
-        if (isOff) {
+        builder.addLore(
+            "&8" + rawMsg(
+                if (entry.kind == ToggleKind.GEM) {
+                    "power_toggles.source_gem"
+                } else {
+                    "power_toggles.source_appointment"
+                },
+            ),
+        )
+        builder.addEmptyLore()
+
+        if (entry.isOff) {
             builder.addLore("&c" + rawMsg("power_toggles.status_off"))
             builder.addLore("&7" + rawMsg("power_toggles.click_to_enable"))
         } else {
             builder.glow()
             builder.addLore("&a" + rawMsg("power_toggles.status_on"))
-            builder.addLore("&7" + rawMsg("power_toggles.click_to_disable"))
+            builder.addLore(
+                "&7" + rawMsg(
+                    if (entry.kind == ToggleKind.GEM) {
+                        "power_toggles.click_to_disable_gem"
+                    } else {
+                        "power_toggles.click_to_disable_appointment"
+                    },
+                ),
+            )
         }
 
         return builder.build()
     }
+
+    private fun buildToggleEntries(
+        player: Player,
+        permManager: GemPermissionManager,
+        appointFeature: AppointFeature?,
+    ): List<ToggleEntry> {
+        val entries = ArrayList<ToggleEntry>()
+        val rulerKeys = gemManager.currentRulers.getOrDefault(player.uniqueId, Collections.emptySet())
+        val ownedGems = rulerKeys
+            .filter { key -> key != "ALL" }
+            .sortedWith(String.CASE_INSENSITIVE_ORDER)
+
+        for (gemKey in ownedGems) {
+            val definition: GemDefinition? = gemManager.findGemDefinitionByKey(gemKey)
+            entries.add(
+                ToggleEntry(
+                    ToggleKind.GEM,
+                    gemKey,
+                    definition?.displayName ?: gemKey,
+                    definition?.material ?: Material.EMERALD,
+                    permManager.isGemToggledOff(player.uniqueId, gemKey),
+                ),
+            )
+        }
+
+        if (appointFeature != null && appointFeature.isEnabled) {
+            val appointments = ArrayList(appointFeature.getPlayerAppointments(player.uniqueId))
+            appointments.sortWith(compareBy(String.CASE_INSENSITIVE_ORDER) { appointment -> appointment.permSetKey })
+            for (appointment in appointments) {
+                val definition = appointFeature.getAppointDefinition(appointment.permSetKey)
+                entries.add(
+                    ToggleEntry(
+                        ToggleKind.APPOINTMENT,
+                        appointment.permSetKey,
+                        definition?.displayName ?: appointment.permSetKey,
+                        Material.WRITABLE_BOOK,
+                        appointFeature.isAppointmentToggledOff(player.uniqueId, appointment.permSetKey),
+                    ),
+                )
+            }
+        }
+
+        return entries
+    }
+
+    private fun getAppointFeature(): AppointFeature? = manager.plugin.featureManager?.appointFeature
 
     private fun msg(path: String): String = ColorUtils.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
 
@@ -128,18 +185,18 @@ class PowerTogglesGUI(
             return
         }
 
-        val rulerKeys = gemManager.currentRulers.getOrDefault(player.uniqueId, Collections.emptySet())
-        val ownedGems = rulerKeys
-            .filter { key -> key != "ALL" }
-            .sortedWith(String.CASE_INSENSITIVE_ORDER)
+        val appointFeature = getAppointFeature()
+        val entries = buildToggleEntries(player, gemManager.permissionManager, appointFeature)
 
         val itemIndex = holder.page * ITEMS_PER_PAGE + index
-        if (itemIndex >= 0 && itemIndex < ownedGems.size) {
-            val gemKey = ownedGems[itemIndex]
-            val permManager = gemManager.permissionManager
-            val currentlyOff = permManager.isGemToggledOff(player.uniqueId, gemKey)
+        if (itemIndex >= 0 && itemIndex < entries.size) {
+            val entry = entries[itemIndex]
+            val currentlyOff = entry.isOff
 
-            permManager.toggleGemPower(player, gemKey, currentlyOff)
+            when (entry.kind) {
+                ToggleKind.GEM -> gemManager.permissionManager.toggleGemPower(player, entry.key, currentlyOff)
+                ToggleKind.APPOINTMENT -> appointFeature?.setAppointmentPowerEnabled(player, entry.key, currentlyOff)
+            }
 
             if (currentlyOff) {
                 player.playSound(player.location, Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 2.0f)
@@ -159,4 +216,17 @@ class PowerTogglesGUI(
             27, 28, 29, 30, 31, 32, 33, 34, 35,
         )
     }
+
+    private enum class ToggleKind {
+        GEM,
+        APPOINTMENT,
+    }
+
+    private data class ToggleEntry(
+        val kind: ToggleKind,
+        val key: String,
+        val displayName: String,
+        val material: Material,
+        val isOff: Boolean,
+    )
 }
