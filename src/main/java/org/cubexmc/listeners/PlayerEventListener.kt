@@ -1,6 +1,7 @@
 package org.cubexmc.listeners
 
 import org.bukkit.event.EventHandler
+import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.player.PlayerChangedWorldEvent
@@ -24,8 +25,9 @@ class PlayerEventListener(
         plugin.featureManager?.onPlayerQuit(event.player)
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     fun onPlayerDropItem(event: PlayerDropItemEvent) {
+        if (event.isCancelled) return
         gemManager.handleGemDrop(event.player, event.itemDrop.location, event.itemDrop, event.itemDrop.itemStack)
         if (gemManager.isInventoryGrantsEnabled) {
             gemManager.recalculateGrants(event.player)

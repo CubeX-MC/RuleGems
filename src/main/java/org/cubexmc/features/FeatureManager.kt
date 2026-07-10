@@ -24,6 +24,8 @@ class FeatureManager(
         private set
     var revokeFeature: RevokeFeature? = null
         private set
+    var intelBroadcaster: GemIntelBroadcaster? = null
+        private set
 
     /**
      * 注册所有功能
@@ -31,6 +33,10 @@ class FeatureManager(
     fun registerFeatures() {
         // 注册指南针导航功能
         registerFeature(GemNavigator(plugin, gemManager))
+
+        // 注册权力情报碎片功能
+        intelBroadcaster = GemIntelBroadcaster(plugin, gemManager)
+        registerFeature(intelBroadcaster)
 
         // 注册委任功能
         appointFeature = AppointFeature(plugin)

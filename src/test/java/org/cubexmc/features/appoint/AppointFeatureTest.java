@@ -229,6 +229,44 @@ class AppointFeatureTest {
     }
 
     @Test
+    void reciprocalAppointmentForSameSetIsBlocked() throws Exception {
+        Player firstRuler = mockPlayer(APPOINTER_ID, "FirstRuler");
+        Player secondRuler = mockPlayer(APPOINTEE_ID, "SecondRuler");
+        when(firstRuler.hasPermission("rulegems.appoint.guard")).thenReturn(true);
+        when(secondRuler.hasPermission("rulegems.appoint.guard")).thenReturn(true);
+        when(firstRuler.hasPermission("rulegems.admin")).thenReturn(false);
+        when(secondRuler.hasPermission("rulegems.admin")).thenReturn(false);
+
+        appointDefinitions(feature).put("guard",
+                createDefinition("guard", List.of("perm.guard"), List.of(), List.of(), Map.of()));
+
+        assertTrue(feature.appoint(firstRuler, secondRuler, "guard"));
+        assertFalse(feature.appoint(secondRuler, firstRuler, "guard"));
+        assertTrue(feature.isAppointed(APPOINTEE_ID, "guard"));
+        assertFalse(feature.isAppointed(APPOINTER_ID, "guard"));
+    }
+
+    @Test
+    void reciprocalAppointmentForDifferentSetsIsAllowed() throws Exception {
+        Player navigationRuler = mockPlayer(APPOINTER_ID, "NavigationRuler");
+        Player moneyRuler = mockPlayer(APPOINTEE_ID, "MoneyRuler");
+        when(navigationRuler.hasPermission("rulegems.appoint.navigator")).thenReturn(true);
+        when(navigationRuler.hasPermission("rulegems.admin")).thenReturn(false);
+        when(moneyRuler.hasPermission("rulegems.appoint.accountant")).thenReturn(true);
+        when(moneyRuler.hasPermission("rulegems.admin")).thenReturn(false);
+
+        appointDefinitions(feature).put("navigator",
+                createDefinition("navigator", List.of("perm.navigate"), List.of(), List.of(), Map.of()));
+        appointDefinitions(feature).put("accountant",
+                createDefinition("accountant", List.of("perm.money"), List.of(), List.of(), Map.of()));
+
+        assertTrue(feature.appoint(navigationRuler, moneyRuler, "navigator"));
+        assertTrue(feature.appoint(moneyRuler, navigationRuler, "accountant"));
+        assertTrue(feature.isAppointed(APPOINTEE_ID, "navigator"));
+        assertTrue(feature.isAppointed(APPOINTER_ID, "accountant"));
+    }
+
+    @Test
     void conditionRefreshSchedulesPermissionRefreshOnPlayerEntityThread() throws Exception {
         Player appointee = mockPlayer(APPOINTEE_ID, "Knight");
         AppointDefinition guard = createDefinition("guard", List.of("perm.guard"), List.of(), List.of(), Map.of());

@@ -75,6 +75,10 @@ class GemPlacementManager(
                     randomPlaceGem(gemId)
                     return@regionRun
                 }
+                val oldLocation = stateManager.findLocationByGemId(gemId)
+                if (oldLocation != null && !isSameBlock(oldLocation, target)) {
+                    unplaceRuleGem(oldLocation, gemId)
+                }
                 val mat = stateManager.getGemMaterial(gemId)
                 target.block.type = mat
                 stateManager.bindPlacedGem(target, gemId)

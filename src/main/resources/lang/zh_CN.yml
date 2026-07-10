@@ -191,6 +191,7 @@ feature:
     cooldown: "<red><prefix> 请等待 <yellow><seconds> <red>秒后再使用。"
     found: "<green><prefix> <yellow>指南针已指向 <gold><direction> <yellow>方向的宝石。"
     found_with_distance: "<green><prefix> <yellow>指南针已指向 <gold><direction> <yellow>方向，距离 <gold><distance><yellow>。"
+    expired: "<gray><prefix> 宝石指向已经消散。"
     distance:
       very_close: "很近"
       close: "较近"
@@ -206,6 +207,11 @@ feature:
       northwest: "西北"
       southeast: "东南"
       southwest: "西南"
+  intel:
+    default_label: "某颗权力宝石"
+    world: "<prefix> <gray>传闻：<white><label><gray> 位于 <white><world><gray>。"
+    axis_range: "<prefix> <gray>传闻：<white><label><gray> 的 <white><axis> <gray>坐标约在 <white><min><gray> 到 <white><max><gray> 之间。"
+    axis_range_with_world: "<prefix> <gray>传闻：<white><label><gray> 位于 <white><world><gray>，<white><axis> <gray>坐标约在 <white><min><gray> 到 <white><max><gray> 之间。"
 gui:
   no_more_info: "没有更多信息"
   # 控制栏按钮

@@ -191,6 +191,7 @@ feature:
     cooldown: "<red><prefix> Please wait <yellow><seconds> <red>seconds."
     found: "<green><prefix> <yellow>Compass is now pointing <gold><direction><yellow>."
     found_with_distance: "<green><prefix> <yellow>Compass is now pointing <gold><direction><yellow>, <gold><distance> <yellow>away."
+    expired: "<gray><prefix> The gem trail has faded."
     distance:
       very_close: "very close"
       close: "nearby"
@@ -206,6 +207,11 @@ feature:
       northwest: "Northwest"
       southeast: "Southeast"
       southwest: "Southwest"
+  intel:
+    default_label: "an unknown Rule Gem"
+    world: "<prefix> <gray>Rumor: <white><label> <gray>is in <white><world><gray>."
+    axis_range: "<prefix> <gray>Rumor: <white><label><gray>'s <white><axis> <gray>coordinate is roughly between <white><min><gray> and <white><max><gray>."
+    axis_range_with_world: "<prefix> <gray>Rumor: <white><label> <gray>is in <white><world><gray>, with <white><axis> <gray>roughly between <white><min><gray> and <white><max><gray>."
 gui:
   no_more_info: "No more info"
   # Control bar buttons

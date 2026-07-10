@@ -32,6 +32,7 @@ class ConfigUpdaterTest {
         write("config.yml", "language: zh_CN\n");
         write("features/appoint.yml", "enabled: true\n");
         write("features/navigate.yml", "enabled: true\n");
+        write("features/intel.yml", "enabled: true\n");
         write("gems/gems.yml", "custom:\n  count: 1\n");
         write("powers/powers.yml", "custom_power:\n  permissions:\n    - custom.node\n");
 
@@ -55,6 +56,7 @@ class ConfigUpdaterTest {
         write("config.yml", "language: zh_CN\n");
         write("features/appoint.yml", "enabled: true\n");
         write("features/navigate.yml", "enabled: true\n");
+        write("features/intel.yml", "enabled: true\n");
 
         ConfigUpdater.merge(plugin);
 
@@ -89,6 +91,7 @@ class ConfigUpdaterTest {
                 "config.yml", "language: en_US\nadded_config_default: true\n",
                 "features/appoint.yml", "enabled: false\nadded_appoint_default: true\n",
                 "features/navigate.yml", "enabled: false\nadded_navigate_default: true\n",
+                "features/intel.yml", "enabled: false\nadded_intel_default: true\n",
                 "gems/gems.yml", "default_gem:\n  count: 1\n",
                 "powers/powers.yml", "default_power:\n  permissions:\n    - default.node\n");
     }

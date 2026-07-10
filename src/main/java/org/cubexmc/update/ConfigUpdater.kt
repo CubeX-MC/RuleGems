@@ -18,6 +18,7 @@ object ConfigUpdater {
         merge(plugin, CONFIG_RESOURCE)
         merge(plugin, "features/appoint.yml")
         merge(plugin, "features/navigate.yml")
+        merge(plugin, "features/intel.yml")
     }
 
     @JvmStatic

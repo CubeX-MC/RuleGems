@@ -358,13 +358,19 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
      */
     private fun wouldCreateCycle(appointerUuid: UUID, appointeeUuid: UUID, permSetKey: String?): Boolean {
         val visited: MutableSet<UUID> = HashSet()
-        return isAncestorOf(appointeeUuid, appointerUuid, visited)
+        return isAncestorOf(appointeeUuid, appointerUuid, permSetKey, visited)
     }
 
     /**
-     * 递归检查 potentialAncestor 是否是 descendant 的"祖先"（任命链上游）
+     * 递归检查 potentialAncestor 是否是 descendant 在同一职位任命链上的"祖先"。
+     * 不同职位代表不同权力来源，允许彼此交叉委任形成政治联盟。
      */
-    private fun isAncestorOf(potentialAncestor: UUID, descendant: UUID, visited: MutableSet<UUID>): Boolean {
+    private fun isAncestorOf(
+        potentialAncestor: UUID,
+        descendant: UUID,
+        permSetKey: String?,
+        visited: MutableSet<UUID>,
+    ): Boolean {
         if (potentialAncestor == descendant) {
             return true
         }
@@ -374,13 +380,12 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
         }
         visited.add(descendant)
 
-        for (setAppointments in appointments.values) {
-            val appointment = setAppointments[descendant]
-            val appointer = appointment?.appointerUuid
-            if (appointer != null) {
-                if (isAncestorOf(potentialAncestor, appointer, visited)) {
-                    return true
-                }
+        val setAppointments = appointments[permSetKey] ?: return false
+        val appointment = setAppointments[descendant]
+        val appointer = appointment?.appointerUuid
+        if (appointer != null) {
+            if (isAncestorOf(potentialAncestor, appointer, permSetKey, visited)) {
+                return true
             }
         }
 

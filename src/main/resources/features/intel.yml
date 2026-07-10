@@ -1,0 +1,73 @@
+# ==========================================
+# 宝石情报碎片配置 (Gem Intel Feature)
+# ==========================================
+# 周期性向弱势在线玩家泄露已放置宝石的模糊线索。
+# 线索不会给出完整坐标；同一颗宝石的线索会使用同一种颜色。
+
+# 是否启用此功能
+enabled: false
+
+# 推送间隔（秒）
+interval_seconds: 1800
+
+# 插件启动或重载后的首次推送延迟（秒）
+initial_delay_seconds: 300
+
+recipients:
+  # true: 只给当前没有兑换宝石权力的玩家
+  require_non_ruler: true
+
+  # 最多允许拥有多少个已兑换宝石权力仍可收到线索
+  # 设为 -1 表示不限制
+  max_redeemed_gems: 0
+
+  # 同一玩家收到线索后的个人冷却（秒）
+  per_player_cooldown_seconds: 7200
+
+targets:
+  # 如果玩家与宝石在同一世界，距离小于该值的宝石不会被泄露
+  # 设为 0 表示不限制
+  min_distance_from_recipient: 0
+
+  # 宝石越集中，越容易被传闻选中
+  cluster_bias:
+    enabled: true
+    radius: 96
+    multiplier: 2.0
+
+fragments:
+  # 是否让每条坐标轴线索同时包含宝石所在世界。
+  # 建议保持 true，否则跨世界线索会很难使用。
+  include_world: true
+
+  # 每次线索泄露一个坐标轴范围。
+  # 可选: x / y / z
+  axes:
+    - x
+    - z
+
+  # 同一颗宝石会按 UUID 自动生成稳定的 hex 颜色；颜色只作为辅助识别。
+  # 主要识别方式是下面的未知宝石代号。
+  label:
+    enabled: true
+    format: "未知宝石{code}"
+    alphabet: "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    min_length: 1
+
+  range:
+    # lognormal 更适合范围宽度：不会出现负数，且大多数线索中等模糊，少数更精准或更模糊。
+    # 也可设为 gaussian。
+    distribution: lognormal
+
+    # lognormal 的中位数；gaussian 下作为均值使用。
+    median: 600
+
+    # lognormal 的离散程度。
+    sigma: 0.45
+
+    # gaussian 的标准差，仅 distribution: gaussian 时使用。
+    std_dev: 250
+
+    min: 200
+    max: 1800
+    round_to: 50
