@@ -42,6 +42,17 @@ random_place_range:
   corner1: { x: -100, y: 64, z: -100 }
   corner2: { x: 100, y: 64, z: 100 }
 
+# 宝石在世界中的表现方式。修改后执行 /rg reload 即可原地切换，
+# 不需要重新 scatter，也不会改变已放置宝石的坐标或 UUID。
+gem_presentation:
+  # block: 传统真实方块，可像普通方块一样挖掘
+  # proximity_display: 世界中不保留特殊宝石方块；玩家靠近后才显示可左键拾取的展示实体
+  mode: block
+  # 进入此距离后显示宝石
+  reveal_range: 16
+  # 离开此距离后隐藏宝石；应不小于 reveal_range，避免边界反复闪烁
+  hide_range: 20
+
 # 全局设置
 toggles:
   broadcast_redeem_title: true  # 兑换后是否向全服广播
@@ -151,17 +162,39 @@ effects:
 # ==========================================
 # 宝石逃逸机制
 # ==========================================
-# 防止统治者将宝石永久藏起来导致权力无法流转
+# 防止统治者将宝石永久藏起来导致权力无法流转。
+# 启用后使用一个全局轮次调度器：每轮最多移动一颗符合条件的已放置宝石，
+# 因此这里的 min_interval / max_interval 控制全服流动速率，而不是每颗宝石各自的计时器。
 gem_escape:
   # 是否启用逃逸功能
   enabled: false
-  # 最小逃逸间隔 - 宝石放置后至少等待这么久
+  # 两次全局逃逸轮次之间的随机最小/最大间隔
   # 支持的单位: s(秒), m(分钟), h(小时), d(天)
   # 示例: "30m", "2h", "1d", "90s"
   # 也可以直接写数字，默认单位为分钟
   min_interval: "30m"
-  # 最大逃逸间隔 - 宝石放置后最多等待这么久
   max_interval: "2h"
+  # 宝石在同一位置至少停留这么久，才会进入逃逸候选池
+  minimum_unmoved_duration: "4h"
+  selection:
+    # 统计同世界附近宝石数量的半径；聚集越密集，被选中的概率越高
+    cluster_radius: 96
+    # 每多一颗附近宝石所使用的权重倍率；最低会钳制为 1.0
+    cluster_weight: 2.0
+  local_move:
+    # 第一轮局部逃逸的距离环带（方块）
+    min_distance: 96
+    max_distance: 256
+    # 后续失败轮次向外扩展的距离（方块）
+    distance_growth: 256
+    # 每轮尝试验证的候选位置数（1-64）
+    attempts_per_round: 10
+    # 连续失败达到 N 轮后，只把这一颗宝石在 random_place_range 内全局重新散落（1-16）
+    max_failed_rounds: 3
+    # 一轮找不到安全位置后，等待多久再试
+    retry_delay: "15m"
+    # 多次局部逃逸仍未被拾取时，触发单颗全局重新散落（1-64）
+    max_local_escapes_without_pickup: 3
   # 是否广播逃逸消息
   broadcast: true
   # 逃逸时播放的音效（留空则不播放）

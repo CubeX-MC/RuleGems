@@ -53,6 +53,12 @@ class GameplayConfig {
         private set
     var randomPlaceCorner2: Location? = null
         private set
+    var gemPresentationMode: GemPresentationMode = GemPresentationMode.BLOCK
+        private set
+    var gemDisplayRevealRange = 16.0
+        private set
+    var gemDisplayHideRange = 20.0
+        private set
 
     // ==================== 宝石逃逸 ====================
     var isGemEscapeEnabled = false
@@ -60,6 +66,26 @@ class GameplayConfig {
     var gemEscapeMinIntervalTicks = 0L
         private set
     var gemEscapeMaxIntervalTicks = 0L
+        private set
+    var gemEscapeMinimumUnmovedTicks = 4 * 60 * 60 * 20L
+        private set
+    var gemEscapeClusterRadius = 96.0
+        private set
+    var gemEscapeClusterWeight = 2.0
+        private set
+    var gemEscapeLocalMinDistance = 96.0
+        private set
+    var gemEscapeLocalMaxDistance = 256.0
+        private set
+    var gemEscapeDistanceGrowth = 256.0
+        private set
+    var gemEscapeAttemptsPerRound = 10
+        private set
+    var gemEscapeMaxFailedRounds = 3
+        private set
+    var gemEscapeRetryDelayTicks = 15 * 60 * 20L
+        private set
+    var gemEscapeMaxLocalEscapesWithoutPickup = 3
         private set
     var isGemEscapeBroadcast = false
         private set
@@ -168,6 +194,14 @@ class GameplayConfig {
             config.getString("gem_scatter_execute.particle"),
         )
 
+        val presentation = config.getConfigurationSection("gem_presentation")
+        gemPresentationMode = GemPresentationMode.parse(presentation?.getString("mode", "block"))
+        gemDisplayRevealRange = maxOf(1.0, presentation?.getDouble("reveal_range", 16.0) ?: 16.0)
+        gemDisplayHideRange = maxOf(
+            gemDisplayRevealRange,
+            presentation?.getDouble("hide_range", 20.0) ?: 20.0,
+        )
+
         // 随机放置范围
         val randomPlaceRange = config.getConfigurationSection("random_place_range")
         if (randomPlaceRange != null && cornerLoader != null) {
@@ -187,6 +221,50 @@ class GameplayConfig {
             isGemEscapeEnabled = escapeSection.getBoolean("enabled", false)
             gemEscapeMinIntervalTicks = parseTimeToTicks(escapeSection.getString("min_interval", "30m"), logger)
             gemEscapeMaxIntervalTicks = parseTimeToTicks(escapeSection.getString("max_interval", "2h"), logger)
+            gemEscapeMinimumUnmovedTicks = parseTimeToTicks(
+                escapeSection.getString("minimum_unmoved_duration", "4h"),
+                logger,
+            ).coerceAtLeast(0L)
+
+            val selectionSection = escapeSection.getConfigurationSection("selection")
+            gemEscapeClusterRadius = finiteAtLeast(
+                selectionSection?.getDouble("cluster_radius", 96.0) ?: 96.0,
+                0.0,
+                96.0,
+            )
+            gemEscapeClusterWeight = finiteAtLeast(
+                selectionSection?.getDouble("cluster_weight", 2.0) ?: 2.0,
+                1.0,
+                2.0,
+            )
+
+            val localMoveSection = escapeSection.getConfigurationSection("local_move")
+            gemEscapeLocalMinDistance = finiteAtLeast(
+                localMoveSection?.getDouble("min_distance", 96.0) ?: 96.0,
+                1.0,
+                96.0,
+            )
+            gemEscapeLocalMaxDistance = finiteAtLeast(
+                localMoveSection?.getDouble("max_distance", 256.0) ?: 256.0,
+                gemEscapeLocalMinDistance,
+                256.0,
+            )
+            gemEscapeDistanceGrowth = finiteAtLeast(
+                localMoveSection?.getDouble("distance_growth", 256.0) ?: 256.0,
+                0.0,
+                256.0,
+            )
+            gemEscapeAttemptsPerRound = (localMoveSection?.getInt("attempts_per_round", 10) ?: 10)
+                .coerceIn(1, 64)
+            gemEscapeMaxFailedRounds = (localMoveSection?.getInt("max_failed_rounds", 3) ?: 3)
+                .coerceIn(1, 16)
+            gemEscapeRetryDelayTicks = parseTimeToTicks(
+                localMoveSection?.getString("retry_delay", "15m") ?: "15m",
+                logger,
+            ).coerceAtLeast(20L)
+            gemEscapeMaxLocalEscapesWithoutPickup = (
+                localMoveSection?.getInt("max_local_escapes_without_pickup", 3) ?: 3
+            ).coerceIn(1, 64)
             isGemEscapeBroadcast = escapeSection.getBoolean("broadcast", true)
             gemEscapeSound = escapeSection.getString("sound", "ENTITY_ENDERMAN_TELEPORT")
             gemEscapeParticle = escapeSection.getString("particle", "PORTAL")
@@ -194,19 +272,27 @@ class GameplayConfig {
             isGemEscapeEnabled = false
             gemEscapeMinIntervalTicks = 30 * 60 * 20L
             gemEscapeMaxIntervalTicks = 2 * 60 * 60 * 20L
+            gemEscapeMinimumUnmovedTicks = 4 * 60 * 60 * 20L
+            gemEscapeClusterRadius = 96.0
+            gemEscapeClusterWeight = 2.0
+            gemEscapeLocalMinDistance = 96.0
+            gemEscapeLocalMaxDistance = 256.0
+            gemEscapeDistanceGrowth = 256.0
+            gemEscapeAttemptsPerRound = 10
+            gemEscapeMaxFailedRounds = 3
+            gemEscapeRetryDelayTicks = 15 * 60 * 20L
+            gemEscapeMaxLocalEscapesWithoutPickup = 3
             isGemEscapeBroadcast = true
             gemEscapeSound = "ENTITY_ENDERMAN_TELEPORT"
             gemEscapeParticle = "PORTAL"
         }
-        // 确保 min <= max
+        // 全局逃逸轮次间隔至少 1 秒，并确保 min <= max。
+        gemEscapeMinIntervalTicks = gemEscapeMinIntervalTicks.coerceAtLeast(20L)
+        gemEscapeMaxIntervalTicks = gemEscapeMaxIntervalTicks.coerceAtLeast(20L)
         if (gemEscapeMinIntervalTicks > gemEscapeMaxIntervalTicks) {
             val tmp = gemEscapeMinIntervalTicks
             gemEscapeMinIntervalTicks = gemEscapeMaxIntervalTicks
             gemEscapeMaxIntervalTicks = tmp
-        }
-        // 确保最小间隔至少 1 秒
-        if (gemEscapeMinIntervalTicks < 20L) {
-            gemEscapeMinIntervalTicks = 20L
         }
 
         // 放置兑换（祭坛模式）全局设置
@@ -257,6 +343,10 @@ class GameplayConfig {
             }
         }
         return if (result.isEmpty()) Collections.emptyMap() else Collections.unmodifiableMap(result)
+    }
+
+    private fun finiteAtLeast(value: Double, minimum: Double, defaultValue: Double): Double {
+        return (if (value.isFinite()) value else defaultValue).coerceAtLeast(minimum)
     }
 
     /**

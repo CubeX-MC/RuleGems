@@ -172,10 +172,12 @@ messages:
   inventory:
     drag_denied: "<red><prefix> Cannot drag Gem here!"
     container_denied: "<red><prefix> Cannot put Gem into containers!"
+    display_location_occupied: "<red><prefix> A proximity-display gem already occupies this location."
     inventory_full: "<gray><prefix> Inventory full, gem has been placed."
     conflict: "<red>The gem in your hand is mutually exclusive with your other powers!"
   gem_escape:
-    broadcast: "<yellow><prefix> <white><gem_name> <yellow>has escaped! It is seeking a new hiding place..."
+    broadcast: "<yellow><prefix> <white><gem_name> <yellow>has escaped to a nearby hiding place!"
+    fallback_broadcast: "<red><prefix> <white><gem_name> <red>has broken away and been re-scattered; earlier intel is now stale!"
   place_redeem:
     success: "<green><prefix> <yellow>Altar sacrifice successful! <white><gem_name>'s <yellow>power has been infused into your soul!"
     broadcast: "<gold><prefix> <yellow><player> <gold>offered <white><gem_name> <gold>at the altar and gained its power!"

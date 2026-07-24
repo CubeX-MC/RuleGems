@@ -20,6 +20,10 @@ class GemPlaceListener(private val gemManager: GemManager) : Listener {
     // 不使用 MONITOR：因为我们需要修改事件的取消状态，违反 MONITOR 的只读语义。
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     fun onBlockPlace(event: BlockPlaceEvent) {
+        if (gemManager.blockPlacementConflictsWithDisplayedGem(event.player, event.blockPlaced.location)) {
+            event.isCancelled = true
+            return
+        }
         gemManager.handleGemBlockPlace(event.player, event.itemInHand, event.blockPlaced, event)
     }
 

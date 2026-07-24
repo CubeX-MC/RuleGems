@@ -117,6 +117,8 @@ class GemStateManager(
 
     fun snapshotPlacedGems(): Map<Location, UUID> = HashMap(locationToGemUuid)
 
+    fun snapshotGemKeys(): Map<UUID, String> = HashMap(gemUuidToKey)
+
     fun clearAll() {
         locationToGemUuid.clear()
         gemUuidToLocation.clear()

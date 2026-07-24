@@ -172,10 +172,12 @@ messages:
   inventory:
     drag_denied: "<red><prefix> 不能将宝石拖拽到此处！"
     container_denied: "<red><prefix> 不能将宝石放入容器！"
+    display_location_occupied: "<red><prefix> 此处已有一颗以近距离模式显示的宝石。"
     inventory_full: "<gray><prefix> 检查背包已满, 宝石被放置。"
     conflict: "<red>手持宝石的力量与你已拥有的力量排斥！"
   gem_escape:
-    broadcast: "<yellow><prefix> <white><gem_name> <yellow>逃逸了！它正在寻找新的藏身之处..."
+    broadcast: "<yellow><prefix> <white><gem_name> <yellow>已逃逸到附近的新藏身处！"
+    fallback_broadcast: "<red><prefix> <white><gem_name> <red>已彻底摆脱追踪并重新散落；先前情报已失效！"
   place_redeem:
     success: "<green><prefix> <yellow>祭坛献祭成功！<white><gem_name> <yellow>的力量已注入你的灵魂！"
     broadcast: "<gold><prefix> <yellow><player> <gold>在祭坛献上了 <white><gem_name><gold>，获得了它的力量！"

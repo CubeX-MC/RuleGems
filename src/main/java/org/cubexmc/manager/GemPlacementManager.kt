@@ -18,6 +18,15 @@ import java.util.Collections
 import java.util.Random
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ThreadLocalRandom
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+import java.util.function.Consumer
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.floor
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * 宝石放置管理器 - 负责宝石的放置、散落、逃逸。
@@ -31,8 +40,21 @@ class GemPlacementManager(
 ) {
     private var effectUtils: EffectUtils? = null
     private var saveCallback: Runnable? = null
+    val presentationManager = GemPresentationManager(plugin, gameplayConfig, stateManager)
 
     val gemEscapeTasks: MutableMap<UUID, Any> = ConcurrentHashMap()
+    private val gemTransitions: MutableMap<UUID, GemTransition> = ConcurrentHashMap()
+    private val transitionLock = Any()
+    private val escapeOperationGeneration = AtomicLong()
+    private val escapeCoordinator = GemEscapeCoordinator(
+        plugin,
+        gameplayConfig,
+        stateManager,
+        gemEscapeTasks,
+        GemEscapeRelocator { request, completion -> relocateEscapingGem(request, completion) },
+        GemEscapeSuccessListener { request, result -> handleEscapeSuccess(request, result) },
+        Runnable { savePlacementState() },
+    )
 
     fun setEffectUtils(effectUtils: EffectUtils?) {
         this.effectUtils = effectUtils
@@ -67,7 +89,10 @@ class GemPlacementManager(
                 val border = world.worldBorder
                 val target = base.block.location
                 var tries = 0
-                while (tries < MAX_VERTICAL_SEARCH && target.block.type.isSolid) {
+                while (
+                    tries < MAX_VERTICAL_SEARCH &&
+                    (target.block.type.isSolid || occupiedByAnotherGem(target, gemId))
+                ) {
                     target.add(0.0, 1.0, 0.0)
                     tries++
                 }
@@ -80,9 +105,9 @@ class GemPlacementManager(
                     unplaceRuleGem(oldLocation, gemId)
                 }
                 val mat = stateManager.getGemMaterial(gemId)
-                target.block.type = mat
+                presentationManager.renderPlacedGem(gemId, target, mat)
                 stateManager.bindPlacedGem(target, gemId)
-                scheduleEscape(gemId)
+                recordGemMovement(gemId)
                 savePlacementState()
             },
             0L,
@@ -96,13 +121,14 @@ class GemPlacementManager(
 
     private fun unplaceRuleGemThen(loc: Location?, gemId: UUID?, afterUnplace: Runnable?) {
         if (loc == null) return
-        val fLoc = loc.block.location
+        val fLoc = toBlockLocation(loc) ?: return
+        presentationManager.detachPlacedGem(gemId, fLoc)
+        stateManager.unbindPlacedGem(fLoc, gemId)
         SchedulerUtil.regionRun(
             plugin,
             fLoc,
             {
-                fLoc.block.type = Material.AIR
-                stateManager.unbindPlacedGem(fLoc, gemId)
+                presentationManager.clearLocationIfUnoccupied(fLoc)
                 afterUnplace?.run()
             },
             0L,
@@ -142,9 +168,9 @@ class GemPlacementManager(
                     unplaceRuleGem(oldLoc, gemId)
                 }
 
-                t.block.type = mat
+                presentationManager.renderPlacedGem(gemId, t, mat)
                 stateManager.bindPlacedGem(t, gemId)
-                scheduleEscape(gemId)
+                recordGemMovement(gemId)
                 savePlacementState()
             },
             0L,
@@ -173,6 +199,22 @@ class GemPlacementManager(
                 plugin.logger.severe("Cannot place gem $gemId: no available world! Gem will be in unknown state")
             }
         }
+    }
+
+    fun adoptPlayerPlacedGem(gemId: UUID?, location: Location?) {
+        if (gemId == null || location == null) return
+        val target = location.block.location
+        SchedulerUtil.regionRun(
+            plugin,
+            target,
+            {
+                presentationManager.renderPlacedGem(gemId, target, stateManager.getGemMaterial(gemId))
+                recordGemMovement(gemId)
+                savePlacementState()
+            },
+            0L,
+            -1L,
+        )
     }
 
     private fun scheduleRandomAttempt(gemId: UUID?, corner1: Location?, corner2: Location?, attemptsLeft: Int) {
@@ -243,54 +285,267 @@ class GemPlacementManager(
     }
 
     fun scheduleEscape(gemId: UUID?) {
-        if (!gameplayConfig.isGemEscapeEnabled) return
-        if (gemId == null) return
+        escapeCoordinator.ensureTracked(gemId)
+    }
 
-        cancelEscape(gemId)
-
-        val minTicks = gameplayConfig.gemEscapeMinIntervalTicks
-        val maxTicks = gameplayConfig.gemEscapeMaxIntervalTicks
-        val range = maxOf(1L, maxTicks - minTicks)
-        val delayTicks = minTicks + (Random().nextDouble() * range).toLong()
-
-        val task = SchedulerUtil.globalRun(plugin, { triggerEscape(gemId) }, delayTicks, -1L)
-        if (task != null) {
-            gemEscapeTasks[gemId] = task
+    private fun recordGemMovement(gemId: UUID) {
+        synchronized(transitionLock) {
+            gemTransitions.remove(gemId, GemTransition.ESCAPE)
         }
+        escapeCoordinator.recordMovement(gemId)
     }
 
     fun cancelEscape(gemId: UUID?) {
-        if (gemId == null) return
-        val task = gemEscapeTasks.remove(gemId)
-        if (task != null) {
-            SchedulerUtil.cancelTask(task)
-        }
+        escapeCoordinator.recordPickup(gemId)
     }
 
     fun cancelAllEscapeTasks() {
-        for (task in gemEscapeTasks.values) {
-            SchedulerUtil.cancelTask(task)
-        }
-        gemEscapeTasks.clear()
+        shutdownEscape()
     }
 
     fun initializeEscapeTasks() {
-        if (!gameplayConfig.isGemEscapeEnabled) return
-        for (gemId in stateManager.gemUuidToLocation.keys) {
-            scheduleEscape(gemId)
+        escapeCoordinator.initialize()
+    }
+
+    fun prepareEscapeReload() {
+        synchronized(transitionLock) {
+            escapeOperationGeneration.incrementAndGet()
+            gemTransitions.clear()
+            escapeCoordinator.prepareReload()
         }
     }
 
-    private fun triggerEscape(gemId: UUID?) {
+    fun loadEscapeState(data: org.bukkit.configuration.file.FileConfiguration?) {
+        escapeCoordinator.loadState(data)
+    }
+
+    fun populateEscapeSaveSnapshot(snapshot: MutableMap<String, Any?>) {
+        escapeCoordinator.populateSaveSnapshot(snapshot)
+    }
+
+    fun resetEscapeStateForScatter() {
+        synchronized(transitionLock) {
+            escapeOperationGeneration.incrementAndGet()
+            gemTransitions.clear()
+            escapeCoordinator.resetForScatter()
+        }
+    }
+
+    fun shutdownEscape() {
+        synchronized(transitionLock) {
+            escapeOperationGeneration.incrementAndGet()
+            gemTransitions.clear()
+            escapeCoordinator.shutdown()
+        }
+    }
+
+    fun tryBeginPickup(gemId: UUID?): Boolean {
+        if (gemId == null) return false
+        synchronized(transitionLock) {
+            return gemTransitions.putIfAbsent(gemId, GemTransition.PICKUP) == null
+        }
+    }
+
+    fun endPickup(gemId: UUID?) {
         if (gemId == null) return
-        gemEscapeTasks.remove(gemId)
+        synchronized(transitionLock) {
+            gemTransitions.remove(gemId, GemTransition.PICKUP)
+        }
+    }
 
-        val oldLocation = stateManager.gemUuidToLocation[gemId] ?: return
-        playEscapeEffects(oldLocation, gemId)
-        unplaceRuleGemThen(oldLocation, gemId, Runnable { randomPlaceGem(gemId) })
+    private fun relocateEscapingGem(
+        request: GemEscapeRequest,
+        completion: Consumer<GemEscapeRelocationResult>,
+    ) {
+        val operationGeneration: Long
+        synchronized(transitionLock) {
+            if (
+                request.lifecycle != escapeCoordinator.currentLifecycle() ||
+                gemTransitions.putIfAbsent(request.gemId, GemTransition.ESCAPE) != null
+            ) {
+                completion.accept(GemEscapeRelocationResult(GemEscapeRelocationStatus.STALE))
+                return
+            }
+            operationGeneration = escapeOperationGeneration.get()
+        }
 
+        val completed = AtomicBoolean(false)
+        fun finish(result: GemEscapeRelocationResult) {
+            if (!completed.compareAndSet(false, true)) return
+            try {
+                completion.accept(result)
+            } finally {
+                synchronized(transitionLock) {
+                    gemTransitions.remove(request.gemId, GemTransition.ESCAPE)
+                }
+            }
+        }
+
+        val attempts = gameplayConfig.gemEscapeAttemptsPerRound.coerceAtLeast(1)
+
+        fun attemptCandidate(attempt: Int) {
+            if (!isEscapeRequestCurrent(request, operationGeneration)) {
+                finish(GemEscapeRelocationResult(GemEscapeRelocationStatus.STALE))
+                return
+            }
+            if (attempt >= attempts) {
+                finish(GemEscapeRelocationResult(GemEscapeRelocationStatus.FAILED))
+                return
+            }
+
+            val candidate = createEscapeCandidate(request)
+            if (candidate == null) {
+                finish(GemEscapeRelocationResult(GemEscapeRelocationStatus.FAILED))
+                return
+            }
+            val task = SchedulerUtil.regionRun(
+                plugin,
+                candidate,
+                {
+                    if (!isEscapeRequestCurrent(request, operationGeneration)) {
+                        finish(GemEscapeRelocationResult(GemEscapeRelocationStatus.STALE))
+                        return@regionRun
+                    }
+                    val world = candidate.world
+                    if (world == null) {
+                        attemptCandidate(attempt + 1)
+                        return@regionRun
+                    }
+                    val target = try {
+                        val y = world.getHighestBlockYAt(candidate.blockX, candidate.blockZ) + 1
+                        Location(world, candidate.blockX.toDouble(), y.toDouble(), candidate.blockZ.toDouble())
+                    } catch (_: Throwable) {
+                        attemptCandidate(attempt + 1)
+                        return@regionRun
+                    }
+
+                    if (!isValidEscapeTarget(request, target)) {
+                        attemptCandidate(attempt + 1)
+                        return@regionRun
+                    }
+
+                    var committed = false
+                    var commitError: Throwable? = null
+                    synchronized(transitionLock) {
+                        if (isEscapeRequestCurrent(request, operationGeneration) && isValidEscapeTarget(request, target)) {
+                            try {
+                                presentationManager.renderPlacedGem(
+                                    request.gemId,
+                                    target,
+                                    stateManager.getGemMaterial(request.gemId),
+                                )
+                                stateManager.bindPlacedGem(target, request.gemId)
+                                committed = true
+                            } catch (error: Throwable) {
+                                commitError = error
+                            }
+                        }
+                    }
+                    if (!committed) {
+                        if (commitError != null) {
+                            plugin.logger.warning(
+                                "Failed to commit escape relocation for ${request.gemId}: ${commitError?.message}",
+                            )
+                            if (!isSameBlock(stateManager.getGemLocation(request.gemId), target)) {
+                                presentationManager.clearLocationIfUnoccupied(target)
+                            }
+                        }
+                        attemptCandidate(attempt + 1)
+                        return@regionRun
+                    }
+
+                    // The UUID points at the destination before the old representation is cleared.
+                    // Navigator sessions therefore never observe an unbound gem.
+                    try {
+                        unplaceRuleGem(request.expectedLocation, request.gemId)
+                    } catch (error: Throwable) {
+                        plugin.logger.warning(
+                            "Gem ${request.gemId} moved, but its old presentation cleanup failed: ${error.message}",
+                        )
+                    }
+                    finish(
+                        GemEscapeRelocationResult(
+                            GemEscapeRelocationStatus.SUCCESS,
+                            target.clone(),
+                        ),
+                    )
+                },
+                0L,
+                -1L,
+            )
+            if (task == null) {
+                attemptCandidate(attempt + 1)
+            }
+        }
+
+        attemptCandidate(0)
+    }
+
+    private fun isEscapeRequestCurrent(request: GemEscapeRequest, operationGeneration: Long): Boolean {
+        if (operationGeneration != escapeOperationGeneration.get()) return false
+        if (request.lifecycle != escapeCoordinator.currentLifecycle()) return false
+        if (gemTransitions[request.gemId] != GemTransition.ESCAPE) return false
+        if (stateManager.getGemHolder(request.gemId) != null) return false
+        return isSameBlock(stateManager.getGemLocation(request.gemId), request.expectedLocation)
+    }
+
+    private fun isValidEscapeTarget(request: GemEscapeRequest, target: Location): Boolean {
+        val world = target.world ?: return false
+        if (isSameBlock(request.expectedLocation, target)) return false
+        if (!world.worldBorder.isInside(target)) return false
+        if (target.blockY < world.minHeight || target.blockY >= world.maxHeight) return false
+        val block = target.block
+        if (block.type.isSolid || block.isLiquid || occupiedByAnotherGem(target, request.gemId)) return false
+        val material = stateManager.getGemMaterial(request.gemId)
+        return !stateManager.isSupportRequired(material) || stateManager.hasBlockSupport(target)
+    }
+
+    private fun createEscapeCandidate(request: GemEscapeRequest): Location? {
+        return if (request.mode == GemEscapeMode.GLOBAL_FALLBACK) {
+            createGlobalEscapeCandidate(request.gemId)
+        } else {
+            createLocalEscapeCandidate(request.expectedLocation, request.failedRounds)
+        }
+    }
+
+    private fun createLocalEscapeCandidate(origin: Location, failedRound: Int): Location? {
+        val world = origin.world ?: return null
+        val baseMin = gameplayConfig.gemEscapeLocalMinDistance.coerceAtLeast(1.0)
+        val baseMax = gameplayConfig.gemEscapeLocalMaxDistance.coerceAtLeast(baseMin)
+        val growth = gameplayConfig.gemEscapeDistanceGrowth.coerceAtLeast(0.0)
+        val minDistance = if (failedRound <= 0) baseMin else baseMax + growth * (failedRound - 1)
+        val maxDistance = (baseMax + growth * failedRound).coerceAtLeast(minDistance)
+        val random = ThreadLocalRandom.current()
+        val squaredDistance = minDistance * minDistance +
+            random.nextDouble() * (maxDistance * maxDistance - minDistance * minDistance)
+        val distance = sqrt(squaredDistance)
+        val angle = random.nextDouble() * PI * 2.0
+        val x = floor(origin.x + cos(angle) * distance).toInt()
+        val z = floor(origin.z + sin(angle) * distance).toInt()
+        return Location(world, x.toDouble(), (world.minHeight + 1).toDouble(), z.toDouble())
+    }
+
+    private fun createGlobalEscapeCandidate(gemId: UUID): Location? {
+        val range = getGemPlaceRange(gemId) ?: return null
+        val first = range[0]
+        val second = range[1]
+        val world = first.world ?: return null
+        if (world != second.world) return null
+        val minX = minOf(first.blockX, second.blockX)
+        val maxX = maxOf(first.blockX, second.blockX)
+        val minZ = minOf(first.blockZ, second.blockZ)
+        val maxZ = maxOf(first.blockZ, second.blockZ)
+        val random = ThreadLocalRandom.current()
+        val x = floor(minX + random.nextDouble() * (maxX.toLong() - minX.toLong() + 1L)).toInt()
+        val z = floor(minZ + random.nextDouble() * (maxZ.toLong() - minZ.toLong() + 1L)).toInt()
+        return Location(world, x.toDouble(), (world.minHeight + 1).toDouble(), z.toDouble())
+    }
+
+    private fun handleEscapeSuccess(request: GemEscapeRequest, result: GemEscapeRelocationResult) {
+        if (result.status != GemEscapeRelocationStatus.SUCCESS || result.newLocation == null) return
+        playEscapeEffects(request.expectedLocation, request.gemId)
         if (gameplayConfig.isGemEscapeBroadcast) {
-            broadcastEscape(gemId)
+            broadcastEscape(request.gemId, request.mode)
         }
     }
 
@@ -306,6 +561,11 @@ class GemPlacementManager(
             first.blockX == second.blockX &&
             first.blockY == second.blockY &&
             first.blockZ == second.blockZ
+    }
+
+    private fun occupiedByAnotherGem(location: Location, gemId: UUID): Boolean {
+        val occupant = stateManager.locationToGemUuid[location.block.location]
+        return occupant != null && occupant != gemId
     }
 
     private fun playEscapeEffects(location: Location?, gemId: UUID?) {
@@ -349,7 +609,7 @@ class GemPlacementManager(
         )
     }
 
-    private fun broadcastEscape(gemId: UUID?) {
+    private fun broadcastEscape(gemId: UUID?, mode: GemEscapeMode) {
         val gemKey = stateManager.gemUuidToKey.getOrDefault(gemId, "unknown")
         val definition = stateManager.findGemDefinition(gemKey)
         val gemName = definition?.displayName ?: gemKey
@@ -358,10 +618,28 @@ class GemPlacementManager(
         placeholders["gem_name"] = gemName
         placeholders["gem_key"] = gemKey
 
-        for (player in Bukkit.getOnlinePlayers()) {
-            languageManager.sendMessage(player, "gem_escape.broadcast", placeholders)
+        val messageKey = if (mode == GemEscapeMode.GLOBAL_FALLBACK) {
+            "gem_escape.fallback_broadcast"
+        } else {
+            "gem_escape.broadcast"
         }
-        languageManager.logMessage("gem_escape", placeholders)
+        SchedulerUtil.globalRun(
+            plugin,
+            {
+                for (player in Bukkit.getOnlinePlayers()) {
+                    SchedulerUtil.entityRun(
+                        plugin,
+                        player,
+                        { languageManager.sendMessage(player, messageKey, placeholders) },
+                        0L,
+                        -1L,
+                    )
+                }
+                languageManager.logMessage("gem_escape", placeholders)
+            },
+            0L,
+            -1L,
+        )
     }
 
     fun setGemAltarLocation(gemKey: String?, location: Location?) {
@@ -470,7 +748,7 @@ class GemPlacementManager(
     }
 
     fun initializePlacedGemBlocks() {
-        restoreGemBlocks(stateManager.gemUuidToLocation)
+        presentationManager.synchronizePlacedGems(stateManager.gemUuidToLocation)
     }
 
     fun restoreGemBlocks(gems: Map<UUID, Location>?) {
@@ -498,7 +776,7 @@ class GemPlacementManager(
                     } catch (e: Throwable) {
                         plugin.logger.fine("Failed to load chunk for gem block restoration: " + e.message)
                     }
-                    targetLocation.block.type = targetMaterial
+                    presentationManager.renderPlacedGem(gemId, targetLocation, targetMaterial)
                 },
                 0L,
                 -1L,
@@ -632,6 +910,7 @@ class GemPlacementManager(
     }
 
     fun checkPlayersNearRuleGems() {
+        presentationManager.refreshAllPlayers()
         if (stateManager.locationToGemUuid.isEmpty()) return
         for (player in Bukkit.getOnlinePlayers()) {
             checkPlayerNearRuleGems(player)
@@ -641,6 +920,30 @@ class GemPlacementManager(
     fun checkPlayerNearRuleGems(player: Player?) {
         if (player == null || stateManager.locationToGemUuid.isEmpty()) return
         SchedulerUtil.entityRun(plugin, player, { doPlayerNearCheck(player) }, 0L, -1L)
+    }
+
+    fun refreshDisplayForPlayer(player: Player?) {
+        presentationManager.refreshPlayer(player)
+    }
+
+    fun removeDisplayViewer(player: Player?) {
+        presentationManager.removeViewer(player)
+    }
+
+    fun resolveDisplayedGem(entity: org.bukkit.entity.Entity?): UUID? = presentationManager.resolveGemId(entity)
+
+    fun shutdownPresentation() {
+        presentationManager.shutdown()
+    }
+
+    private fun toBlockLocation(location: Location?): Location? {
+        val world = location?.world ?: return null
+        return Location(
+            world,
+            location.blockX.toDouble(),
+            location.blockY.toDouble(),
+            location.blockZ.toDouble(),
+        )
     }
 
     private fun doPlayerNearCheck(player: Player?) {
@@ -662,5 +965,10 @@ class GemPlacementManager(
         private const val MAX_VERTICAL_SEARCH = 6
         private const val MAX_RANDOM_ATTEMPTS = 12
         private const val PROXIMITY_DETECTION_RANGE = 16.0
+    }
+
+    private enum class GemTransition {
+        PICKUP,
+        ESCAPE,
     }
 }

@@ -34,6 +34,8 @@ import org.cubexmc.view.GemStatusView
 import java.util.Collections
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 import java.util.function.Consumer
 
 /**
@@ -48,6 +50,7 @@ class GemManager(
     private val languageManager: LanguageManager,
 ) {
     private var historyLogger: HistoryLogger? = null
+    private val pickupsInProgress: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
 
     val stateManager: GemStateManager = GemStateManager(plugin, gemParser, languageManager)
     val allowanceManager: GemAllowanceManager = GemAllowanceManager(gemParser, gameplayConfig)
@@ -68,6 +71,10 @@ class GemManager(
     )
 
     private val saveLock = Any()
+    private val saveRevision = AtomicLong()
+
+    @Volatile
+    private var lastWrittenSaveRevision = 0L
 
     init {
         allowanceManager.setSaveCallback(Runnable { saveGems() })
@@ -102,10 +109,13 @@ class GemManager(
             return
         }
 
+        placementManager.prepareEscapeReload()
+        placementManager.shutdownPresentation()
         stateManager.clearAll()
         permissionManager.clearRuntimeState()
         allowanceManager.clearAll()
 
+        placementManager.loadEscapeState(gemsData)
         stateManager.loadData(gemsData, Consumer { gemId -> placementManager.randomPlaceGem(gemId) })
         permissionManager.loadData(gemsData)
         allowanceManager.loadData(gemsData)
@@ -135,13 +145,16 @@ class GemManager(
     }
 
     private fun saveGemsInternal(asyncWhenEnabled: Boolean) {
+        val revision = saveRevision.incrementAndGet()
         val snapshot: MutableMap<String, Any?> = HashMap()
         stateManager.populateSaveSnapshot(snapshot)
         permissionManager.populateSaveSnapshot(snapshot)
         allowanceManager.populateSaveSnapshot(snapshot)
+        placementManager.populateEscapeSaveSnapshot(snapshot)
 
         val saveTask = Runnable {
             synchronized(saveLock) {
+                if (revision < lastWrittenSaveRevision) return@synchronized
                 val gemsData = configManager.getGemsData()
                 for (key in SAVE_ROOT_KEYS) {
                     gemsData.set(key, null)
@@ -150,6 +163,7 @@ class GemManager(
                     gemsData.set(key, value)
                 }
                 configManager.saveGemData(gemsData)
+                lastWrittenSaveRevision = revision
             }
         }
 
@@ -240,6 +254,7 @@ class GemManager(
         event.isCancelled = false
         stateManager.clearGemHolder(gemId)
         stateManager.bindPlacedGem(placedLoc, gemId)
+        placementManager.adoptPlayerPlacedGem(gemId, placedLoc)
 
         val logger = historyLogger
         if (logger != null) {
@@ -285,34 +300,69 @@ class GemManager(
         }
 
         val gemId = stateManager.locationToGemUuid[block.location] ?: return
-        val inventory = player.inventory
-        if (inventory.firstEmpty() == -1) {
-            languageManager.logMessage("inventory_full")
-            event.isCancelled = true
-            return
+        when (pickupPlacedGem(player, gemId, block.location)) {
+            PickupResult.SUCCESS -> Unit
+            PickupResult.INVENTORY_FULL,
+            PickupResult.CANCELLED,
+            PickupResult.INVALID,
+            -> event.isCancelled = true
+        }
+    }
+
+    fun blockPlacementConflictsWithDisplayedGem(player: Player, location: Location): Boolean {
+        if (gameplayConfig.gemPresentationMode != GemPresentationMode.PROXIMITY_DISPLAY) return false
+        if (!stateManager.locationToGemUuid.containsKey(location.block.location)) return false
+        languageManager.sendMessage(player, "inventory.display_location_occupied")
+        return true
+    }
+
+    fun handleDisplayedGemHit(player: Player, entity: org.bukkit.entity.Entity?): Boolean {
+        val gemId = placementManager.resolveDisplayedGem(entity) ?: return false
+        val location = stateManager.getGemLocation(gemId) ?: return false
+        return pickupPlacedGem(player, gemId, location) == PickupResult.SUCCESS
+    }
+
+    private fun pickupPlacedGem(player: Player, gemId: UUID, location: Location): PickupResult {
+        val currentLocation = stateManager.getGemLocation(gemId) ?: return PickupResult.INVALID
+        if (!sameBlock(currentLocation, location) || stateManager.getGemHolder(gemId) != null) {
+            return PickupResult.INVALID
+        }
+        if (!pickupsInProgress.add(gemId)) return PickupResult.INVALID
+        if (!placementManager.tryBeginPickup(gemId)) {
+            pickupsInProgress.remove(gemId)
+            return PickupResult.INVALID
         }
 
-        val pickupKey = stateManager.getGemKey(gemId) ?: return
-        val pickupEvent = GemPickupEvent(player, gemId, pickupKey, block.location)
-        Bukkit.getPluginManager().callEvent(pickupEvent)
-        if (pickupEvent.isCancelled) {
-            event.isCancelled = true
-            return
-        }
+        try {
+            val inventory = player.inventory
+            if (inventory.firstEmpty() == -1) {
+                languageManager.logMessage("inventory_full")
+                return PickupResult.INVENTORY_FULL
+            }
 
-        val gemItem = stateManager.createRuleGem(gemId)
-        inventory.addItem(gemItem)
-        stateManager.setGemHolder(gemId, player)
-        placementManager.cancelEscape(gemId)
-        placementManager.unplaceRuleGem(block.location, gemId)
-        permissionManager.handleInventoryOwnershipOnPickup(player, gemId)
+            val pickupKey = stateManager.getGemKey(gemId) ?: return PickupResult.INVALID
+            val pickupEvent = GemPickupEvent(player, gemId, pickupKey, currentLocation)
+            Bukkit.getPluginManager().callEvent(pickupEvent)
+            if (pickupEvent.isCancelled) return PickupResult.CANCELLED
 
-        val definition = stateManager.findGemDefinition(stateManager.getGemKey(gemId))
-        val onPickup = definition?.onPickup
-        if (onPickup != null) {
-            effectUtils.executeCommands(onPickup, Collections.singletonMap("%player%", player.name))
-            effectUtils.playLocalSound(player.location, onPickup, 1.0f, 1.0f)
-            effectUtils.playParticle(player.location, onPickup)
+            inventory.addItem(stateManager.createRuleGem(gemId))
+            stateManager.setGemHolder(gemId, player)
+            placementManager.cancelEscape(gemId)
+            placementManager.unplaceRuleGem(currentLocation, gemId)
+            permissionManager.handleInventoryOwnershipOnPickup(player, gemId)
+
+            val definition = stateManager.findGemDefinition(stateManager.getGemKey(gemId))
+            val onPickup = definition?.onPickup
+            if (onPickup != null) {
+                effectUtils.executeCommands(onPickup, Collections.singletonMap("%player%", player.name))
+                effectUtils.playLocalSound(player.location, onPickup, 1.0f, 1.0f)
+                effectUtils.playParticle(player.location, onPickup)
+            }
+            saveGems()
+            return PickupResult.SUCCESS
+        } finally {
+            placementManager.endPickup(gemId)
+            pickupsInProgress.remove(gemId)
         }
     }
 
@@ -364,6 +414,7 @@ class GemManager(
         }
         permissionManager.restoreRedeemedPermissions(player)
         permissionManager.applyPendingRevokesIfAny(player)
+        placementManager.refreshDisplayForPlayer(player)
     }
 
     fun scatterGems() {
@@ -1022,6 +1073,21 @@ class GemManager(
         placementManager.checkPlayersNearRuleGems()
     }
 
+    fun handleDisplayViewerQuit(player: Player?) {
+        placementManager.removeDisplayViewer(player)
+    }
+
+    fun isDisplayedGem(entity: org.bukkit.entity.Entity?): Boolean =
+        placementManager.resolveDisplayedGem(entity) != null
+
+    fun shutdownPresentation() {
+        placementManager.shutdownPresentation()
+    }
+
+    fun shutdownEscape() {
+        placementManager.shutdownEscape()
+    }
+
     fun setGemAltarLocation(gemKey: String?, location: Location?) {
         placementManager.setGemAltarLocation(gemKey, location)
     }
@@ -1041,6 +1107,21 @@ class GemManager(
             "pending_revokes",
             "allowed_uses",
             "player_names",
+            "escape-state",
         )
+    }
+
+    private fun sameBlock(first: Location, second: Location): Boolean {
+        return first.world == second.world &&
+            first.blockX == second.blockX &&
+            first.blockY == second.blockY &&
+            first.blockZ == second.blockZ
+    }
+
+    private enum class PickupResult {
+        SUCCESS,
+        INVENTORY_FULL,
+        CANCELLED,
+        INVALID,
     }
 }

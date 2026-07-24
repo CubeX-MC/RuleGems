@@ -12,6 +12,7 @@ import java.io.File
 import java.util.Locale
 import java.util.Random
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.max
@@ -26,7 +27,7 @@ class GemIntelBroadcaster(
     private val gemManager: GemManager,
 ) : Feature(plugin, PERMISSION) {
     private val random = Random()
-    private val recipientCooldowns: MutableMap<UUID, Long> = HashMap()
+    private val recipientCooldowns: MutableMap<UUID, Long> = ConcurrentHashMap()
     private var task: Any? = null
 
     private var intervalSeconds = 1800
@@ -132,30 +133,31 @@ class GemIntelBroadcaster(
         if (!enabled) return
 
         val recipient = chooseRecipient() ?: return
-        val target = chooseTargetGem(recipient) ?: return
-        val message = buildMessage(target) ?: return
-
-        recipientCooldowns[recipient.uniqueId] = System.currentTimeMillis()
         SchedulerUtil.entityRun(
             plugin,
             recipient,
             {
-                if (recipient.isOnline) {
-                    recipient.sendMessage(ColorUtils.translateColorCodes(message) ?: "")
-                }
+                deliverIntel(recipient)
             },
             0L,
             -1L,
         )
     }
 
+    private fun deliverIntel(recipient: Player) {
+        if (!recipient.isOnline) return
+
+        val target = chooseTargetGem(recipient.location) ?: return
+        val message = buildMessage(target) ?: return
+
+        recipientCooldowns[recipient.uniqueId] = System.currentTimeMillis()
+        recipient.sendMessage(ColorUtils.translateColorCodes(message) ?: "")
+    }
+
     private fun chooseRecipient(): Player? {
         val now = System.currentTimeMillis()
         val rulers = gemManager.currentRulers
         val eligible = Bukkit.getOnlinePlayers().filter { player ->
-            if (!player.isOnline) {
-                return@filter false
-            }
             val redeemedCount = rulers[player.uniqueId]?.size ?: 0
             if (requireNonRuler && redeemedCount > 0) {
                 return@filter false
@@ -175,7 +177,7 @@ class GemIntelBroadcaster(
         return eligible[random.nextInt(eligible.size)]
     }
 
-    private fun chooseTargetGem(recipient: Player): IntelTarget? {
+    private fun chooseTargetGem(recipientLocation: Location): IntelTarget? {
         val targets = gemManager.getAllGemLocations()
             .mapNotNull { (gemId, location) ->
                 if (location.world == null) {
@@ -188,10 +190,10 @@ class GemIntelBroadcaster(
                 if (minDistanceFromRecipient <= 0) {
                     return@filter true
                 }
-                if (recipient.location.world != target.location.world) {
+                if (recipientLocation.world != target.location.world) {
                     return@filter true
                 }
-                recipient.location.distance(target.location) >= minDistanceFromRecipient
+                recipientLocation.distance(target.location) >= minDistanceFromRecipient
             }
         if (targets.isEmpty()) {
             return null
@@ -252,14 +254,11 @@ class GemIntelBroadcaster(
 
     private fun rangeContaining(coordinate: Int): Pair<Int, Int> {
         val width = drawRangeWidth()
-        val offset = if (width <= 0) 0 else random.nextInt(width + 1)
-        var start = roundDown(coordinate - offset, rangeRoundTo)
-        var end = start + width
-        if (coordinate > end) {
-            end = roundUp(coordinate, rangeRoundTo)
-            start = end - width
-        }
-        return min(start, end) to max(start, end)
+        val firstStart = roundUp(coordinate - width, rangeRoundTo)
+        val lastStart = roundDown(coordinate, rangeRoundTo)
+        val slots = max(0, (lastStart - firstStart) / rangeRoundTo)
+        val start = firstStart + random.nextInt(slots + 1) * rangeRoundTo
+        return start to start + width
     }
 
     private fun drawRangeWidth(): Int {

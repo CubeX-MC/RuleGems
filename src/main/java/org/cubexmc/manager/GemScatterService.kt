@@ -5,6 +5,8 @@ import org.bukkit.Location
 import org.cubexmc.model.ExecuteConfig
 import org.cubexmc.model.GemDefinition
 import org.cubexmc.utils.EffectUtils
+import java.util.ArrayDeque
+import java.util.Locale
 import java.util.UUID
 import kotlin.math.max
 
@@ -22,10 +24,12 @@ class GemScatterService(
     private val saveAction: Runnable,
 ) {
     fun scatterGems() {
+        placementManager.resetEscapeStateForScatter()
         languageManager.logMessage("scatter_start")
         var scatteredCount = 0
 
         val placedSnapshot: Map<Location, UUID> = stateManager.snapshotPlacedGems()
+        val keySnapshot: Map<UUID, String> = stateManager.snapshotGemKeys()
         for ((location, gemId) in placedSnapshot) {
             placementManager.unplaceRuleGem(location, gemId)
         }
@@ -47,10 +51,12 @@ class GemScatterService(
         val definitions: List<GemDefinition>? = gemParser.gemDefinitions
         val sampleGemIds = HashMap<GemDefinition, UUID>()
         if (!definitions.isNullOrEmpty()) {
+            val reusableIds = reusableIdsByKey(keySnapshot)
             for (definition in definitions) {
                 val count = max(1, definition.count)
                 for (i in 0 until count) {
-                    val gemId = UUID.randomUUID()
+                    val normalizedKey = definition.gemKey.lowercase(Locale.ROOT)
+                    val gemId = reusableIds[normalizedKey]?.pollFirst() ?: UUID.randomUUID()
                     stateManager.setGemKey(gemId, definition.gemKey)
                     placementManager.randomPlaceGem(gemId)
                     sampleGemIds.putIfAbsent(definition, gemId)
@@ -66,12 +72,6 @@ class GemScatterService(
                     placementManager.triggerScatterEffects(gemId, location, null, false)
                 }
             }
-        } else {
-            val toPlace = max(0, gemParser.requiredCount)
-            scatteredCount = toPlace
-            for (i in 0 until toPlace) {
-                placementManager.randomPlaceGem(UUID.randomUUID())
-            }
         }
 
         val placeholders = HashMap<String, String>()
@@ -85,5 +85,15 @@ class GemScatterService(
             languageManager.showTitle(player, "gems_scattered", placeholders)
         }
         saveAction.run()
+    }
+
+    private fun reusableIdsByKey(snapshot: Map<UUID, String>): Map<String, ArrayDeque<UUID>> {
+        val grouped = snapshot.entries.groupBy { it.value.lowercase(Locale.ROOT) }
+        val result = HashMap<String, ArrayDeque<UUID>>()
+        for ((key, entries) in grouped) {
+            val sorted = entries.map { it.key }.sortedBy { it.toString() }
+            result[key] = ArrayDeque(sorted)
+        }
+        return result
     }
 }

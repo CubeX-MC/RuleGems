@@ -19,6 +19,9 @@ import org.cubexmc.utils.ColorUtils
 import org.cubexmc.utils.SchedulerUtil
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.sqrt
 
 /**
  * 宝石导航功能
@@ -41,9 +44,9 @@ class GemNavigator(
     private var thresholdFar = 500
 
     // 冷却追踪
-    private val cooldowns: MutableMap<UUID, Long> = HashMap()
-    private val navigationSessions: MutableMap<UUID, CompassSession> = HashMap()
-    private var nextSessionId = 0L
+    private val cooldowns: MutableMap<UUID, Long> = ConcurrentHashMap()
+    private val navigationSessions: MutableMap<UUID, CompassSession> = ConcurrentHashMap()
+    private val nextSessionId = AtomicLong()
 
     override fun initialize() {
         Bukkit.getPluginManager().registerEvents(this, plugin)
@@ -140,18 +143,20 @@ class GemNavigator(
         val result = findNearestGem(playerLoc)
 
         if (result == null) {
+            cancelNavigationSession(player, true)
             val msg = plugin.languageManager.formatMessage("feature.navigate.no_gem_found", null) ?: ""
             player.sendMessage(ColorUtils.translateColorCodes(msg) ?: "")
             return
         }
 
         if (maxRange > 0 && result.distance > maxRange) {
+            cancelNavigationSession(player, true)
             val msg = plugin.languageManager.formatMessage("feature.navigate.out_of_range", null) ?: ""
             player.sendMessage(ColorUtils.translateColorCodes(msg) ?: "")
             return
         }
 
-        applyCompassTarget(player, result.location)
+        applyCompassTarget(player, result)
 
         val direction = getDirection(playerLoc, result.location)
         val placeholders = HashMap<String, String>()
@@ -168,7 +173,7 @@ class GemNavigator(
         }
     }
 
-    private fun applyCompassTarget(player: Player, target: Location) {
+    private fun applyCompassTarget(player: Player, result: NearestGemResult) {
         val playerId = player.uniqueId
         val previousSession = navigationSessions.remove(playerId)
         if (previousSession != null) {
@@ -183,37 +188,92 @@ class GemNavigator(
             return
         }
 
-        player.compassTarget = target
-        if (activeSeconds < 0) {
+        val target = relativeCompassTarget(player.location, result.location)
+        if (target == null) {
+            if (previousSession != null) {
+                player.compassTarget = originalTarget
+            }
             return
         }
+        player.compassTarget = target
 
-        val sessionId = ++nextSessionId
+        val sessionId = nextSessionId.incrementAndGet()
+        val expiresAt = if (activeSeconds > 0) {
+            System.currentTimeMillis() + activeSeconds.toLong() * 1000L
+        } else {
+            null
+        }
         val task = SchedulerUtil.entityRun(
             plugin,
             player,
             {
-                expireNavigationSession(player, sessionId)
+                refreshNavigationSession(player, sessionId)
             },
-            activeSeconds * 20L,
-            -1L,
+            REFRESH_INTERVAL_TICKS,
+            REFRESH_INTERVAL_TICKS,
         )
-        navigationSessions[playerId] = CompassSession(sessionId, originalTarget, task)
+        navigationSessions[playerId] = CompassSession(
+            sessionId,
+            originalTarget,
+            result.gemId,
+            expiresAt,
+            task,
+        )
     }
 
-    private fun expireNavigationSession(player: Player, sessionId: Long) {
+    private fun refreshNavigationSession(player: Player, sessionId: Long) {
         val playerId = player.uniqueId
         val session = navigationSessions[playerId] ?: return
         if (session.id != sessionId) {
             return
         }
-        navigationSessions.remove(playerId)
+
         if (!player.isOnline) {
+            if (navigationSessions.remove(playerId, session)) {
+                SchedulerUtil.cancelTask(session.task)
+            }
             return
         }
+
+        if (session.expiresAt != null && System.currentTimeMillis() >= session.expiresAt) {
+            finishNavigationSession(player, session, true)
+            return
+        }
+
+        val target = gemManager.getGemLocation(session.gemId)
+        if (target == null || gemManager.getGemHolder(session.gemId) != null) {
+            finishNavigationSession(player, session, false)
+            return
+        }
+
+        val playerLocation = player.location
+        if (target.world != playerLocation.world) {
+            finishNavigationSession(player, session, false)
+            return
+        }
+        if (maxRange > 0 && playerLocation.distance(target) > maxRange) {
+            finishNavigationSession(player, session, false)
+            return
+        }
+
+        val compassTarget = relativeCompassTarget(playerLocation, target)
+        if (compassTarget == null) {
+            finishNavigationSession(player, session, false)
+            return
+        }
+        player.compassTarget = compassTarget
+    }
+
+    private fun finishNavigationSession(player: Player, session: CompassSession, notifyExpired: Boolean) {
+        if (!navigationSessions.remove(player.uniqueId, session)) {
+            return
+        }
+        SchedulerUtil.cancelTask(session.task)
         player.compassTarget = session.originalTarget
-        val msg = plugin.languageManager.formatMessage("feature.navigate.expired", null) ?: ""
-        player.sendMessage(ColorUtils.translateColorCodes(msg) ?: "")
+        if (notifyExpired) {
+            val msg = plugin.languageManager.formatMessage("feature.navigate.expired", null) ?: ""
+            player.sendMessage(ColorUtils.translateColorCodes(msg) ?: "")
+        }
     }
 
     private fun cancelNavigationSession(player: Player, restore: Boolean) {
@@ -231,8 +291,18 @@ class GemNavigator(
             SchedulerUtil.cancelTask(session.task)
             if (restore) {
                 val player = Bukkit.getPlayer(playerId)
-                if (player != null && player.isOnline) {
-                    player.compassTarget = session.originalTarget
+                if (player != null) {
+                    SchedulerUtil.entityRun(
+                        plugin,
+                        player,
+                        {
+                            if (player.isOnline && !navigationSessions.containsKey(playerId)) {
+                                player.compassTarget = session.originalTarget
+                            }
+                        },
+                        0L,
+                        -1L,
+                    )
                 }
             }
         }
@@ -265,13 +335,14 @@ class GemNavigator(
      */
     private fun findNearestGem(playerLoc: Location): NearestGemResult? {
         var nearest: Location? = null
+        var nearestGemId: UUID? = null
         var nearestDist = Double.MAX_VALUE
         val playerWorld: World? = playerLoc.world
 
         val gemLocations = gemManager.getAllGemLocations()
 
-        for (gemLoc in gemLocations.values) {
-            if (gemLoc == null) continue
+        for ((gemId, gemLoc) in gemLocations) {
+            if (gemManager.getGemHolder(gemId) != null) continue
 
             if (gemLoc.world != playerWorld) {
                 continue
@@ -281,11 +352,13 @@ class GemNavigator(
             if (dist < nearestDist) {
                 nearestDist = dist
                 nearest = gemLoc
+                nearestGemId = gemId
             }
         }
 
         val location = nearest ?: return null
-        return NearestGemResult(location, nearestDist)
+        val gemId = nearestGemId ?: return null
+        return NearestGemResult(gemId, location, nearestDist)
     }
 
     /**
@@ -321,6 +394,7 @@ class GemNavigator(
      * 最近宝石结果
      */
     private class NearestGemResult(
+        val gemId: UUID,
         val location: Location,
         val distance: Double,
     )
@@ -328,10 +402,37 @@ class GemNavigator(
     private class CompassSession(
         val id: Long,
         val originalTarget: Location,
+        val gemId: UUID,
+        val expiresAt: Long?,
         val task: Any?,
     )
 
     companion object {
         private const val PERMISSION = "rulegems.navigate"
+        private const val REFRESH_INTERVAL_TICKS = 10L
     }
 }
+
+/**
+ * Projects the real gem bearing onto a short-lived waypoint relative to the player.
+ * Only this synthetic waypoint is sent through Bukkit's compass target packet.
+ */
+internal fun relativeCompassTarget(from: Location, to: Location): Location? {
+    if (from.world == null || from.world != to.world) return null
+    val dx = to.x - from.x
+    val dz = to.z - from.z
+    val horizontalLength = sqrt(dx * dx + dz * dz)
+    if (horizontalLength < MIN_HORIZONTAL_DIRECTION) {
+        return from.clone()
+    }
+    val scale = RELATIVE_TARGET_DISTANCE / horizontalLength
+    return Location(
+        from.world,
+        from.x + dx * scale,
+        from.y,
+        from.z + dz * scale,
+    )
+}
+
+private const val RELATIVE_TARGET_DISTANCE = 32.0
+private const val MIN_HORIZONTAL_DIRECTION = 1.0e-6

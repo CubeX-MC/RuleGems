@@ -27,7 +27,7 @@
 - `/rulegems rulers` 查看当前权力持有者
 - `/rulegems gems` 查看宝石状态
 - `/rulegems gui` 打开 GUI 界面
-- `/rulegems scatter` 收回所有宝石并随机散布
+- `/rulegems scatter` 收回所有宝石并随机散布；默认按宝石类型保留已有 UUID，同时重置持有者、权限与限次状态
 - `/rulegems redeem` 主手持宝石时兑换单颗
 - `/rulegems redeemall` 集齐所有种类后一次性兑换
 - `/rulegems history [行数] [玩家名]` 查看宝石历史记录，可选过滤玩家
@@ -85,6 +85,7 @@
 
 ## 特性与配置要点
 - 每颗宝石唯一：每件宝石有独立 UUID（实例级归属），可通过 `/rulegems place <gemId> ...` 精确放置。
+- 重新散布会按 `gem key` 与 `count` 复用已有 UUID：数量增加时只补新 UUID，数量减少或删除类型时淘汰多余 UUID；位置、持有者、权限和限次额度仍会重置。
 - 帮助链接：`links.documentation` / `links.discord` / `links.qq` 会显示在 `/rg help` 页脚与插件启动日志中。
 - 内置宝石与 power 示例只是初始模板；已有 `gems/`、`powers/` 文件不会在 reload 时自动补回被删除的示例定义，删除不用的默认节点后会保持停用。
 - 每类宝石数量：`gems.<key>.count: <int>`，散落与补齐按 count 生成；“集齐种类”判定为每个 key 至少 1 件。
@@ -122,12 +123,30 @@
   - `grant_policy.place_redeem_enabled: true` 启用祭坛放置兑换（配合 `/rulegems setaltar`）
   - `grant_policy.hold_to_redeem_enabled: true` 启用长按右键兑换（`hold_to_redeem` 配置）
 
+### 宝石表现模式
+
+`config.yml` 的 `gem_presentation.mode` 支持两种后端：
+
+- `block`（默认）：使用传统实体方块，兼容性最高。
+- `proximity_display`：逻辑位置保持为空气，仅在玩家进入 `reveal_range` 后显示宝石；离开 `hide_range` 后隐藏，以双阈值避免边界闪烁。左键显示实体可拾取宝石。
+
+修改模式后执行 `/rg reload` 即可原地切换，不需要重新散布，宝石坐标与 UUID 均不改变；切回 `block` 会直接恢复传统方块。Minecraft 1.19.4+ 使用对玩家隐藏的 `BlockDisplay`，旧版本使用非持久化 ArmorStand 兼容后端。旧后端只能按附近是否有人决定实体是否存在，不能提供严格的逐玩家隐藏，因此对实体雷达类作弊的抑制较弱。
+
+### 宝石逃逸
+
+`gem_escape.enabled` 默认关闭。启用后，插件按 `min_interval` 到 `max_interval` 的全局轮次稳定流转宝石；每轮最多选择一颗已放置且超过 `minimum_unmoved_duration` 未移动的宝石，附近宝石越密集，按 `selection.cluster_*` 权重越容易被选中。
+
+逃逸会先在同一世界的距离环带内寻找安全位置，首轮范围由 `local_move.min_distance` / `max_distance` 决定；失败后按 `distance_growth` 向外扩展，并在 `retry_delay` 后重试。只有新位置验证成功后才切换位置，UUID、宝石类型和现有实例状态保持不变。连续失败达到可配置的 `local_move.max_failed_rounds`（默认 3 轮），或连续局部逃逸达到 `max_local_escapes_without_pickup` 仍无人拾取时，只对该颗宝石执行一次 `random_place_range` 内的全局重新散落，不会重置其他宝石。若 `broadcast` 开启，全局重新散落会明确广播先前情报已失效；指南针则继续按同一 UUID 跟踪新位置。
+
+升级旧配置无需改名：`min_interval` / `max_interval` 键仍然有效，但语义从“每颗宝石各自的逃逸延迟”改为“全服两次逃逸轮次的间隔”。升级后建议重新评估这两个值；需要回滚时可先关闭 `gem_escape.enabled`。
+
 ## 扩展功能
 
 ### 宝石导航 (Navigate)
 持有 `rulegems.navigate` 权限的玩家可以使用指南针右键导航到最近的宝石位置。
 - 配置文件：`features/navigate.yml`
-- 启用后，玩家右键指南针会显示最近宝石的方向和距离
+- 启用后，玩家右键指南针会显示最近已放置宝石的方向和距离
+- 指南针只接收随玩家位置刷新的相对方位点，不会向客户端发送宝石的绝对坐标；宝石被拾取或目标失效时会立即清除导航
 
 ### 撤销宝石 (Revoke Power)
 `features/revoke.yml` 默认关闭。启用后，服主可以配置某类宝石用于撤销目标玩家已经兑换的指定宝石权力，适合做“审判”“制衡”类玩法。

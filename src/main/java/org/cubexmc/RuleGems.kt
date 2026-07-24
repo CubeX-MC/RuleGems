@@ -21,6 +21,7 @@ import org.cubexmc.economy.EconomyProvider
 import org.cubexmc.gui.GUIManager
 import org.cubexmc.listeners.CommandAllowanceListener
 import org.cubexmc.listeners.GemConsumeListener
+import org.cubexmc.listeners.GemDisplayListener
 import org.cubexmc.listeners.GemInventoryListener
 import org.cubexmc.listeners.GemPlaceListener
 import org.cubexmc.listeners.PlayerEventListener
@@ -112,6 +113,7 @@ class RuleGems : CubexPlugin() {
 
         CloudCommandManager(this, currentGemManager, currentGameplayConfig, currentLanguageManager, currentGuiManager).registerAll()
         Bukkit.getPluginManager().registerEvents(GemPlaceListener(currentGemManager), this)
+        Bukkit.getPluginManager().registerEvents(GemDisplayListener(currentGemManager), this)
         Bukkit.getPluginManager().registerEvents(GemInventoryListener(currentGemManager, currentLanguageManager), this)
         Bukkit.getPluginManager().registerEvents(PlayerEventListener(this, currentGemManager), this)
         Bukkit.getPluginManager().registerEvents(WorldLoadListener(currentGemManager), this)
@@ -213,7 +215,8 @@ class RuleGems : CubexPlugin() {
         }
         bind {
             if (::gemManager.isInitialized) {
-                gemManager.saveGems()
+                gemManager.shutdownEscape()
+                gemManager.saveGemsSync()
             }
         }
         bind {
@@ -225,6 +228,11 @@ class RuleGems : CubexPlugin() {
         bind {
             if (::featureManager.isInitialized) {
                 featureManager.shutdownAll()
+            }
+        }
+        bind {
+            if (::gemManager.isInitialized) {
+                gemManager.shutdownPresentation()
             }
         }
         bind {

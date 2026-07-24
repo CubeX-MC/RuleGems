@@ -27,7 +27,7 @@ A lightweight plugin that passes player power around through collectible "rule g
 - `/rulegems rulers` List current power holders
 - `/rulegems gems` Show the status of every gem instance
 - `/rulegems gui` Open the GUI interface
-- `/rulegems scatter` Collect every gem and scatter them randomly again
+- `/rulegems scatter` Collect and scatter every gem; existing UUIDs are preserved by gem type by default while holders, grants, and allowances are reset
 - `/rulegems redeem` Redeem the gem held in main hand
 - `/rulegems redeemall` Redeem all gem types once the player has at least one of each
 - `/rulegems history [lines] [player]` View recent history records, optionally filtered by player
@@ -66,6 +66,7 @@ Each gem type can grant permissions, Vault groups and limited-use commands. Ever
 
 ## Features & Configuration Notes
 - Every gem instance has its own UUID; use `/rulegems place <gemId> ...` for precise placement.
+- Scatter reuses existing UUIDs by `gem key` and configured `count`: increasing a count creates only the missing UUIDs, while decreasing a count or removing a type retires surplus UUIDs. Locations, holders, grants, and command allowances are still reset.
 - Help links: `links.documentation`, `links.discord`, and `links.qq` appear in the `/rg help` footer and startup log.
 - Bundled gem and power examples are starter templates only. Existing `gems/` and `powers/` files are not repopulated with removed example definitions on reload.
 - `gems.<key>.count` defines how many instances of a gem type should exist; full-set checks only require at least one per key.
@@ -86,12 +87,30 @@ Each gem type can grant permissions, Vault groups and limited-use commands. Ever
 - Storage: `storage.type: yaml` uses the default `data/gems.yml` file. `storage.type: sqlite` uses the SQLite database file configured by `storage.sqlite.file`. SQLite preserves the existing data shape and imports `data/gems.yml` on first startup when the database is empty.
 - Power gate: `features/rule.yml` is disabled by default. When enabled, `rulegems.rule` allows all gem powers and `rulegems.rule.<gemKey>` allows one specific gem. This is useful during testing when only trusted players should be able to activate powers.
 
+### Gem Presentation Modes
+
+`gem_presentation.mode` in `config.yml` selects the presentation backend:
+
+- `block` (default) uses a traditional world block and provides the broadest compatibility.
+- `proximity_display` keeps the logical location as air, reveals the gem only after a player enters `reveal_range`, and hides it after the player leaves `hide_range`. The two thresholds prevent boundary flicker. Left-click the display to pick up the gem.
+
+Run `/rg reload` after changing the mode to switch in place without scattering or changing gem coordinates and UUIDs; switching back to `block` restores the traditional blocks directly. Minecraft 1.19.4+ uses per-player-hidden `BlockDisplay` entities. Older versions use a non-persistent ArmorStand compatibility backend, which can only control whether an entity exists near any player and therefore provides weaker protection against entity-radar clients.
+
+### Gem Escape
+
+`gem_escape.enabled` is disabled by default. When enabled, one global cycle runs at a random interval between `min_interval` and `max_interval`, moving at most one eligible placed gem per cycle. A gem becomes eligible after it remains unmoved for `minimum_unmoved_duration`; dense clusters receive the configurable `selection.cluster_*` weighting.
+
+Escape first searches a same-world distance band defined by `local_move.min_distance` and `max_distance`. Failed rounds expand outward by `distance_growth` and retry after `retry_delay`. The old location remains active until a safe destination is validated, and the gem keeps its UUID, type, and instance state. After the configurable `local_move.max_failed_rounds` (three by default), or after `max_local_escapes_without_pickup` successful local escapes without a pickup, only that gem is globally re-scattered inside `random_place_range`; other gems are not reset. When `broadcast` is enabled, the fallback message explicitly invalidates earlier intel, while compass navigation continues following the same UUID at its new location.
+
+Existing configuration keys remain valid, but `min_interval` and `max_interval` now mean the interval between server-wide escape cycles instead of a separate delay for every gem. Review these values when upgrading; set `gem_escape.enabled: false` for a quick rollback.
+
 ## Extended Features
 
 ### Gem Navigation (Navigate)
 Players with the `rulegems.navigate` permission can right-click a compass to navigate to the nearest gem.
 - Config file: `features/navigate.yml`
-- When enabled, right-clicking a compass shows the direction and distance to the nearest gem
+- When enabled, right-clicking a compass shows the direction and distance to the nearest placed gem
+- The compass receives a player-relative bearing waypoint instead of the gem's absolute coordinates; guidance is cleared as soon as the gem is picked up or otherwise becomes unavailable
 
 ### Revoke Power
 `features/revoke.yml` is disabled by default. When enabled, operators can configure one gem as a countermeasure that revokes specific redeemed gem powers from a target player.

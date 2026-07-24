@@ -17,6 +17,7 @@ class PlayerEventListener(
 ) : Listener {
     @EventHandler
     fun onPlayerQuit(event: PlayerQuitEvent) {
+        gemManager.handleDisplayViewerQuit(event.player)
         gemManager.handlePlayerQuit(event.player)
         if (gemManager.isInventoryGrantsEnabled) {
             // 退出时无须重算；可在下次加入时重放
