@@ -12,6 +12,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -95,6 +100,35 @@ class GemAllowanceManagerTest {
     }
 
     // ==================== hasAnyAllowed ====================
+
+    @Test
+    void concurrentConsumersCannotOverspendFiniteAllowance() throws Exception {
+        putGlobal(PLAYER_A, "fly", 7);
+        ExecutorService executor = Executors.newFixedThreadPool(16);
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicInteger successes = new AtomicInteger();
+        List<Future<?>> futures = new ArrayList<>();
+        try {
+            for (int i = 0; i < 32; i++) {
+                futures.add(executor.submit(() -> {
+                    start.await();
+                    if (manager.tryConsumeAllowed(PLAYER_A, "fly")) {
+                        successes.incrementAndGet();
+                    }
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (Future<?> future : futures) {
+                future.get();
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertEquals(7, successes.get());
+        assertEquals(0, manager.getRemainingAllowed(PLAYER_A, "fly"));
+    }
 
     @Nested
     class HasAnyAllowed {

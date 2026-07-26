@@ -3,7 +3,10 @@ package org.cubexmc.commands
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandMap
 import org.bukkit.command.CommandSender
+import org.bukkit.command.Command
+import org.bukkit.command.CommandExecutor
 import org.bukkit.command.SimpleCommandMap
+import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
 import org.cubexmc.RuleGems
 import org.cubexmc.commands.registrar.AdminCommandsRegistrar
@@ -203,27 +206,21 @@ class CloudCommandManager(
     }
 
     private fun registerFallbackExecutor() {
-        try {
-            val server = Bukkit.getServer()
-            val getCommandMap = server.javaClass.getDeclaredMethod("getCommandMap")
-            getCommandMap.isAccessible = true
-            val commandMap = getCommandMap.invoke(server) as CommandMap
-
-            val fallbackCommand = object : org.bukkit.command.Command("rulegems") {
-                override fun execute(sender: CommandSender, commandLabel: String, args: Array<String>): Boolean =
-                    executeFallback(sender, args)
-
-                override fun tabComplete(sender: CommandSender, alias: String, args: Array<String>): List<String> =
-                    completeFallback(sender, args)
-            }
-            fallbackCommand.aliases = listOf("rg")
-            fallbackCommand.description = "RuleGems fallback command bridge"
-
-            commandMap.register(plugin.name, fallbackCommand)
-            plugin.logger.warning("Registered Bukkit fallback command bridge for /rulegems dynamically.")
-        } catch (e: Exception) {
-            plugin.logger.severe("Failed to register dynamic Bukkit fallback command: " + e.message)
+        val command = plugin.getCommand("rulegems")
+        if (command == null) {
+            plugin.logger.severe("Bukkit fallback command is missing from plugin.yml; /rulegems is unavailable.")
+            return
         }
+        command.setExecutor(
+            CommandExecutor { sender: CommandSender, _: Command, _: String, args: Array<String> ->
+                executeFallback(sender, args)
+            },
+        )
+        command.tabCompleter =
+            TabCompleter { sender: CommandSender, _: Command, _: String, args: Array<String> ->
+                completeFallback(sender, args)
+            }
+        plugin.logger.warning("Registered the plugin.yml Bukkit fallback executor for /rulegems and /rg.")
     }
 
     private fun executeFallback(sender: CommandSender, args: Array<String>): Boolean {
@@ -370,8 +367,11 @@ class CloudCommandManager(
             }
             "scatter" -> {
                 if (!requirePermission(sender, "rulegems.admin")) return true
-                gemManager.scatterGems()
-                languageManager.sendMessage(sender, "command.scatter_success")
+                if (gemManager.scatterGems()) {
+                    languageManager.sendMessage(sender, "command.scatter_success")
+                } else {
+                    languageManager.sendMessage(sender, "command.operation_busy")
+                }
                 return true
             }
             "history" -> {
@@ -401,10 +401,14 @@ class CloudCommandManager(
             }
             "reload" -> {
                 if (!requirePermission(sender, "rulegems.admin")) return true
-                gemManager.saveGemsSync()
-                plugin.loadPlugin()
-                plugin.refreshAllowedCommandProxies()
-                languageManager.sendMessage(sender, "command.reload_success")
+                when (plugin.reloadFromCommand()) {
+                    RuleGems.ReloadResult.SUCCESS ->
+                        languageManager.sendMessage(sender, "command.reload_success")
+                    RuleGems.ReloadResult.FAILED ->
+                        languageManager.sendMessage(sender, "command.reload_failed")
+                    RuleGems.ReloadResult.BUSY ->
+                        languageManager.sendMessage(sender, "command.operation_busy")
+                }
                 return true
             }
             else -> {

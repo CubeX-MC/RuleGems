@@ -19,6 +19,8 @@ import org.cubexmc.RuleGems;
 import org.cubexmc.features.FeatureManager;
 import org.cubexmc.features.revoke.RevokeFeature;
 import org.cubexmc.features.revoke.RevokeRule;
+import org.cubexmc.listeners.QuickShopHealthStatus;
+import org.cubexmc.listeners.QuickShopIntegrationHealth;
 import org.cubexmc.model.GemDefinition;
 import org.cubexmc.model.PowerStructure;
 import org.cubexmc.provider.BukkitPermissionProvider;
@@ -79,6 +81,43 @@ class RuleGemsDoctorTest {
         verify(sender).sendMessage(contains("missing target power"));
     }
 
+    @Test
+    void reportsTheMostRecentStorageFailure() {
+        RuleGems plugin = basePlugin();
+        GemDefinition crown = new GemDefinition.Builder("crown").count(1).build();
+        when(plugin.getGemParser().getGemDefinitions()).thenReturn(List.of(crown));
+        when(plugin.getGemManager().getAllGemUuids()).thenReturn(Set.of(UUID.randomUUID()));
+        when(plugin.getGemManager().getLastStorageError()).thenReturn(new IllegalStateException("disk full"));
+        CommandSender sender = mock(CommandSender.class);
+
+        try (MockedStatic<Bukkit> bukkit = mockStatic(Bukkit.class)) {
+            bukkit.when(() -> Bukkit.getWorld("world")).thenReturn(mock(World.class));
+
+            new RuleGemsDoctor(plugin).sendReport(sender);
+        }
+
+        verify(sender).sendMessage(contains("runtime state may not be persisted: disk full"));
+    }
+
+    @Test
+    void reportsInactiveInstalledQuickShopProtectionAsError() {
+        RuleGems plugin = basePlugin();
+        GemDefinition crown = new GemDefinition.Builder("crown").count(1).build();
+        when(plugin.getGemParser().getGemDefinitions()).thenReturn(List.of(crown));
+        when(plugin.getGemManager().getAllGemUuids()).thenReturn(Set.of(UUID.randomUUID()));
+        when(plugin.getQuickShopIntegrationHealth()).thenReturn(
+                new QuickShopIntegrationHealth(QuickShopHealthStatus.UNSUPPORTED, "missing purchase hook"));
+        CommandSender sender = mock(CommandSender.class);
+
+        try (MockedStatic<Bukkit> bukkit = mockStatic(Bukkit.class)) {
+            bukkit.when(() -> Bukkit.getWorld("world")).thenReturn(mock(World.class));
+
+            new RuleGemsDoctor(plugin).sendReport(sender);
+        }
+
+        verify(sender).sendMessage(contains("gem trade protection is inactive: missing purchase hook"));
+    }
+
     private RuleGems basePlugin() {
         RuleGems plugin = mock(RuleGems.class);
         ConfigManager configManager = mock(ConfigManager.class);
@@ -96,6 +135,7 @@ class RuleGemsDoctorTest {
         when(plugin.getGemParser()).thenReturn(parser);
         when(plugin.getGemManager()).thenReturn(gemManager);
         when(plugin.getLanguageManager()).thenReturn(languageManager);
+        lenient().when(plugin.getQuickShopIntegrationHealth()).thenReturn(QuickShopIntegrationHealth.absent());
         lenient().when(plugin.getFeatureManager()).thenReturn(null);
         lenient().when(plugin.getPermissionProvider()).thenReturn(mock(org.cubexmc.provider.PermissionProvider.class));
         when(configManager.getConfig()).thenReturn(config);

@@ -5,7 +5,6 @@ import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.Particle
 import org.bukkit.Sound
-import org.bukkit.World
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Player
 import org.cubexmc.RuleGems
@@ -37,9 +36,11 @@ class GemPlacementManager(
     private val gameplayConfig: GameplayConfig,
     private val languageManager: LanguageManager,
     private val stateManager: GemStateManager,
+    private val boundsService: GemBoundsService,
 ) {
     private var effectUtils: EffectUtils? = null
     private var saveCallback: Runnable? = null
+    private val random = Random()
     val presentationManager = GemPresentationManager(plugin, gameplayConfig, stateManager)
 
     val gemEscapeTasks: MutableMap<UUID, Any> = ConcurrentHashMap()
@@ -65,14 +66,15 @@ class GemPlacementManager(
     }
 
     fun placeRuleGem(loc: Location?, gemId: UUID?) {
-        placeRuleGemInternal(loc, gemId, false)
+        placeRuleGemInternal(loc, gemId, ignoreLimit = false, allowRandomFallback = true)
     }
 
-    private fun placeRuleGemForced(loc: Location?, gemId: UUID?) {
-        placeRuleGemInternal(loc, gemId, true)
-    }
-
-    private fun placeRuleGemInternal(loc: Location?, gemId: UUID?, ignoreLimit: Boolean) {
+    private fun placeRuleGemInternal(
+        loc: Location?,
+        gemId: UUID?,
+        ignoreLimit: Boolean,
+        allowRandomFallback: Boolean,
+    ) {
         if (loc == null || gemId == null) return
         val base = loc.clone()
         SchedulerUtil.regionRun(
@@ -96,19 +98,68 @@ class GemPlacementManager(
                     target.add(0.0, 1.0, 0.0)
                     tries++
                 }
+                // 这里**只**校验原版世界边界与世界高度，绝不校验 random_place_range。
+                //
+                // random_place_range 的语义是"随机散落取点的范围"，不是"宝石唯一可存在的区域"。
+                // 本方法的调用方全是玩家行为——丢弃、下线、死亡掉落、走失回收——玩家把宝石带到哪里，
+                // 宝石就该留在哪里。曾经用 random_place_range 卡这一步，结果玩家在范围外的任何操作
+                // 都会让宝石被静默传送回出生点附近（丢弃/下线瞬间消失），属于严重回归。
+                //
+                // 需要把宝石约束在可玩区域内的只有"插件主动搬动"的场景（随机散落、逃逸），
+                // 那些路径走 boundsService，不经过这里。
                 if (!border.isInside(target) || target.blockY < world.minHeight || target.blockY > world.maxHeight) {
-                    randomPlaceGem(gemId)
+                    // 越界时只允许回退一次到随机放置。随机放置耗尽后会调用
+                    // placeAtBoundsCenter（allowRandomFallback = false），因此不会再绕回这里，
+                    // 避免"随机 -> 越界 -> 随机"的无界递归调度。
+                    if (allowRandomFallback) {
+                        randomPlaceGem(gemId)
+                    } else {
+                        placeAtBoundsCenter(gemId)
+                    }
                     return@regionRun
                 }
-                val oldLocation = stateManager.findLocationByGemId(gemId)
-                if (oldLocation != null && !isSameBlock(oldLocation, target)) {
-                    unplaceRuleGem(oldLocation, gemId)
-                }
-                val mat = stateManager.getGemMaterial(gemId)
-                presentationManager.renderPlacedGem(gemId, target, mat)
-                stateManager.bindPlacedGem(target, gemId)
-                recordGemMovement(gemId)
-                savePlacementState()
+                commitPlacement(gemId, target)
+            },
+            0L,
+            -1L,
+        )
+    }
+
+    /** 落位的公共尾段：解绑旧坐标、渲染、绑定、记录移动、存盘。必须在目标区域线程调用。 */
+    private fun commitPlacement(gemId: UUID, target: Location) {
+        val oldLocation = stateManager.findLocationByGemId(gemId)
+        if (oldLocation != null && !isSameBlock(oldLocation, target)) {
+            unplaceRuleGem(oldLocation, gemId)
+        }
+        presentationManager.renderPlacedGem(gemId, target, stateManager.getGemMaterial(gemId))
+        stateManager.bindPlacedGem(target, gemId)
+        recordGemMovement(gemId)
+        savePlacementState()
+    }
+
+    /**
+     * 最终兜底：合法区域的中心列，无条件落位。
+     * 这里不再做任何可能触发回退的校验 —— 中心列按定义就在合法区域内，
+     * 唯一的失败情形是完全没有配置范围，此时交给托管审计下一轮重试。
+     */
+    private fun placeAtBoundsCenter(gemId: UUID) {
+        val column = boundsService.centerColumn(gemId)
+        if (column == null) {
+            plugin.logger.severe(
+                "Cannot place gem $gemId: no usable random_place_range; it stays unplaced until the next custody audit.",
+            )
+            return
+        }
+        SchedulerUtil.regionRun(
+            plugin,
+            column,
+            {
+                val world = column.world ?: return@regionRun
+                val y = world.getHighestBlockYAt(column.blockX, column.blockZ) + 1
+                commitPlacement(
+                    gemId,
+                    Location(world, column.blockX.toDouble(), y.toDouble(), column.blockZ.toDouble()),
+                )
             },
             0L,
             -1L,
@@ -178,27 +229,27 @@ class GemPlacementManager(
         )
     }
 
-    fun randomPlaceGem(gemId: UUID?, corner1: Location?, corner2: Location?) {
-        stateManager.ensureGemKeyAssigned(gemId)
-        scheduleRandomAttempt(gemId, corner1, corner2, MAX_RANDOM_ATTEMPTS)
-    }
-
     fun randomPlaceGem(gemId: UUID?) {
         if (gemId == null) return
-        val range = getGemPlaceRange(gemId)
-        if (range != null) {
-            randomPlaceGem(gemId, range[0], range[1])
-        } else {
+        stateManager.ensureGemKeyAssigned(gemId)
+        if (boundsService.boundsFor(gemId) == null) {
             plugin.logger.warning(
                 "Cannot place gem $gemId: no spawn range configured, falling back to overworld spawn",
             )
             val defaultWorld = if (Bukkit.getWorlds().isEmpty()) null else Bukkit.getWorlds()[0]
             if (defaultWorld != null) {
-                placeRuleGemForced(defaultWorld.spawnLocation, gemId)
+                placeRuleGemInternal(
+                    defaultWorld.spawnLocation,
+                    gemId,
+                    ignoreLimit = true,
+                    allowRandomFallback = false,
+                )
             } else {
                 plugin.logger.severe("Cannot place gem $gemId: no available world! Gem will be in unknown state")
             }
+            return
         }
+        scheduleRandomAttempt(gemId, MAX_RANDOM_ATTEMPTS)
     }
 
     fun adoptPlayerPlacedGem(gemId: UUID?, location: Location?) {
@@ -217,44 +268,39 @@ class GemPlacementManager(
         )
     }
 
-    private fun scheduleRandomAttempt(gemId: UUID?, corner1: Location?, corner2: Location?, attemptsLeft: Int) {
-        if (corner1 == null || corner2 == null) return
-        if (corner1.world != corner2.world) return
-
+    private fun scheduleRandomAttempt(gemId: UUID, attemptsLeft: Int) {
         if (attemptsLeft <= 0) {
-            plugin.logger.warning("Random placement failed for gem $gemId, falling back to range center")
-            val centerX = (corner1.blockX + corner2.blockX) / 2
-            val centerZ = (corner1.blockZ + corner2.blockZ) / 2
-            val world = corner1.world ?: return
-            val y = world.getHighestBlockYAt(centerX, centerZ) + 1
-            placeRuleGemForced(Location(world, centerX.toDouble(), y.toDouble(), centerZ.toDouble()), gemId)
+            plugin.logger.warning("Random placement failed for gem $gemId, falling back to the bounds center")
+            placeAtBoundsCenter(gemId)
             return
         }
 
-        val world = corner1.world ?: return
-        val rand = Random()
-        val minX = minOf(corner1.blockX, corner2.blockX)
-        val minZ = minOf(corner1.blockZ, corner2.blockZ)
-        val maxX = maxOf(corner1.blockX, corner2.blockX)
-        val maxZ = maxOf(corner1.blockZ, corner2.blockZ)
-        val x = rand.nextInt(maxX - minX + 1) + minX
-        val z = rand.nextInt(maxZ - minZ + 1) + minZ
-        val candidate = Location(world, x.toDouble(), (world.minHeight + 1).toDouble(), z.toDouble())
+        val candidate = boundsService.randomColumn(gemId, random)
+        if (candidate == null) {
+            placeAtBoundsCenter(gemId)
+            return
+        }
+        val world = candidate.world ?: return
         SchedulerUtil.regionRun(
             plugin,
             candidate,
             {
                 try {
-                    val y = world.getHighestBlockYAt(x, z) + 1
-                    val place = Location(world, x.toDouble(), y.toDouble(), z.toDouble())
-                    val border = world.worldBorder
-                    if (!border.isInside(place)) {
-                        scheduleRandomAttempt(gemId, corner1, corner2, attemptsLeft - 1)
+                    val y = world.getHighestBlockYAt(candidate.blockX, candidate.blockZ) + 1
+                    if (y < world.minHeight || y > world.maxHeight) {
+                        scheduleRandomAttempt(gemId, attemptsLeft - 1)
                         return@regionRun
                     }
-                    placeRuleGemForced(place, gemId)
+                    // 候选列由 boundsService 采样，按定义就在合法区域内，
+                    // 因此这里禁用随机回退：任何残余失败都直接收敛到中心列。
+                    placeRuleGemInternal(
+                        Location(world, candidate.blockX.toDouble(), y.toDouble(), candidate.blockZ.toDouble()),
+                        gemId,
+                        ignoreLimit = true,
+                        allowRandomFallback = false,
+                    )
                 } catch (_: Throwable) {
-                    scheduleRandomAttempt(gemId, corner1, corner2, attemptsLeft - 1)
+                    scheduleRandomAttempt(gemId, attemptsLeft - 1)
                 }
             },
             0L,
@@ -262,30 +308,33 @@ class GemPlacementManager(
         )
     }
 
-    private fun getGemPlaceRange(gemId: UUID?): Array<Location>? {
-        val gemKey = stateManager.getGemKey(gemId)
-        if (gemKey != null) {
-            for (definition in gemParser.gemDefinitions) {
-                if (definition.gemKey == gemKey) {
-                    val c1 = definition.randomPlaceCorner1
-                    val c2 = definition.randomPlaceCorner2
-                    if (c1 != null && c2 != null) {
-                        return arrayOf(c1, c2)
-                    }
-                    break
-                }
-            }
-        }
-        val defaultC1 = gameplayConfig.randomPlaceCorner1
-        val defaultC2 = gameplayConfig.randomPlaceCorner2
-        if (defaultC1 != null && defaultC2 != null) {
-            return arrayOf(defaultC1, defaultC2)
-        }
-        return null
-    }
-
     fun scheduleEscape(gemId: UUID?) {
         escapeCoordinator.ensureTracked(gemId)
+    }
+
+    /**
+     * 托管审计用：世界方块与记录不符时重新渲染。
+     * 爆炸/覆盖把宝石方块抹掉后，坐标记录仍在，玩家却只看到一格空气挖不动——这里把它画回来。
+     */
+    fun restoreRenderingIfMissing(gemId: UUID, location: Location) {
+        SchedulerUtil.regionRun(
+            plugin,
+            location,
+            {
+                if (stateManager.getGemUuidByLocation(location) != gemId) return@regionRun
+                val material = stateManager.getGemMaterial(gemId)
+                val expected = if (gameplayConfig.gemPresentationMode == GemPresentationMode.PROXIMITY_DISPLAY) {
+                    Material.AIR
+                } else {
+                    material
+                }
+                if (location.block.type != expected) {
+                    presentationManager.renderPlacedGem(gemId, location, material)
+                }
+            },
+            0L,
+            -1L,
+        )
     }
 
     private fun recordGemMovement(gemId: UUID) {
@@ -304,7 +353,23 @@ class GemPlacementManager(
     }
 
     fun initializeEscapeTasks() {
+        warnIfEscapeHasNoUsableBorder()
         escapeCoordinator.initialize()
+    }
+
+    /**
+     * 逃逸的唯一上界是原版世界边界。如果这个世界没设边界，宝石会一路漂进从未生成的地形，
+     * 触发区块生成并且越来越难找。这里只提示，不擅自替管理员决定一个范围。
+     */
+    private fun warnIfEscapeHasNoUsableBorder() {
+        if (!gameplayConfig.isGemEscapeEnabled) return
+        val world = gameplayConfig.randomPlaceCorner1?.world ?: return
+        if (boundsService.hasEffectiveBorder(world)) return
+        plugin.logger.warning(
+            "gem_escape is enabled but world '${world.name}' has no effective vanilla world border. " +
+                "Escaping gems have no outer bound and can drift into ungenerated terrain. " +
+                "Set one with '/worldborder set <size>' or disable gem_escape.",
+        )
     }
 
     fun prepareEscapeReload() {
@@ -492,7 +557,9 @@ class GemPlacementManager(
     private fun isValidEscapeTarget(request: GemEscapeRequest, target: Location): Boolean {
         val world = target.world ?: return false
         if (isSameBlock(request.expectedLocation, target)) return false
-        if (!world.worldBorder.isInside(target)) return false
+        // 只校验原版世界边界。局部逃逸允许把宝石带到 random_place_range 之外——
+        // 那个范围只管随机散落取点，全局兜底重散落才会把宝石收回范围内。
+        if (!boundsService.isInsideBorder(target)) return false
         if (target.blockY < world.minHeight || target.blockY >= world.maxHeight) return false
         val block = target.block
         if (block.type.isSolid || block.isLiquid || occupiedByAnotherGem(target, request.gemId)) return false
@@ -502,43 +569,33 @@ class GemPlacementManager(
 
     private fun createEscapeCandidate(request: GemEscapeRequest): Location? {
         return if (request.mode == GemEscapeMode.GLOBAL_FALLBACK) {
-            createGlobalEscapeCandidate(request.gemId)
+            boundsService.randomColumn(request.gemId, ThreadLocalRandom.current())
         } else {
-            createLocalEscapeCandidate(request.expectedLocation, request.failedRounds)
+            createLocalEscapeCandidate(request.gemId, request.expectedLocation, request.failedRounds)
         }
     }
 
-    private fun createLocalEscapeCandidate(origin: Location, failedRound: Int): Location? {
+    private fun createLocalEscapeCandidate(gemId: UUID, origin: Location, failedRound: Int): Location? {
         val world = origin.world ?: return null
         val baseMin = gameplayConfig.gemEscapeLocalMinDistance.coerceAtLeast(1.0)
         val baseMax = gameplayConfig.gemEscapeLocalMaxDistance.coerceAtLeast(baseMin)
         val growth = gameplayConfig.gemEscapeDistanceGrowth.coerceAtLeast(0.0)
         val minDistance = if (failedRound <= 0) baseMin else baseMax + growth * (failedRound - 1)
         val maxDistance = (baseMax + growth * failedRound).coerceAtLeast(minDistance)
-        val random = ThreadLocalRandom.current()
+        val threadRandom = ThreadLocalRandom.current()
         val squaredDistance = minDistance * minDistance +
-            random.nextDouble() * (maxDistance * maxDistance - minDistance * minDistance)
+            threadRandom.nextDouble() * (maxDistance * maxDistance - minDistance * minDistance)
         val distance = sqrt(squaredDistance)
-        val angle = random.nextDouble() * PI * 2.0
+        val angle = threadRandom.nextDouble() * PI * 2.0
         val x = floor(origin.x + cos(angle) * distance).toInt()
         val z = floor(origin.z + sin(angle) * distance).toInt()
-        return Location(world, x.toDouble(), (world.minHeight + 1).toDouble(), z.toDouble())
-    }
+        val candidate = Location(world, x.toDouble(), (world.minHeight + 1).toDouble(), z.toDouble())
+        if (boundsService.isInsideBorder(candidate)) return candidate
 
-    private fun createGlobalEscapeCandidate(gemId: UUID): Location? {
-        val range = getGemPlaceRange(gemId) ?: return null
-        val first = range[0]
-        val second = range[1]
-        val world = first.world ?: return null
-        if (world != second.world) return null
-        val minX = minOf(first.blockX, second.blockX)
-        val maxX = maxOf(first.blockX, second.blockX)
-        val minZ = minOf(first.blockZ, second.blockZ)
-        val maxZ = maxOf(first.blockZ, second.blockZ)
-        val random = ThreadLocalRandom.current()
-        val x = floor(minX + random.nextDouble() * (maxX.toLong() - minX.toLong() + 1L)).toInt()
-        val z = floor(minZ + random.nextDouble() * (maxZ.toLong() - minZ.toLong() + 1L)).toInt()
-        return Location(world, x.toDouble(), (world.minHeight + 1).toDouble(), z.toDouble())
+        // 距离环带越出了世界边界（宝石靠近边界时必然发生）。此时不能简单拒绝：
+        // 拒绝会累积 failedRounds，而 failedRounds 又会把环带推得更远，形成负反馈，
+        // 靠边的宝石会一直逃逸失败直到被全局重散落。夹回边界内即可，落点依然是"附近"。
+        return boundsService.clampToBorder(candidate)
     }
 
     private fun handleEscapeSuccess(request: GemEscapeRequest, result: GemEscapeRelocationResult) {

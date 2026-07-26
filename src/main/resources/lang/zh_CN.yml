@@ -9,6 +9,8 @@ messages:
     player_only: "<red><prefix> 该指令仅限玩家使用。"
     usage: "<yellow><prefix> 用法: /rulegems \\<gui|profile|cabinet|place|tp|revoke|revoke-power|reload|rulers|gems|scatter|redeem|redeemall|history|setaltar|removealtar|appoint|dismiss|appointees|doctor|help>"
     reload_success: "<green><prefix> 配置已重新加载！"
+    reload_failed: "<red><prefix> 重载已中止：宝石数据存储读取失败，当前运行状态保持不变。请检查控制台。"
+    operation_busy: "<yellow><prefix> 另一个重载或散落操作正在运行，请等待完成后重试。"
     rulers_status: "<green><prefix> 当前的权力持有者是: <yellow><player>"
     no_rulers: "<red><prefix> 当前没有权力持有者！"
     scatter_success: "<green><prefix> 权力被收回，宝石已散落！"
@@ -169,6 +171,7 @@ messages:
     transfer_insufficient: "<prefix> <red><from> 余额不足，转账已取消。"
     transfer_failed: "<prefix> <red>转账失败，已为你退回次数。"
     transfer_no_economy: "<prefix> <red>经济系统(Vault)不可用，转账已取消。"
+    transfer_disabled: "<prefix> <red>内置转账功能未启用，已为你退回本次次数。"
   inventory:
     drag_denied: "<red><prefix> 不能将宝石拖拽到此处！"
     container_denied: "<red><prefix> 不能将宝石放入容器！"

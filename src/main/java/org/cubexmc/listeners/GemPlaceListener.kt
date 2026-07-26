@@ -37,6 +37,11 @@ class GemPlaceListener(private val gemManager: GemManager) : Listener {
         gemManager.handleBlockDamage(event)
     }
 
+    // 只在 HIGHEST 拦一次。曾经额外在 LOWEST 拦过一道（想抢在商店类插件之前），但
+    // PlayerInteractEvent.isCancelled() 的定义就是 useInteractedBlock() == DENY，
+    // 在 LOWEST 设 DENY 等于把每一次"手持宝石右键方块"都标记成已取消，会污染后续所有插件的判断。
+    // 商店插件要靠专门的 API 钩子处理，不能靠污染事件状态。
+    //
     // 与 onBlockPlace/onBlockBreak 对称：BlockPlace/BlockBreak 的绕过覆盖不了"音符盒、按钮、拉杆、
     // 唱片机、容器"等可交互方块——保护插件（Residence/Lands）对这类材质是在 PlayerInteract 层取消的。
     // 同样必须 ignoreCancelled = false 才能接到被保护插件取消的事件，并在 HIGHEST(即它们之后)放行。

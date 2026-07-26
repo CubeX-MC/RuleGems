@@ -27,14 +27,18 @@ import org.cubexmc.model.RedeemIngredient
 import org.cubexmc.model.RedeemRequirementResult
 import org.cubexmc.model.RedeemRecipe
 import org.cubexmc.model.RedeemRequirements
+import org.cubexmc.storage.StorageLoadStatus
+import org.cubexmc.storage.StorageException
 import org.cubexmc.utils.ColorUtils
 import org.cubexmc.utils.EffectUtils
 import org.cubexmc.utils.SchedulerUtil
 import org.cubexmc.view.GemStatusView
 import java.util.Collections
+import java.io.File
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.function.Consumer
 
@@ -51,11 +55,15 @@ class GemManager(
 ) {
     private var historyLogger: HistoryLogger? = null
     private val pickupsInProgress: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
+    private val custodyItemClaims: MutableMap<UUID, Long> = ConcurrentHashMap()
 
     val stateManager: GemStateManager = GemStateManager(plugin, gemParser, languageManager)
+    val boundsService: GemBoundsService = GemBoundsService(gemParser, gameplayConfig, stateManager, plugin.logger)
     val allowanceManager: GemAllowanceManager = GemAllowanceManager(gemParser, gameplayConfig)
     val permissionManager: GemPermissionManager = GemPermissionManager(plugin, gameplayConfig, stateManager)
-    val placementManager: GemPlacementManager = GemPlacementManager(plugin, gemParser, gameplayConfig, languageManager, stateManager)
+    val globalOperationCoordinator = GlobalOperationCoordinator()
+    val placementManager: GemPlacementManager =
+        GemPlacementManager(plugin, gemParser, gameplayConfig, languageManager, stateManager, boundsService)
     private val scatterService: GemScatterService = GemScatterService(
         stateManager,
         placementManager,
@@ -70,11 +78,25 @@ class GemManager(
         Runnable { saveGems() },
     )
 
+    val custodyAuditor: GemCustodyAuditor = GemCustodyAuditor(
+        plugin,
+        stateManager,
+        placementManager,
+        GemCustodyAuditor.GemRecovery { gemId, location -> recoverStrayGem(gemId, location) },
+        Runnable { saveGems() },
+    )
+
     private val saveLock = Any()
     private val saveRevision = AtomicLong()
 
     @Volatile
     private var lastWrittenSaveRevision = 0L
+    @Volatile
+    var lastStorageError: Throwable? = null
+        private set
+    @Volatile
+    var lastEmergencySnapshot: File? = null
+        private set
 
     init {
         allowanceManager.setSaveCallback(Runnable { saveGems() })
@@ -102,11 +124,41 @@ class GemManager(
         return permissionManager.isGemToggledOff(playerId, gemKey)
     }
 
-    fun loadGems() {
-        val gemsData = configManager.readGemsData()
-        if (gemsData == null) {
-            plugin.logger.warning("Failed to load gemsData config! Please check if the file exists.")
-            return
+    fun loadGems(): Boolean {
+        val loadResult = configManager.readGemsData()
+        if (!loadResult.isUsable) {
+            lastStorageError = loadResult.error
+            plugin.logger.log(
+                java.util.logging.Level.SEVERE,
+                "Gem storage load failed. Active state was preserved and configured gems were not generated.",
+                loadResult.error,
+            )
+            return false
+        }
+        val loadedData = requireNotNull(loadResult.data)
+        val validation = GemDataValidator.validate(loadedData, gemParser.gemDefinitions)
+        if (!validation.valid) {
+            val failure = StorageException(
+                "Gem data validation failed: " + validation.errors.joinToString("; "),
+            )
+            lastStorageError = failure
+            plugin.logger.log(
+                java.util.logging.Level.SEVERE,
+                "Gem storage data failed semantic validation. Active state was preserved.",
+                failure,
+            )
+            return false
+        }
+        val gemsData = try {
+            GemDataSnapshot.capture(loadedData).materialize()
+        } catch (failure: Exception) {
+            lastStorageError = failure
+            plugin.logger.log(
+                java.util.logging.Level.SEVERE,
+                "Gem data could not be staged. Active state was preserved.",
+                failure,
+            )
+            return false
         }
 
         placementManager.prepareEscapeReload()
@@ -134,27 +186,30 @@ class GemManager(
 
         stateManager.rebuildGemDefinitionCache()
         placementManager.initializeEscapeTasks()
+        lastStorageError = null
+        if (loadResult.status == StorageLoadStatus.NOT_FOUND) {
+            plugin.logger.info("No existing gem data was found; treating this as a new installation.")
+        }
+        return true
     }
 
-    fun saveGems() {
-        saveGemsInternal(true)
-    }
+    fun saveGems(): Boolean = saveGemsInternal(true)
 
-    fun saveGemsSync() {
-        saveGemsInternal(false)
-    }
+    fun saveGemsSync(): Boolean = saveGemsInternal(false)
 
-    private fun saveGemsInternal(asyncWhenEnabled: Boolean) {
+    private fun saveGemsInternal(asyncWhenEnabled: Boolean): Boolean {
         val revision = saveRevision.incrementAndGet()
-        val snapshot: MutableMap<String, Any?> = HashMap()
-        stateManager.populateSaveSnapshot(snapshot)
-        permissionManager.populateSaveSnapshot(snapshot)
-        allowanceManager.populateSaveSnapshot(snapshot)
-        placementManager.populateEscapeSaveSnapshot(snapshot)
+        val mutableSnapshot: MutableMap<String, Any?> = HashMap()
+        stateManager.populateSaveSnapshot(mutableSnapshot)
+        permissionManager.populateSaveSnapshot(mutableSnapshot)
+        allowanceManager.populateSaveSnapshot(mutableSnapshot)
+        placementManager.populateEscapeSaveSnapshot(mutableSnapshot)
+        val snapshot = Collections.unmodifiableMap(HashMap(mutableSnapshot))
 
+        val accepted = AtomicBoolean(true)
         val saveTask = Runnable {
             synchronized(saveLock) {
-                if (revision < lastWrittenSaveRevision) return@synchronized
+                if (revision < saveRevision.get() || revision < lastWrittenSaveRevision) return@synchronized
                 val gemsData = configManager.getGemsData()
                 for (key in SAVE_ROOT_KEYS) {
                     gemsData.set(key, null)
@@ -162,8 +217,25 @@ class GemManager(
                 for ((key, value) in snapshot) {
                     gemsData.set(key, value)
                 }
-                configManager.saveGemData(gemsData)
+                val result: org.cubexmc.storage.StorageSaveResult? = configManager.saveGemData(gemsData)
+                if (result == null || !result.successful) {
+                    accepted.set(false)
+                    val failure = result?.error
+                        ?: StorageException("Storage provider returned no save result")
+                    lastStorageError = failure
+                    plugin.logger.log(
+                        java.util.logging.Level.SEVERE,
+                        "Gem data save failed at revision $revision; the revision was not marked as persisted.",
+                        failure,
+                    )
+                    if (!asyncWhenEnabled) {
+                        writeEmergencySnapshot(gemsData, revision)
+                    }
+                    return@synchronized
+                }
                 lastWrittenSaveRevision = revision
+                lastStorageError = null
+                lastEmergencySnapshot = null
             }
         }
 
@@ -171,6 +243,24 @@ class GemManager(
             SchedulerUtil.asyncRun(plugin, saveTask, 0L)
         } else {
             saveTask.run()
+        }
+        return accepted.get()
+    }
+
+    private fun writeEmergencySnapshot(gemsData: org.bukkit.configuration.file.FileConfiguration, revision: Long) {
+        try {
+            val recoveryFile = configManager.saveEmergencyGemData(gemsData)
+            lastEmergencySnapshot = recoveryFile
+            plugin.logger.severe(
+                "Primary gem save failed; wrote emergency revision $revision to ${recoveryFile.absolutePath}",
+            )
+        } catch (recoveryFailure: Exception) {
+            lastStorageError?.addSuppressed(recoveryFailure)
+            plugin.logger.log(
+                java.util.logging.Level.SEVERE,
+                "Primary gem save and emergency recovery snapshot both failed at revision $revision.",
+                recoveryFailure,
+            )
         }
     }
 
@@ -217,15 +307,80 @@ class GemManager(
      *   GemConsumeListener（长按兑换，HIGH 优先级）管理，强行放行会导致兑换长按期间误放置手中宝石。
      */
     fun handleGemBlockInteract(event: PlayerInteractEvent) {
-        val block = event.clickedBlock ?: return
-        if (!stateManager.locationToGemUuid.containsKey(block.location)) return
+        // 反转白名单：手持宝石右键任何方块时，一律禁止"方块消费这个物品"。
+        //
+        // 这条规则取代了"枚举容器材质"的做法，因此对置物架、饰纹陶罐、雕纹书架，
+        // 以及未来版本新增的任何收纳方块都天然生效——不需要 material 名单，
+        // 也不需要引用高版本 API（本插件对 1.16.5 编译，根本引用不到这些新类）。
+        //
+        // 只否决 useInteractedBlock，不碰 useItemInHand：放置宝石方块、祭坛兑换、
+        // 长按兑换走的都是 useItemInHand，功能不受影响。
+        val holdingGem = event.action == Action.RIGHT_CLICK_BLOCK && stateManager.containsGem(event.item)
+        val block = event.clickedBlock
 
-        if (event.useInteractedBlock() == Event.Result.DENY) {
-            event.setUseInteractedBlock(Event.Result.ALLOW)
+        if (block != null && stateManager.locationToGemUuid.containsKey(block.location)) {
+            // 手持宝石时不放行方块交互：材质恰好是箱子/木桶的宝石不能变成"能塞进别的宝石的容器"。
+            if (!holdingGem && event.useInteractedBlock() == Event.Result.DENY) {
+                event.setUseInteractedBlock(Event.Result.ALLOW)
+            }
+            if (event.action == Action.LEFT_CLICK_BLOCK && event.useItemInHand() == Event.Result.DENY) {
+                event.setUseItemInHand(Event.Result.ALLOW)
+            }
         }
-        if (event.action == Action.LEFT_CLICK_BLOCK && event.useItemInHand() == Event.Result.DENY) {
-            event.setUseItemInHand(Event.Result.ALLOW)
+
+        // 放在最后落笔，保证不会被上面的领地绕过逻辑翻回 ALLOW。
+        if (holdingGem) {
+            event.setUseInteractedBlock(Event.Result.DENY)
         }
+    }
+
+    /** 该坐标上是否有一颗已放置的宝石。世界侧保护监听器的统一入口。 */
+    fun isGemBlock(block: Block?): Boolean {
+        if (block == null) return false
+        return stateManager.locationToGemUuid.containsKey(block.location)
+    }
+
+    /** 没有任何已放置宝石时，世界侧监听器可以直接短路，避免遍历爆炸方块列表。 */
+    fun hasPlacedGems(): Boolean = stateManager.locationToGemUuid.isNotEmpty()
+
+    /**
+     * 回收一颗脱离托管的宝石（掉落物实体、被容器吐出、商店箱里被扫到等）。
+     *
+     * 幂等且保守：世界里已经有本体、或持有者手里确实还有本体时，什么都不做——
+     * 此时触发回收的那一摞物品只是个副本，调用方直接销毁即可。
+     *
+     * @return true 表示这颗宝石归本插件管理（无论是否真的搬动了它）
+     */
+    fun recoverStrayGem(gemId: UUID?, location: Location?): Boolean {
+        if (gemId == null || !stateManager.gemUuidToKey.containsKey(gemId)) return false
+        if (stateManager.getGemLocation(gemId) != null) return true
+
+        val holder = stateManager.getGemHolder(gemId)
+        if (holder != null && holder.isOnline && stateManager.playerHoldsGem(holder, gemId)) return true
+
+        stateManager.clearGemHolder(gemId)
+        if (location != null && location.world != null) {
+            placementManager.placeRuleGem(location, gemId)
+        } else {
+            placementManager.randomPlaceGem(gemId)
+        }
+        saveGems()
+        plugin.logger.info("Recovered stray gem $gemId back into the world.")
+        return true
+    }
+
+    /**
+     * 同一个掉落物实体在 Folia/Paper 上可能先后触发 ItemSpawnEvent 与 PlayerDropItemEvent。
+     * 以实体 UUID 认领托管操作，保证这两个监听器最多只有一个安排宝石放置。
+     */
+    fun claimItemCustody(entityId: UUID?): Boolean {
+        if (entityId == null) return true
+        val now = System.currentTimeMillis()
+        val claimed = custodyItemClaims.putIfAbsent(entityId, now) == null
+        if (custodyItemClaims.size > MAX_CUSTODY_ITEM_CLAIMS) {
+            custodyItemClaims.entries.removeIf { now - it.value > CUSTODY_ITEM_CLAIM_TTL_MS }
+        }
+        return claimed
     }
 
     fun handleGemBlockPlace(placer: Player, inHand: ItemStack?, block: Block, event: BlockPlaceEvent) {
@@ -368,57 +523,74 @@ class GemManager(
 
     fun handlePlayerQuit(player: Player) {
         Preconditions.checkState(Bukkit.isPrimaryThread(), "State mutation must occur on primary thread")
-        for (item in player.inventory.contents) {
-            if (stateManager.isRuleGem(item)) {
-                val gemId = stateManager.getGemUUID(item)
-                player.inventory.remove(item)
-                stateManager.clearGemHolder(gemId)
-                placementManager.placeRuleGem(player.location, gemId)
-            }
+        val gemIds: MutableSet<UUID> = LinkedHashSet()
+        val contents = player.inventory.contents
+        for (slot in contents.indices) {
+            val item = contents[slot] ?: continue
+            if (!stateManager.containsGem(item)) continue
+            val removal = stateManager.stripAllGems(item)
+            player.inventory.setItem(slot, removal.item)
+            gemIds.addAll(removal.gemIds)
+        }
+        for (gemId in gemIds) {
+            stateManager.clearGemHolder(gemId)
+            placementManager.placeRuleGem(player.location, gemId)
         }
     }
 
     fun handleGemDrop(player: Player, loc: Location, droppedItemEntity: org.bukkit.entity.Item, item: ItemStack?) {
-        if (!stateManager.isRuleGem(item)) return
-        val gemId = stateManager.getGemUUID(item)
+        if (!stateManager.containsGem(item)) return
         droppedItemEntity.remove()
-        stateManager.clearGemHolder(gemId)
-        placementManager.triggerScatterEffects(gemId, loc, player.name)
-        placementManager.placeRuleGem(loc, gemId)
+        if (!claimItemCustody(droppedItemEntity.uniqueId)) return
+
+        for (gemId in LinkedHashSet(stateManager.collectGemIds(item))) {
+            stateManager.clearGemHolder(gemId)
+            placementManager.triggerScatterEffects(gemId, loc, player.name)
+            placementManager.placeRuleGem(loc, gemId)
+        }
     }
 
     fun handlePlayerDeathDrops(player: Player, deathLoc: Location, drops: MutableList<ItemStack>) {
         Preconditions.checkState(Bukkit.isPrimaryThread(), "State mutation must occur on primary thread")
-        val iterator = drops.iterator()
+        val gemIds: MutableSet<UUID> = LinkedHashSet()
+        val iterator = drops.listIterator()
         while (iterator.hasNext()) {
             val item = iterator.next()
-            if (stateManager.isRuleGem(item)) {
-                val gemId = stateManager.getGemUUID(item)
+            if (!stateManager.containsGem(item)) continue
+            val removal = stateManager.stripAllGems(item)
+            if (removal.item == null) {
                 iterator.remove()
-                stateManager.clearGemHolder(gemId)
-                placementManager.triggerScatterEffects(gemId, deathLoc, player.name)
-                placementManager.placeRuleGem(deathLoc, gemId)
+            } else {
+                iterator.set(removal.item)
             }
+            gemIds.addAll(removal.gemIds)
+        }
+        for (gemId in gemIds) {
+            stateManager.clearGemHolder(gemId)
+            placementManager.triggerScatterEffects(gemId, deathLoc, player.name)
+            placementManager.placeRuleGem(deathLoc, gemId)
         }
     }
 
     fun handlePlayerJoin(player: Player) {
         Preconditions.checkState(Bukkit.isPrimaryThread(), "State mutation must occur on primary thread")
-        for (item in player.inventory.contents) {
-            if (stateManager.isRuleGem(item)) {
-                val gemId = stateManager.getGemUUID(item)
-                if (!stateManager.gemUuidToHolder.containsKey(gemId)) {
-                    player.inventory.remove(item)
-                }
-            }
-        }
+        // 删除"不属于本人"的宝石副本：本体已被收回世界后残留在背包里的那些。
+        custodyAuditor.sweepPlayerInventory(player)
         permissionManager.restoreRedeemedPermissions(player)
         permissionManager.applyPendingRevokesIfAny(player)
         placementManager.refreshDisplayForPlayer(player)
     }
 
-    fun scatterGems() {
-        scatterService.scatterGems()
+    fun scatterGems(): Boolean {
+        if (!globalOperationCoordinator.tryBegin(GlobalOperation.SCATTER)) {
+            return false
+        }
+        return try {
+            scatterService.scatterGems()
+            true
+        } finally {
+            globalOperationCoordinator.end(GlobalOperation.SCATTER)
+        }
     }
 
     fun redeemGemInHand(player: Player?): Boolean {
@@ -460,7 +632,7 @@ class GemManager(
         val previousOwnerName = processRedeemCore(player, matchedGemId, targetKey, definition)
 
         stateManager.removeGemItemFromInventory(player, matchedGemId)
-        stateManager.gemUuidToHolder.remove(matchedGemId)
+        stateManager.clearGemHolder(matchedGemId)
         placementManager.randomPlaceGem(matchedGemId)
         consumeRequirementGems(player, requirementResult)
 
@@ -530,7 +702,7 @@ class GemManager(
                 applyRedeemRewards(player, definition)
                 allowanceManager.reassignRedeemInstanceAllowance(gid, player.uniqueId, definition, true)
                 stateManager.removeGemItemFromInventory(player, gid)
-                stateManager.gemUuidToHolder.remove(gid)
+                stateManager.clearGemHolder(gid)
                 placementManager.randomPlaceGem(gid)
             }
         }
@@ -641,7 +813,7 @@ class GemManager(
             if (online != player) languageManager.sendMessage(online, "place_redeem.broadcast", placeholders)
         }
 
-        stateManager.gemUuidToHolder.remove(gemId)
+        stateManager.clearGemHolder(gemId)
         SchedulerUtil.regionRun(plugin, placedLoc, { block.type = Material.AIR }, 1L, -1L)
         placementManager.randomPlaceGem(gemId)
         consumeRequirementGems(player, requirementResult)
@@ -823,7 +995,7 @@ class GemManager(
         val uniqueConsumed: Set<UUID> = LinkedHashSet(result.consumedGemIds)
         for (consumedGemId in uniqueConsumed) {
             stateManager.removeGemItemFromInventory(player, consumedGemId)
-            stateManager.gemUuidToHolder.remove(consumedGemId)
+            stateManager.clearGemHolder(consumedGemId)
             placementManager.randomPlaceGem(consumedGemId)
         }
         recalculateGrants(player)
@@ -1009,7 +1181,7 @@ class GemManager(
         if (gemId == null || target == null) return
         val holder = stateManager.getGemHolder(gemId)
         if (holder != null) {
-            stateManager.gemUuidToHolder.remove(gemId)
+            stateManager.clearGemHolder(gemId)
             stateManager.removeGemItemFromInventory(holder, gemId)
             recalculateGrants(holder)
         }
@@ -1022,6 +1194,16 @@ class GemManager(
     }
 
     fun isRuleGem(item: ItemStack?): Boolean = stateManager.isRuleGem(item)
+
+    /** 这一摞物品里是否藏着宝石（含收纳袋/潜影盒内部）。存储类判定都该用它。 */
+    fun containsGem(item: ItemStack?): Boolean = stateManager.containsGem(item)
+
+    fun collectGemIds(item: ItemStack?): List<UUID> = stateManager.collectGemIds(item)
+
+    fun isContainerItem(item: ItemStack?): Boolean = stateManager.isContainerItem(item)
+
+    fun sweepForeignInventory(inventory: org.bukkit.inventory.Inventory?, contextName: String?): Int =
+        custodyAuditor.sweepForeignInventory(inventory, contextName)
 
     fun getGemUUID(item: ItemStack?): UUID? = stateManager.getGemUUID(item)
 
@@ -1097,6 +1279,8 @@ class GemManager(
     }
 
     companion object {
+        private const val MAX_CUSTODY_ITEM_CLAIMS = 4096
+        private const val CUSTODY_ITEM_CLAIM_TTL_MS = 60_000L
         private val SAVE_ROOT_KEYS = arrayOf(
             "placed-gems",
             "held-gems",

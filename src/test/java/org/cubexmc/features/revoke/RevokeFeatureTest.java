@@ -132,7 +132,7 @@ class RevokeFeatureTest {
         gemManager = new GemManager(plugin, configManager, gemParser, gameplayConfig, effectUtils, languageManager);
         gemManager.getStateManager().getGemUuidToKey().put(FIRE_GEM_ID, "fire");
         gemManager.getStateManager().getGemUuidToKey().put(JUDGMENT_GEM_ID, "judgment");
-        gemManager.getStateManager().getGemUuidToHolder().put(JUDGMENT_GEM_ID, actor);
+        gemManager.getStateManager().setGemHolder(JUDGMENT_GEM_ID, actor);
         gemManager.getPermissionManager().getGemIdToRedeemer().put(FIRE_GEM_ID, TARGET_ID);
         gemManager.getPermissionManager().getOwnerKeyCount().put(TARGET_ID,
                 new java.util.HashMap<>(java.util.Map.of("fire", 1)));

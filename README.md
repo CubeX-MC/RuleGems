@@ -3,7 +3,7 @@
 [English](README_en.md) | 中文<br>
 [Discord](https://discord.com/invite/7tJeSZPZgv) | [QQ频道](https://pd.qq.com/s/1n3hpe4e7?b=9)
 
-一个用"宝石收集"来流转玩家权限的轻量插件，支持 Folia 与多版本。
+一个用“宝石收集”来流转玩家权限的轻量插件，面向 Spigot/Paper 多版本。
 
 ## 安装
 1. 将 JAR 放入 `plugins` 目录
@@ -52,8 +52,9 @@
 - `rulegems.appoint.<权限集>` 任命其他玩家获得指定权限集
 
 ## 兼容性
-- 服务器：Spigot / Paper 1.16+；兼容 Folia
-- 可选依赖：Vault（权限后端）
+- 服务器：Spigot / Paper 1.16+。当前版本未声明 Folia 支持；完成真实双区域并发验收前，请勿在 Folia 生产服部署。
+- 可选依赖：LuckPerms / Vault（权限后端）、QuickShop-Hikari 6.2.0.11（商店保护适配）
+- 如果检测到 QuickShop-Hikari 但买入、卖出或建店保护钩子无法完整注册，RuleGems 会拒绝启动，避免宝石在未受保护的交易路径中流转。
 
 ## 逻辑
 该插件允许服务器定制不同种类的权力宝石，每一种可以有指定数量和指定的权限与指令（指令可以限制次数）。每颗宝石都是唯一的。每颗宝石都随时存在于服务器中，意味着它只能处于以下状态之一：被放置或处于线上玩家的背包中。
@@ -117,7 +118,8 @@
   - `allow_redeem_all`: 默认 `false`，避免 `/rg redeemall` 绕过前置要求。
 - 配置升级：启动或 reload 检测到 `template`、根节点隐式 power、`vault_group` / `vault_groups` / `permission_group` 或旧 requirement 写法时，会先备份到 `backups/config-optimization-<yyyyMMdd-HHmmss>/`，再以粗兼容读取并输出 warning。建议手动迁移到 `base`、`permission_groups` 和 recipe/ingredient 写法；未来版本可能移除这些兼容。
 - 权限后端按 LuckPerms → Vault → Bukkit 自动选择；权限组的授予 / 撤销通过当前后端执行。
-- 存储：`storage.type: yaml` 使用默认 `data/gems.yml` 数据文件；`storage.type: sqlite` 使用 `storage.sqlite.file` 指定的 SQLite 数据库文件。SQLite 会保留现有数据结构，并在空库首次启动时从 `data/gems.yml` 导入。
+- 存储：`storage.type: yaml` 使用默认 `data/gems.yml` 数据文件，并维护最后一次成功写入的 `data/gems.yml.bak`；`storage.type: sqlite` 使用 `storage.sqlite.file` 指定的 SQLite 数据库文件。SQLite 会保留现有数据结构，并在空库首次启动时从 `data/gems.yml` 导入。损坏或无法读取的数据不会被当成空白新服，也不会触发新 UUID 生成；启动会失败，重载则保留当前运行状态。同步保存失败时会尝试写入 `data/recovery/gems-emergency-<时间戳>.yml`，并在 `/rg doctor` 中报告。
+- 经济转账：内置 `transfer:` 默认由 `economy.transfer_directives_enabled: false` 禁用。Vault 只提供分开的扣款与入账调用，并不保证跨账户事务；生产服应保持关闭，优先在 `command_allows` 中调用经济插件自己的转账命令。若明确启用，RuleGems 会按账户对串行执行、复核余额并检查补偿结果，但进程崩溃级恢复仍应由经济插件负责。
 - 权力门控：`features/rule.yml` 默认关闭。启用后可用 `rulegems.rule` 授权所有宝石权力，或用 `rulegems.rule.<宝石key>` 只授权单个宝石；这适合测试阶段只让可信玩家实际获得 power。
 - 额外兑换方式：
   - `grant_policy.place_redeem_enabled: true` 启用祭坛放置兑换（配合 `/rulegems setaltar`）

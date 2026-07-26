@@ -125,6 +125,8 @@ class GameplayConfig {
     // ==================== 安全 ====================
     var isOpEscalationAllowed = false
         private set
+    var isTransferDirectivesEnabled = false
+        private set
 
     /**
      * 从 config.yml 读取并刷新所有 gameplay 字段。
@@ -324,6 +326,8 @@ class GameplayConfig {
 
         // 安全配置
         isOpEscalationAllowed = config.getBoolean("allow_op_escalation", false)
+        isTransferDirectivesEnabled =
+            config.getBoolean("economy.transfer_directives_enabled", false)
     }
 
     private fun parseThresholdGroups(section: ConfigurationSection?, logger: Logger?): Map<Int, String> {

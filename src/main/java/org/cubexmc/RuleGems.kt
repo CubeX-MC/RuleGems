@@ -20,17 +20,22 @@ import org.cubexmc.features.appoint.AppointFeature
 import org.cubexmc.economy.EconomyProvider
 import org.cubexmc.gui.GUIManager
 import org.cubexmc.listeners.CommandAllowanceListener
+import org.cubexmc.listeners.GemBlockProtectionListener
 import org.cubexmc.listeners.GemConsumeListener
+import org.cubexmc.listeners.GemCustodyListener
 import org.cubexmc.listeners.GemDisplayListener
 import org.cubexmc.listeners.GemInventoryListener
 import org.cubexmc.listeners.GemPlaceListener
 import org.cubexmc.listeners.PlayerEventListener
+import org.cubexmc.listeners.QuickShopHikariBridge
+import org.cubexmc.listeners.QuickShopIntegrationHealth
 import org.cubexmc.listeners.WorldLoadListener
 import org.cubexmc.manager.ConfigManager
 import org.cubexmc.manager.CustomCommandExecutor
 import org.cubexmc.manager.GameplayConfig
 import org.cubexmc.manager.GemDefinitionParser
 import org.cubexmc.manager.GemManager
+import org.cubexmc.manager.GlobalOperation
 import org.cubexmc.manager.HistoryLogger
 import org.cubexmc.manager.LanguageManager
 import org.cubexmc.manager.PowerStructureManager
@@ -76,6 +81,8 @@ class RuleGems : CubexPlugin() {
         private set
     var economyProvider: EconomyProvider? = null
         private set
+    var quickShopIntegrationHealth: QuickShopIntegrationHealth = QuickShopIntegrationHealth.absent()
+        private set
 
     @Suppress("unused")
     private var metrics: Metrics? = null
@@ -94,7 +101,7 @@ class RuleGems : CubexPlugin() {
         historyLogger = HistoryLogger(this, languageManager)
         economyProvider = EconomyProvider.hook(this)
         if (economyProvider != null) {
-            logger.info("Vault economy hooked; transfer: directives (safe offline transfers) enabled.")
+            logger.info("Vault economy hooked. Built-in transfer: directives remain controlled by config.")
         } else {
             logger.info("Vault economy not found; transfer: directives will be unavailable.")
         }
@@ -104,7 +111,9 @@ class RuleGems : CubexPlugin() {
         guiManager = GUIManager(this, gemManager, languageManager)
 
         metrics = Metrics(this, 27483)
-        loadPlugin()
+        if (!loadPlugin()) {
+            throw IllegalStateException("RuleGems storage load failed. Active gem state was not initialized.")
+        }
 
         val currentGemManager = gemManager
         val currentGameplayConfig = gameplayConfig
@@ -115,8 +124,19 @@ class RuleGems : CubexPlugin() {
         Bukkit.getPluginManager().registerEvents(GemPlaceListener(currentGemManager), this)
         Bukkit.getPluginManager().registerEvents(GemDisplayListener(currentGemManager), this)
         Bukkit.getPluginManager().registerEvents(GemInventoryListener(currentGemManager, currentLanguageManager), this)
+        Bukkit.getPluginManager().registerEvents(GemBlockProtectionListener(currentGemManager), this)
+        Bukkit.getPluginManager().registerEvents(GemCustodyListener(currentGemManager, currentLanguageManager), this)
         Bukkit.getPluginManager().registerEvents(PlayerEventListener(this, currentGemManager), this)
         Bukkit.getPluginManager().registerEvents(WorldLoadListener(currentGemManager), this)
+        quickShopIntegrationHealth =
+            QuickShopHikariBridge(this, currentGemManager, currentLanguageManager).register()
+        if (quickShopIntegrationHealth.releaseBlocking) {
+            throw IllegalStateException(
+                "QuickShop-Hikari is installed without active RuleGems trade protection: " +
+                    quickShopIntegrationHealth.detail,
+            )
+        }
+        currentGemManager.custodyAuditor.start()
 
         val consumeListener = GemConsumeListener(this, currentGemManager, currentGameplayConfig, currentLanguageManager)
         gemConsumeListener = consumeListener
@@ -150,9 +170,8 @@ class RuleGems : CubexPlugin() {
             powerStructureManager.setRuleGateFeature(ruleGateFeature)
             currentGemManager.allowanceManager.setRuleGateFeature(ruleGateFeature)
         }
-        RuleGemsDoctor(this).logWarnings()
-
         initializePermissionProvider()
+        RuleGemsDoctor(this).logWarnings()
 
         SchedulerUtil.globalRun(
             this,
@@ -215,6 +234,7 @@ class RuleGems : CubexPlugin() {
         }
         bind {
             if (::gemManager.isInitialized) {
+                gemManager.custodyAuditor.stop()
                 gemManager.shutdownEscape()
                 gemManager.saveGemsSync()
             }
@@ -242,7 +262,7 @@ class RuleGems : CubexPlugin() {
         }
     }
 
-    fun loadPlugin() {
+    fun loadPlugin(): Boolean {
         saveDefaultResources()
         reloadConfig()
         try {
@@ -253,14 +273,22 @@ class RuleGems : CubexPlugin() {
         }
         languageManager.updateBundledLanguages()
         languageManager.loadLanguage()
-        configManager.initGemFile()
         configManager.loadConfigs()
+        if (gameplayConfig.isTransferDirectivesEnabled) {
+            logger.warning(
+                "economy.transfer_directives_enabled is true. Vault transfers use compensation, " +
+                    "not a cross-account transaction; prefer the economy plugin's native command.",
+            )
+        }
+        configManager.initGemFile()
+        if (!gemManager.loadGems()) {
+            logger.severe("RuleGems load aborted because gem storage is unavailable.")
+            return false
+        }
         // 配置(含 effects.duration/refresh_interval)已刷新；若刷新任务在运行则用新间隔重启
         if (::powerStructureManager.isInitialized) {
             powerStructureManager.restartEffectRefreshTaskIfRunning()
         }
-        configManager.getGemsData()
-        gemManager.loadGems()
         gemManager.initializePlacedGemBlocks()
         gemManager.ensureConfiguredGemsPresent()
 
@@ -277,6 +305,29 @@ class RuleGems : CubexPlugin() {
             configureAllowanceSourceLookups()
             RuleGemsDoctor(this).logWarnings()
         }
+        return true
+    }
+
+    fun reloadFromCommand(): ReloadResult {
+        if (!gemManager.globalOperationCoordinator.tryBegin(GlobalOperation.RELOAD)) {
+            return ReloadResult.BUSY
+        }
+        return try {
+            if (!gemManager.saveGemsSync() || !loadPlugin()) {
+                ReloadResult.FAILED
+            } else {
+                refreshAllowedCommandProxies()
+                ReloadResult.SUCCESS
+            }
+        } finally {
+            gemManager.globalOperationCoordinator.end(GlobalOperation.RELOAD)
+        }
+    }
+
+    enum class ReloadResult {
+        SUCCESS,
+        FAILED,
+        BUSY,
     }
 
     private fun configureAllowanceSourceLookups() {

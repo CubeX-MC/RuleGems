@@ -2,6 +2,54 @@
 
 ## Unreleased
 
+- **Compatibility claim correction**: remove `folia-supported: true` and the
+  unconditional Folia support claim until the documented real two-region gate
+  has passed.
+- **Stable command fallback**: declare `/rulegems` and `/rg` in `plugin.yml`
+  and attach the Bukkit compatibility executor without reflective command-map
+  registration when Cloud cannot initialize.
+- **QuickShop health gate**: validate the 6.2.0.11 event, cancellation, phase,
+  shop, and item-access contracts at startup; an installed QuickShop instance
+  without active purchase/sale/create protection now blocks RuleGems startup
+  instead of degrading silently.
+- **Economy safety boundary**: built-in `transfer:` directives are disabled by
+  default. When explicitly enabled, transfers are serialized per normalized
+  account pair, balances are rechecked under the lock, and deposit rollback is
+  verified; documentation no longer calls Vault's separate calls atomic.
+- **Dependency governance**: upgrade SQLite JDBC to 3.53.2.0, lock resolved
+  RuleGems dependency versions, verify resolved artifact SHA-256 checksums, add
+  a strict Detekt legacy baseline, JaCoCo XML/HTML coverage reports, and a
+  scheduled/PR OSV vulnerability scan plus release-JAR package audit.
+- **Global operation safety**: serialize reload and scatter, reject a second
+  global rebuild while one is active, and run doctor diagnostics only after the
+  permission backend is selected.
+- **Shared-state safety**: use immutable block-position identity and player UUID
+  holder identity, lock holder/location transitions and snapshots, use
+  concurrent nested allowance/permission collections, and atomically consume
+  finite allowances.
+- **Fail-closed persistence**: distinguish missing data from failed reads, abort
+  startup/reload on unreadable or semantically invalid gem state, and preserve
+  the active runtime state on reload failure.
+- **Crash-safe YAML storage**: validate and flush same-directory temporary
+  files, replace the primary atomically where supported, and maintain
+  `data/gems.yml.bak` as the last-known-good copy.
+- **SQLite storage safety**: use explicit transactions, rollback failures, a
+  busy timeout, and strict validation of the stored YAML payload.
+- **Save recovery**: reject stale save revisions, expose the latest storage
+  failure through `/rg doctor`, block reload after a failed synchronous save,
+  and write `data/recovery/gems-emergency-<timestamp>.yml` if the primary
+  synchronous save fails.
+- **QuickShop-Hikari safety**: cancel gem purchases, sales, and shop creation
+  through optional pre-transaction hooks, before money or items move.
+- **Container input safety**: block off-hand swaps into external inventories.
+- **Nested custody safety**: remove gems recursively from shulker boxes and
+  bundles during logout, death, duplicate cleanup, and foreign-inventory
+  recovery while preserving unrelated carrier contents where the server API
+  supports rewriting them.
+- **Folia drop safety**: deduplicate custody recovery by dropped-item entity so
+  `ItemSpawnEvent` and `PlayerDropItemEvent` cannot schedule two placements.
+- **World-border fail-safe**: refuse random placement bounds when the configured
+  range and vanilla world border do not intersect.
 - **Navigation security**: project compass targets onto player-relative bearing
   waypoints so client packets no longer contain a gem's absolute coordinates.
 - **Navigation lifecycle**: refresh relative waypoints safely, clear stale or

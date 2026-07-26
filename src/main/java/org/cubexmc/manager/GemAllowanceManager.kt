@@ -10,6 +10,8 @@ import org.cubexmc.model.GemDefinition
 import org.cubexmc.model.PowerStructure
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.BiPredicate
 import java.util.function.Function
 
@@ -42,16 +44,15 @@ class GemAllowanceManager(
             }
     }
 
-    val playerGemHeldUses: MutableMap<UUID, MutableMap<UUID, MutableMap<String, Int>>> = HashMap()
-    val playerGemRedeemUses: MutableMap<UUID, MutableMap<UUID, MutableMap<String, Int>>> = HashMap()
-    val playerGlobalAllowedUses: MutableMap<UUID, MutableMap<String, Int>> = HashMap()
-    val playerAppointmentAllowedUses: MutableMap<UUID, MutableMap<String, MutableMap<String, Int>>> = HashMap()
+    val playerGemHeldUses: MutableMap<UUID, MutableMap<UUID, MutableMap<String, Int>>> = ConcurrentHashMap()
+    val playerGemRedeemUses: MutableMap<UUID, MutableMap<UUID, MutableMap<String, Int>>> = ConcurrentHashMap()
+    val playerGlobalAllowedUses: MutableMap<UUID, MutableMap<String, Int>> = ConcurrentHashMap()
+    val playerAppointmentAllowedUses: MutableMap<UUID, MutableMap<String, MutableMap<String, Int>>> = ConcurrentHashMap()
 
-    @Volatile
-    private var dirty = false
+    private val dirty = AtomicBoolean()
 
-    private val labelIndexCache: MutableMap<UUID, Set<String>> = HashMap()
-    private val labelIndexDirtyPlayers: MutableSet<UUID> = HashSet()
+    private val labelIndexCache: MutableMap<UUID, Set<String>> = ConcurrentHashMap()
+    private val labelIndexDirtyPlayers: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
 
     private var saveCallback: Runnable? = null
     private var isToggledOffCheck: BiPredicate<UUID, UUID>? = null
@@ -102,7 +103,7 @@ class GemAllowanceManager(
                 }
                 val globalSection = playerSec.getConfigurationSection("global")
                 if (globalSection != null) {
-                    val map: MutableMap<String, Int> = HashMap()
+                    val map: MutableMap<String, Int> = ConcurrentHashMap()
                     for (label in globalSection.getKeys(false)) {
                         map[label.lowercase(ROOT_LOCALE)] = globalSection.getInt(label, 0)
                     }
@@ -122,12 +123,12 @@ class GemAllowanceManager(
     ) {
         val section = playerSec.getConfigurationSection(key)
         if (section == null || section.getKeys(false).isEmpty()) return
-        val perInstance: MutableMap<UUID, MutableMap<String, Int>> = HashMap()
+        val perInstance: MutableMap<UUID, MutableMap<String, Int>> = ConcurrentHashMap()
         for (gid in section.getKeys(false)) {
             try {
                 val gem = UUID.fromString(gid)
                 val labels = section.getConfigurationSection(gid)
-                val map: MutableMap<String, Int> = HashMap()
+                val map: MutableMap<String, Int> = ConcurrentHashMap()
                 if (labels != null) {
                     for (label in labels.getKeys(false)) {
                         map[label.lowercase(ROOT_LOCALE)] = labels.getInt(label, 0)
@@ -149,10 +150,10 @@ class GemAllowanceManager(
     ) {
         val section = playerSec.getConfigurationSection(key)
         if (section == null || section.getKeys(false).isEmpty()) return
-        val perSource: MutableMap<String, MutableMap<String, Int>> = HashMap()
+        val perSource: MutableMap<String, MutableMap<String, Int>> = ConcurrentHashMap()
         for (source in section.getKeys(false)) {
             val labels = section.getConfigurationSection(source)
-            val map: MutableMap<String, Int> = HashMap()
+            val map: MutableMap<String, Int> = ConcurrentHashMap()
             if (labels != null) {
                 for (label in labels.getKeys(false)) {
                     map[normalizeLabel(label)] = labels.getInt(label, 0)
@@ -359,7 +360,7 @@ class GemAllowanceManager(
             }
         }
 
-        val global = playerGlobalAllowedUses.computeIfAbsent(uid) { HashMap() }
+        val global = playerGlobalAllowedUses.computeIfAbsent(uid) { ConcurrentHashMap() }
         val value = global.getOrDefault(normalized, 0)
         if (value < 0) return
         global[normalized] = value + 1
@@ -473,7 +474,7 @@ class GemAllowanceManager(
         if (allows.isEmpty()) return
 
         val uid = player.uniqueId
-        val global = playerGlobalAllowedUses.computeIfAbsent(uid) { HashMap() }
+        val global = playerGlobalAllowedUses.computeIfAbsent(uid) { ConcurrentHashMap() }
         for (command in allows) {
             global[normalizeLabel(command.label)] = command.uses
         }
@@ -492,8 +493,8 @@ class GemAllowanceManager(
             return
         }
 
-        val byAppointment = playerAppointmentAllowedUses.computeIfAbsent(uid) { HashMap() }
-        val current = byAppointment.computeIfAbsent(sourceKey) { HashMap() }
+        val byAppointment = playerAppointmentAllowedUses.computeIfAbsent(uid) { ConcurrentHashMap() }
+        val current = byAppointment.computeIfAbsent(sourceKey) { ConcurrentHashMap() }
         if (reset) {
             current.clear()
         } else {
@@ -563,7 +564,7 @@ class GemAllowanceManager(
             if (map != null && map.isEmpty()) playerGemHeldUses.remove(oldOwner)
         }
 
-        val destination = playerGemHeldUses.computeIfAbsent(newOwner) { HashMap() }
+        val destination = playerGemHeldUses.computeIfAbsent(newOwner) { ConcurrentHashMap() }
         if (payload == null) {
             if (!destination.containsKey(gemId)) destination[gemId] = buildAllowedMap(definition)
         } else {
@@ -596,7 +597,8 @@ class GemAllowanceManager(
 
         if (newOwner == oldOwner) {
             if (resetEvenIfSameOwner) {
-                playerGemRedeemUses.computeIfAbsent(newOwner) { HashMap() }[gemId] = buildAllowedMap(definition)
+                playerGemRedeemUses.computeIfAbsent(newOwner) { ConcurrentHashMap() }[gemId] =
+                    buildAllowedMap(definition)
                 markDirty(newOwner)
             }
             return
@@ -609,7 +611,7 @@ class GemAllowanceManager(
             if (map != null && map.isEmpty()) playerGemRedeemUses.remove(oldOwner)
         }
 
-        val destination = playerGemRedeemUses.computeIfAbsent(newOwner) { HashMap() }
+        val destination = playerGemRedeemUses.computeIfAbsent(newOwner) { ConcurrentHashMap() }
         if (payload == null || resetEvenIfSameOwner) {
             destination[gemId] = buildAllowedMap(definition)
         } else {
@@ -620,7 +622,7 @@ class GemAllowanceManager(
     }
 
     private fun buildAllowedMap(definition: GemDefinition): MutableMap<String, Int> {
-        val map: MutableMap<String, Int> = HashMap()
+        val map: MutableMap<String, Int> = ConcurrentHashMap()
         for (command in definition.allowedCommands) {
             map[normalizeLabel(command.label)] = command.uses
         }
@@ -628,7 +630,7 @@ class GemAllowanceManager(
     }
 
     private fun buildAllowedMap(power: PowerStructure?): MutableMap<String, Int> {
-        val map: MutableMap<String, Int> = HashMap()
+        val map: MutableMap<String, Int> = ConcurrentHashMap()
         if (power == null) return map
         for (command in power.allowedCommands) {
             map[normalizeLabel(command.label)] = command.uses
@@ -751,17 +753,21 @@ class GemAllowanceManager(
 
     private fun consumeFromMap(uid: UUID, byLabel: MutableMap<String, Int>?, label: String): Boolean {
         if (byLabel == null) return false
-        val value = byLabel.getOrDefault(label, 0)
-        if (value < 0) {
-            markDirty(uid)
-            return true
+        val consumed = synchronized(byLabel) {
+            val value = byLabel.getOrDefault(label, 0)
+            when {
+                value < 0 -> true
+                value > 0 -> {
+                    byLabel[label] = value - 1
+                    true
+                }
+                else -> false
+            }
         }
-        if (value > 0) {
-            byLabel[label] = value - 1
+        if (consumed) {
             markDirty(uid)
-            return true
         }
-        return false
+        return consumed
     }
 
     private fun getSourceMap(uid: UUID, resolved: ResolvedAllowance?): MutableMap<String, Int>? {
@@ -779,18 +785,20 @@ class GemAllowanceManager(
         return when (resolved.sourceType) {
             AllowanceSourceType.HELD -> {
                 val gemId = resolved.gemId ?: return null
-                playerGemHeldUses.computeIfAbsent(uid) { HashMap() }.computeIfAbsent(gemId) { HashMap() }
+                playerGemHeldUses.computeIfAbsent(uid) { ConcurrentHashMap() }
+                    .computeIfAbsent(gemId) { ConcurrentHashMap() }
             }
             AllowanceSourceType.REDEEMED -> {
                 val gemId = resolved.gemId ?: return null
-                playerGemRedeemUses.computeIfAbsent(uid) { HashMap() }.computeIfAbsent(gemId) { HashMap() }
+                playerGemRedeemUses.computeIfAbsent(uid) { ConcurrentHashMap() }
+                    .computeIfAbsent(gemId) { ConcurrentHashMap() }
             }
             AllowanceSourceType.APPOINTMENT -> {
                 val sourceKey = resolved.sourceKey ?: return null
-                playerAppointmentAllowedUses.computeIfAbsent(uid) { HashMap() }
-                    .computeIfAbsent(normalizeSourceKey(sourceKey)) { HashMap() }
+                playerAppointmentAllowedUses.computeIfAbsent(uid) { ConcurrentHashMap() }
+                    .computeIfAbsent(normalizeSourceKey(sourceKey)) { ConcurrentHashMap() }
             }
-            AllowanceSourceType.GLOBAL -> playerGlobalAllowedUses.computeIfAbsent(uid) { HashMap() }
+            AllowanceSourceType.GLOBAL -> playerGlobalAllowedUses.computeIfAbsent(uid) { ConcurrentHashMap() }
         }
     }
 
@@ -855,21 +863,18 @@ class GemAllowanceManager(
 
     private fun normalizeSourceKey(sourceKey: String?): String = sourceKey?.trim()?.lowercase(ROOT_LOCALE) ?: ""
 
-    private fun save() {
-        saveCallback?.run()
-        dirty = false
-    }
-
     private fun markDirty(uid: UUID?) {
-        dirty = true
+        dirty.set(true)
         invalidateLabelIndex(uid)
     }
 
     fun flushIfDirty() {
-        if (dirty) save()
+        if (dirty.compareAndSet(true, false)) {
+            saveCallback?.run()
+        }
     }
 
-    fun isDirty(): Boolean = dirty
+    fun isDirty(): Boolean = dirty.get()
 
     private fun canUseSource(playerId: UUID, gemId: UUID): Boolean {
         val feature = ruleGateFeature ?: return true

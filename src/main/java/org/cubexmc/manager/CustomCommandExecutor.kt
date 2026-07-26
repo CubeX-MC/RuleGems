@@ -101,9 +101,15 @@ class CustomCommandExecutor(
 
     /**
      * 处理 transfer 指令：格式为 "<付款账户> <收款账户> <金额>"（占位符已替换完毕）。
-     * 经 Vault 做离线安全原子转账，并向玩家反馈结果。返回是否成功。
+     * 经 Vault 做带补偿回滚的转账，并向玩家反馈结果。Vault 不提供跨账户事务，
+     * 因此该扩展默认关闭，建议优先使用经济插件自己的转账命令。
      */
     private fun executeTransfer(player: Player, spec: String): Boolean {
+        if (gameplayConfig?.isTransferDirectivesEnabled != true) {
+            languageManager?.sendMessage(player, "allowance.transfer_disabled")
+            plugin.logger.warning("Blocked transfer: directive because economy.transfer_directives_enabled is false.")
+            return false
+        }
         val eco = economyProvider
         if (eco == null) {
             languageManager?.sendMessage(player, "allowance.transfer_no_economy")
@@ -227,7 +233,7 @@ class CustomCommandExecutor(
 
             plugin.logger.fine("[Debug] Final command: $finalCommand")
 
-            // transfer: 由 Vault 做离线安全原子转账。失败（余额不足/无经济/参数错误）时
+            // transfer: 由 Vault 做带验证的补偿式转账。失败（余额不足/无经济/参数错误）时
             // 中止整条命令链并返回失败，监听器据此退回次数且不进入冷却。
             if ("transfer" == executor) {
                 if (!executeTransfer(player, finalCommand)) {

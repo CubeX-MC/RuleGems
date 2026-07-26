@@ -6,8 +6,13 @@ description: "一个管理 RuleGems（统治宝石）的插件"
 
 # 如果你的插件需要在更高版本的 Spigot/Paper 运行，可以指定 api-version
 api-version: "1.16"
-folia-supported: true
-softdepend: [LuckPerms, Vault]
+softdepend: [LuckPerms, Vault, QuickShop-Hikari]
+
+commands:
+  rulegems:
+    description: Main RuleGems command
+    usage: /rulegems help
+    aliases: [rg]
 
 permissions:
   rulegems.admin:

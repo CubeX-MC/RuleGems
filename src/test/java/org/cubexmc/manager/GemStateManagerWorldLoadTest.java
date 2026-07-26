@@ -104,6 +104,8 @@ class GemStateManagerWorldLoadTest {
 
         World world = mock(World.class);
         when(world.getName()).thenReturn("void_world");
+        when(world.getUID()).thenReturn(
+                UUID.fromString("30000000-0000-0000-0000-000000000003"));
 
         Map<UUID, Location> rebound = manager.bindPendingWorldGems(world);
 
@@ -120,6 +122,8 @@ class GemStateManagerWorldLoadTest {
     void loadedWorldBindsImmediatelyWithoutDeferral() {
         World world = mock(World.class);
         lenient().when(world.getName()).thenReturn("world");
+        lenient().when(world.getUID()).thenReturn(
+                UUID.fromString("40000000-0000-0000-0000-000000000004"));
         mockedBukkit.when(() -> Bukkit.getWorld("world")).thenReturn(world);
 
         manager.loadData(placedGemInWorld("world"), id -> {});

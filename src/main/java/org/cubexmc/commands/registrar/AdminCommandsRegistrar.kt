@@ -50,10 +50,14 @@ class AdminCommandsRegistrar(
                 .literal("reload")
                 .permission("rulegems.admin")
                 .handler { ctx ->
-                    gemManager.saveGemsSync()
-                    plugin.loadPlugin()
-                    plugin.refreshAllowedCommandProxies()
-                    languageManager.sendMessage(ctx.sender().sender(), "command.reload_success")
+                    when (plugin.reloadFromCommand()) {
+                        RuleGems.ReloadResult.SUCCESS ->
+                            languageManager.sendMessage(ctx.sender().sender(), "command.reload_success")
+                        RuleGems.ReloadResult.FAILED ->
+                            languageManager.sendMessage(ctx.sender().sender(), "command.reload_failed")
+                        RuleGems.ReloadResult.BUSY ->
+                            languageManager.sendMessage(ctx.sender().sender(), "command.operation_busy")
+                    }
                 },
         )
     }
@@ -88,8 +92,11 @@ class AdminCommandsRegistrar(
                 .literal("scatter")
                 .permission("rulegems.admin")
                 .handler { ctx ->
-                    gemManager.scatterGems()
-                    languageManager.sendMessage(ctx.sender().sender(), "command.scatter_success")
+                    if (gemManager.scatterGems()) {
+                        languageManager.sendMessage(ctx.sender().sender(), "command.scatter_success")
+                    } else {
+                        languageManager.sendMessage(ctx.sender().sender(), "command.operation_busy")
+                    }
                 },
         )
     }

@@ -32,6 +32,11 @@ storage:
 # 设为 true 时，会临时授予玩家 OP 来执行命令（存在安全风险）
 allow_op_escalation: false
 
+# Vault 的通用 API 不提供跨账户数据库事务。内置 transfer: 指令默认关闭；
+# 建议优先调用经济插件自己的转账命令。只有接受补偿回滚的剩余风险时才启用。
+economy:
+  transfer_directives_enabled: false
+
 # 宝石随机生成范围（默认）
 # 这是全局默认的生成范围，当宝石没有单独配置生成范围时使用
 # 每个宝石可以在其配置文件中通过 random_place_range 字段设置自己的生成范围

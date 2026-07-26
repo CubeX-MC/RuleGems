@@ -10,12 +10,22 @@ import org.cubexmc.model.AllowedCommand
 import org.cubexmc.model.AppointDefinition
 import org.cubexmc.model.PowerStructure
 import org.cubexmc.storage.SqliteStorageProvider
+import org.cubexmc.storage.StorageException
+import org.cubexmc.storage.StorageLoadResult
 import org.cubexmc.storage.StorageProvider
+import org.cubexmc.storage.StorageSaveResult
 import org.cubexmc.storage.YamlStorageProvider
 import org.cubexmc.update.BackupHelper
 import org.cubexmc.update.ConfigUpdater
 import java.io.File
+import java.nio.channels.FileChannel
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.nio.file.StandardOpenOption
+import java.time.Instant
 import java.util.Locale
+import org.bukkit.configuration.file.YamlConfiguration
 
 /**
  * ConfigManager — 配置协调器。
@@ -109,28 +119,56 @@ class ConfigManager(
         getStorageProvider().initialize()
     }
 
-    fun saveGemData(data: FileConfiguration) {
-        getStorageProvider().saveGemData(data)
+    fun saveGemData(data: FileConfiguration): StorageSaveResult = getStorageProvider().saveGemData(data)
+
+    /**
+     * Writes a provider-independent recovery file without touching the primary
+     * YAML or SQLite store. This is the final fallback for synchronous shutdown
+     * and reload saves.
+     */
+    fun saveEmergencyGemData(data: FileConfiguration): File {
+        val recoveryFolder = File(plugin.dataFolder, "data/recovery")
+        if (!recoveryFolder.exists() && !recoveryFolder.mkdirs()) {
+            throw StorageException("Could not create emergency recovery directory: $recoveryFolder")
+        }
+        val target = File(recoveryFolder, "gems-emergency-${Instant.now().toEpochMilli()}.yml")
+        val temp = File.createTempFile("gems-emergency-", ".tmp", recoveryFolder)
+        try {
+            data.save(temp)
+            YamlConfiguration().load(temp)
+            FileChannel.open(temp.toPath(), StandardOpenOption.WRITE).use { channel -> channel.force(true) }
+            try {
+                Files.move(
+                    temp.toPath(),
+                    target.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(temp.toPath(), target.toPath())
+            }
+            return target
+        } catch (failure: Exception) {
+            Files.deleteIfExists(temp.toPath())
+            throw StorageException("Failed to write emergency recovery snapshot", failure)
+        }
     }
 
-    fun readGemsData(): FileConfiguration {
-        gemsData = getStorageProvider().readGemData()
-        val data = gemsData
-        if (data != null) {
-            return data
+    fun readGemsData(): StorageLoadResult {
+        val result = getStorageProvider().readGemData()
+        if (result.isUsable) {
+            gemsData = result.data
         }
-        return getStorageProvider().readGemData().also { gemsData = it }
+        return result
     }
 
     fun getGemsData(): FileConfiguration {
-        if (gemsData == null) {
-            readGemsData()
+        val cached = gemsData
+        if (cached != null) {
+            return cached
         }
-        val data = gemsData
-        if (data != null) {
-            return data
-        }
-        return readGemsData()
+        val result = readGemsData()
+        return result.data
+            ?: throw StorageException("Gem data is unavailable because the storage read failed", result.error)
     }
 
     fun getStorageProvider(): StorageProvider {

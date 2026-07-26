@@ -3,7 +3,7 @@
 [中文](README.md) | English<br>
 [Discord](https://discord.com/invite/7tJeSZPZgv) | [QQ频道](https://pd.qq.com/s/1n3hpe4e7?b=9)
 
-A lightweight plugin that passes player power around through collectible "rule gems". Folia-supported.
+A lightweight plugin that passes player power around through collectible "rule gems" on Spigot and Paper.
 
 ## Installation
 1. Put the JAR into the `plugins` folder
@@ -52,8 +52,12 @@ A lightweight plugin that passes player power around through collectible "rule g
 - `rulegems.appoint.<perm_set>` Appoint other players to the specified permission set
 
 ## Compatibility
-- Servers: Spigot / Paper 1.16+; fully Folia compatible
-- Optional dependency: Vault (permission backend)
+- Servers: Spigot / Paper 1.16+. This build does not declare Folia support; do not deploy it to a production Folia server until the real two-region concurrency gate passes.
+- Optional integrations: LuckPerms / Vault (permission backends) and
+  QuickShop-Hikari 6.2.0.11 (shop protection adapter)
+- If QuickShop-Hikari is detected but the purchase, sale, and shop-creation
+  protection hooks cannot all be registered, RuleGems refuses to start instead
+  of allowing unprotected gem trades.
 
 ## Mechanics
 Each gem type can grant permissions, Vault groups and limited-use commands. Every gem instance is unique and permanently exists somewhere on the server (either placed in the world or held in a player inventory). Five application modes can be combined:
@@ -84,7 +88,14 @@ Each gem type can grant permissions, Vault groups and limited-use commands. Ever
   - `allow_redeem_all` defaults to `false` for configured requirements so `/rg redeemall` cannot bypass them accidentally.
 - Config upgrades: startup or reload backs up legacy syntax to `backups/config-optimization-<yyyyMMdd-HHmmss>/` before reading it with coarse compatibility and warnings. Migrate `template`, root-level implicit power fields, `vault_group` / `vault_groups` / `permission_group`, and old requirement forms to `base`, `permission_groups`, and recipe/ingredient syntax; future versions may remove compatibility.
 - Permission backends are selected automatically in LuckPerms → Vault → Bukkit order; group adds/removals are routed through the active provider.
-- Storage: `storage.type: yaml` uses the default `data/gems.yml` file. `storage.type: sqlite` uses the SQLite database file configured by `storage.sqlite.file`. SQLite preserves the existing data shape and imports `data/gems.yml` on first startup when the database is empty.
+- Storage: `storage.type: yaml` uses `data/gems.yml` and maintains `data/gems.yml.bak` as the last-known-good write. `storage.type: sqlite` uses the database configured by `storage.sqlite.file`, preserves the existing data shape, and imports `data/gems.yml` when an empty database is first initialized. Corrupt or unreadable data is never treated as a new installation and cannot trigger new UUID generation: startup fails, while reload preserves the active runtime state. If a synchronous primary save fails, RuleGems attempts `data/recovery/gems-emergency-<timestamp>.yml` and reports the failure through `/rg doctor`.
+- Economy transfers: built-in `transfer:` directives default to disabled through
+  `economy.transfer_directives_enabled: false`. Vault exposes separate withdraw
+  and deposit calls, not a cross-account transaction. Keep this disabled in
+  production and call the economy plugin's native command from
+  `command_allows`. If explicitly enabled, RuleGems serializes each account
+  pair, rechecks balance, and verifies compensation, but crash recovery remains
+  the economy plugin's responsibility.
 - Power gate: `features/rule.yml` is disabled by default. When enabled, `rulegems.rule` allows all gem powers and `rulegems.rule.<gemKey>` allows one specific gem. This is useful during testing when only trusted players should be able to activate powers.
 
 ### Gem Presentation Modes

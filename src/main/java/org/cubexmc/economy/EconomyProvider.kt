@@ -6,21 +6,24 @@ import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.plugin.Plugin
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
- * Vault 经济钩子，提供账户间的离线安全原子转账。
+ * Vault 经济钩子，提供账户间的补偿式转账。
  *
  * transfer: 指令接收的是经济账户名，而不是 Bukkit 玩家 UUID。
- * 配合 CMI 等 provider（已开启 OfflinePayments），即可对离线的金库账户做
- * 「校验余额 -> 扣款 -> 存款」的原子操作，余额不足时整笔取消，绝不凭空造钱。
+ * Vault 的 withdraw/deposit 是两个独立操作，不构成跨账户数据库事务。此处按
+ * 账户对串行化、在锁内复核余额，并在存款失败时验证补偿回滚结果。
  */
 class EconomyProvider private constructor(private val economy: Economy) {
 
-    enum class Result { SUCCESS, NO_ECONOMY, INVALID_AMOUNT, INSUFFICIENT, FAILED }
+    enum class Result { SUCCESS, NO_ECONOMY, INVALID_AMOUNT, INSUFFICIENT, ROLLBACK_FAILED, FAILED }
 
     /**
-     * 在两个账户之间原子转账：校验 from 余额 -> 从 from 扣款 -> 给 to 存款。
-     * 任一步失败都会回滚，保证不会出现单边扣款或单边发钱。
+     * 在两个账户之间执行串行化的补偿式转账：复核余额 -> 扣款 -> 存款。
+     * 存款失败时尝试退款；退款本身仍可能被第三方经济插件拒绝。
      *
      * 注意：应在主线程/全局线程调用（命令预处理事件即在此线程）。
      */
@@ -32,18 +35,26 @@ class EconomyProvider private constructor(private val economy: Economy) {
         val toAccount = resolvePreferredAccount(toName) ?: return Result.FAILED
         if (fromAccounts.isEmpty()) return Result.FAILED
 
-        val fromAccount = fromAccounts.firstOrNull { has(it, amount) } ?: return Result.INSUFFICIENT
+        val pairKey = normalizedPairKey(fromName, toName)
+        return transferLocks.computeIfAbsent(pairKey) { ReentrantLock() }.withLock {
+            val fromAccount = fromAccounts.firstOrNull { has(it, amount) }
+                ?: return@withLock Result.INSUFFICIENT
+            val withdraw = withdraw(fromAccount, amount)
+            if (!withdraw.transactionSuccess()) return@withLock Result.FAILED
 
-        val withdraw = withdraw(fromAccount, amount)
-        if (!withdraw.transactionSuccess()) return Result.FAILED
-
-        val deposit = deposit(toAccount, amount)
-        if (!deposit.transactionSuccess()) {
-            // 存款失败则回滚扣款，避免金库无故减少
-            deposit(fromAccount, amount)
-            return Result.FAILED
+            val deposit = deposit(toAccount, amount)
+            if (!deposit.transactionSuccess()) {
+                val rollback = deposit(fromAccount, amount)
+                return@withLock if (rollback.transactionSuccess()) Result.FAILED else Result.ROLLBACK_FAILED
+            }
+            Result.SUCCESS
         }
-        return Result.SUCCESS
+    }
+
+    private fun normalizedPairKey(first: String, second: String): String {
+        val a = first.trim().lowercase()
+        val b = second.trim().lowercase()
+        return if (a <= b) "$a\u0000$b" else "$b\u0000$a"
     }
 
     @Suppress("DEPRECATION")
@@ -135,6 +146,8 @@ class EconomyProvider private constructor(private val economy: Economy) {
     private data class AccountRef(val name: String, val player: OfflinePlayer?)
 
     companion object {
+        private val transferLocks: MutableMap<String, ReentrantLock> = ConcurrentHashMap()
+
         /** 从 Vault 服务注册中获取 Economy provider；Vault 或经济插件缺失时返回 null。 */
         @JvmStatic
         fun hook(plugin: Plugin): EconomyProvider? {

@@ -45,14 +45,20 @@ RuleGems 适合做“权力会流转”的服务器类型：
 - `/rg appoint` 与 `/rg dismiss` 能正常授予和撤销职位。
 - `/rg revoke-power list` 能看到撤销规则。
 - `/rg revoke-power <规则> <玩家> <权力>` 的确认、取消、冷却都符合预期。
+- 手持或嵌套携带宝石时，Shift 点击、数字键和副手交换都不能把它放入外部容器；下线或死亡后只回收宝石，不删除潜影盒/收纳袋内的普通物品。
+- 安装 QuickShop-Hikari 6.2.0.11 时，启动日志出现 `QuickShop-Hikari protection enabled`；以宝石建店、向商店出售宝石、从商店购买宝石都应在扣款和移动物品前被拒绝。
 - `/rg reload` 后上述状态不丢失。
 - 停服重启后已兑换权力、委任、撤销冷却和宝石位置仍然正确。
+- 复制并故意损坏一份测试服 `data/gems.yml`，确认插件只从 `gems.yml.bak` 恢复读取或拒绝启动，且不会生成新宝石 UUID；不要在生产服直接做此测试。
+- 将测试服数据目录临时设为不可写，确认 `/rg reload` 被拒绝、`/rg doctor` 报告存储 ERROR，并检查 `data/recovery/` 是否生成紧急快照。
 
 ## 生产服建议
 
 - 用 LuckPerms 作为权限后端。Bukkit 默认后端没有持久权限组模型。
 - 如果玩家规模较大，优先评估 SQLite，并先在测试服跑导入。
+- 同时备份主存储与恢复文件：YAML 为 `data/gems.yml`、`data/gems.yml.bak` 和 `data/recovery/`；SQLite 为配置的数据库文件及 `data/recovery/`。
 - 把 `allow_op_escalation` 保持为 `false`，除非你完全信任对应限次命令。
+- 把 `economy.transfer_directives_enabled` 保持为 `false`，使用经济插件自身的转账命令；Vault 无法提供跨账户原子事务。
 - 给 `/rg scatter`、`/rg revoke`、`/rg reload` 严格管理员权限。
 - `/rg scatter` 默认保留可复用 UUID，但它仍是全局状态重置操作；降低 `count` 或删除宝石类型会淘汰多余 UUID。
 - 旧版 `gem_escape.min_interval` / `max_interval` 无需迁移键名，但升级后它们控制全服轮次而非每颗宝石的独立计时；发布前应按期望的总流动速率重新评估。
@@ -64,7 +70,9 @@ RuleGems 适合做“权力会流转”的服务器类型：
 自动化测试不能替代真实服务器验证。面向公开大服前，至少完成：
 
 - Paper 启动、兑换、委任、撤销、重载和停服保存烟测。
-- Folia 启动、粒子任务、物品扫描、兑换和停服保存烟测。
+- 若计划使用 Folia，先在测试服完成双区域玩家、粒子任务、物品扫描、兑换、重载和停服保存烟测；当前版本未声明 Folia 支持，未通过该门槛不得用于 Folia 生产服。
+- 若生产服使用 QuickShop-Hikari，必须用生产版本实测买入、卖出和建店三条路径，并确认余额、库存、商店状态均不变化；若启动时出现 QuickShop 安全钩子告警，不得开放宝石交易。
+- 在 Windows 与 Linux 测试服各演练一次 YAML/SQLite 锁定或不可写场景，确认重载失败时运行状态不被清空，并能从 `.bak` 或 `data/recovery/` 恢复。
 - 分别在 Minecraft 1.19.4+ 与一个旧版兼容目标上测试 `proximity_display` 的接近显示、远离隐藏、拾取、区块卸载和双向热切换。旧版 ArmorStand 后端不能严格逐玩家隐藏，应把实体雷达视为剩余风险。
 - 旧配置升级演练：确认备份目录生成，确认回滚路径可用。
 - 一次 24 小时测试服运行，观察是否有宝石数量漂移、权限残留或调度错误。

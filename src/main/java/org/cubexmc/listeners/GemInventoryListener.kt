@@ -9,6 +9,7 @@ import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.event.inventory.InventoryMoveItemEvent
 import org.bukkit.event.inventory.InventoryType
 import org.bukkit.event.player.PlayerItemHeldEvent
+import org.bukkit.inventory.ItemStack
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
 import java.util.UUID
@@ -23,7 +24,7 @@ class GemInventoryListener(
     // 禁止玩家将 Gem 放入容器
     fun onInventoryDrag(event: InventoryDragEvent) {
         for (item in event.newItems.values) {
-            if (gemManager.isRuleGem(item)) {
+            if (gemManager.containsGem(item)) {
                 // 取消拖拽事件以防止将 Gem 放入容器
                 event.isCancelled = true
                 languageManager.sendMessage(event.whoClicked, "inventory.drag_denied")
@@ -41,6 +42,18 @@ class GemInventoryListener(
     fun onInventoryClick(event: InventoryClickEvent) {
         val player = event.whoClicked as? Player ?: return
 
+        val currentItem = event.currentItem
+        val cursorItem = event.cursor
+
+        // 情况0: 把宝石塞进收纳袋/潜影盒这类"物品形态的容器"。
+        // 这一步完全发生在玩家背包内部，不涉及任何容器界面，所以必须先于外部容器判定。
+        // 不堵的话：宝石 -> 收纳袋 -> 收纳袋丢进箱子，下面所有容器保护都会被绕过。
+        if (stashesGemIntoContainerItem(currentItem, cursorItem)) {
+            event.isCancelled = true
+            languageManager.sendMessage(player, "inventory.container_denied")
+            return
+        }
+
         // 检查是否尝试将宝石放入非玩家背包的容器
         val topInventory = event.view.topInventory
         val topType = topInventory.type
@@ -50,11 +63,8 @@ class GemInventoryListener(
             topType != InventoryType.PLAYER
 
         if (isExternalContainer) {
-            val currentItem = event.currentItem
-            val cursorItem = event.cursor
-
             // 情况1: Shift+点击宝石（从玩家背包移到容器）
-            if (event.isShiftClick && gemManager.isRuleGem(currentItem)) {
+            if (event.isShiftClick && gemManager.containsGem(currentItem)) {
                 // 检查点击的是玩家背包区域（底部）
                 if (event.clickedInventory == event.view.bottomInventory) {
                     event.isCancelled = true
@@ -64,7 +74,7 @@ class GemInventoryListener(
             }
 
             // 情况2: 手持宝石点击容器格子（直接放入）
-            if (gemManager.isRuleGem(cursorItem) && event.clickedInventory == topInventory) {
+            if (gemManager.containsGem(cursorItem) && event.clickedInventory == topInventory) {
                 event.isCancelled = true
                 languageManager.sendMessage(player, "inventory.container_denied")
                 return
@@ -73,11 +83,22 @@ class GemInventoryListener(
             // 情况3: 数字键快捷移动宝石到容器
             if (event.click == ClickType.NUMBER_KEY) {
                 val hotbarItem = player.inventory.getItem(event.hotbarButton)
-                if (gemManager.isRuleGem(hotbarItem) && event.clickedInventory == topInventory) {
+                if (gemManager.containsGem(hotbarItem) && event.clickedInventory == topInventory) {
                     event.isCancelled = true
                     languageManager.sendMessage(player, "inventory.container_denied")
                     return
                 }
+            }
+
+            // 情况4: 按 F 用副手物品交换当前容器格。这个点击类型不属于 NUMBER_KEY，
+            // hotbarButton 也不保证可用，必须直接检查副手，否则能绕过上面三条规则。
+            if (event.click == ClickType.SWAP_OFFHAND &&
+                gemManager.containsGem(player.inventory.itemInOffHand) &&
+                event.clickedInventory == topInventory
+            ) {
+                event.isCancelled = true
+                languageManager.sendMessage(player, "inventory.container_denied")
+                return
             }
         }
 
@@ -131,10 +152,14 @@ class GemInventoryListener(
     @EventHandler
     // 阻止漏斗等自动移动宝石
     fun onInventoryMoveItem(event: InventoryMoveItemEvent) {
-        if (gemManager.isRuleGem(event.item)) {
+        if (gemManager.containsGem(event.item)) {
             event.isCancelled = true
         }
     }
+
+    private fun stashesGemIntoContainerItem(currentItem: ItemStack?, cursorItem: ItemStack?): Boolean =
+        (gemManager.isContainerItem(currentItem) && gemManager.containsGem(cursorItem)) ||
+            (gemManager.isContainerItem(cursorItem) && gemManager.containsGem(currentItem))
 
     companion object {
         private const val HINT_COOLDOWN_MS = 8000L

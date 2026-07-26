@@ -9,6 +9,8 @@ messages:
     player_only: "<red><prefix> Only players can execute this command!"
     usage: "<yellow><prefix> Usage: /rulegems \\<gui|profile|cabinet|place|tp|revoke|revoke-power|reload|rulers|gems|scatter|redeem|redeemall|history|setaltar|removealtar|appoint|dismiss|appointees|doctor|help>"
     reload_success: "<green><prefix> Configuration reloaded!"
+    reload_failed: "<red><prefix> Reload aborted: gem storage could not be read. The active runtime state was preserved; check the console."
+    operation_busy: "<yellow><prefix> Another reload or scatter operation is already running. Try again when it completes."
     rulers_status: "<green><prefix> Current ruler is: <yellow><player>"
     no_rulers: "<red><prefix> No ruler online!"
     scatter_success: "<green><prefix> Power revoked, gems have been scattered!"
@@ -169,6 +171,7 @@ messages:
     transfer_insufficient: "<prefix> <red><from> has insufficient balance; transfer cancelled."
     transfer_failed: "<prefix> <red>Transfer failed; your attempt has been refunded."
     transfer_no_economy: "<prefix> <red>Economy (Vault) is unavailable; transfer cancelled."
+    transfer_disabled: "<prefix> <red>Built-in transfers are disabled; the attempt has been refunded."
   inventory:
     drag_denied: "<red><prefix> Cannot drag Gem here!"
     container_denied: "<red><prefix> Cannot put Gem into containers!"

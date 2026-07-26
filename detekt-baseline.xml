@@ -1,0 +1,661 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:AppointFeature.kt$AppointFeature$!enabled || appointer == null || appointee == null || permSetKey == null</ID>
+    <ID>ComplexCondition:AppointFeature.kt$AppointFeature$!enabled || dismisser == null || appointeeUuid == null || permSetKey == null</ID>
+    <ID>ComplexCondition:CloudCommandManager.kt$CloudCommandManager$(sub == "appoint" || sub == "dismiss" || sub == "appointees") &amp;&amp; args.size == 2</ID>
+    <ID>ComplexCondition:GemDefinitionParser.kt$GemDefinitionParser$map.containsKey("permissions") || map.containsKey("allowed_commands") || map.containsKey("effects") || map.containsKey("command_allows") || map.containsKey("vault_groups") || map.containsKey("vault_group") || map.containsKey("permission_group") || map.containsKey("permission_groups")</ID>
+    <ID>ComplexCondition:GemEscapeCoordinator.kt$GemEscapeCoordinator$selected == null || score > selectedScore || (score == selectedScore &amp;&amp; gemId.toString() &lt; selected.toString())</ID>
+    <ID>ComplexCondition:GemPlacementManager.kt$GemPlacementManager$first == null || second == null || first.world == null || second.world == null</ID>
+    <ID>ComplexCondition:LanguageUpdater.kt$LanguageUpdater$plugin == null || targetFile == null || resourcePath == null || resourcePath.isEmpty()</ID>
+    <ID>ComplexCondition:PlaceSubCommand.kt$PlaceSubCommand$first == null || second == null || first.world == null || second.world == null</ID>
+    <ID>ComplexCondition:RuleGemsDoctor.kt$RuleGemsDoctor$gameplayConfig != null &amp;&amp; gameplayConfig.isPlaceRedeemEnabled &amp;&amp; gemDefinitions != null &amp;&amp; gemDefinitions.isNotEmpty()</ID>
+    <ID>CyclomaticComplexMethod:AppointSubCommand.kt$AppointSubCommand$override fun execute(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>CyclomaticComplexMethod:CabinetGUI.kt$CabinetGUI$private fun createRoleItem( player: Player, appointKey: String, definition: AppointDefinition?, appointFeature: AppointFeature?, ): ItemStack</ID>
+    <ID>CyclomaticComplexMethod:CabinetMembersGUI.kt$CabinetMembersGUI$override fun onClick( player: Player, holder: GUIHolder, slot: Int, clicked: ItemStack, pdc: PersistentDataContainer, shiftClick: Boolean, )</ID>
+    <ID>CyclomaticComplexMethod:CloudCommandManager.kt$CloudCommandManager$private fun completeFallback(sender: CommandSender, args: Array&lt;String>): List&lt;String></ID>
+    <ID>CyclomaticComplexMethod:CloudCommandManager.kt$CloudCommandManager$private fun executeFallback(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>CyclomaticComplexMethod:CommandAllowanceListener.kt$CommandAllowanceListener$@EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true) fun onTabComplete(event: TabCompleteEvent)</ID>
+    <ID>CyclomaticComplexMethod:CommandAllowanceListener.kt$CommandAllowanceListener$private fun handleAllowedCommand( player: Player?, raw: String?, baseLabel: String, args: Array&lt;String>, allowDelegate: Boolean, ): Boolean</ID>
+    <ID>CyclomaticComplexMethod:CustomCommandExecutor.kt$CustomCommandExecutor$fun executeExtendedCommand(player: Player?, allowedCmd: AllowedCommand?, args: Array&lt;String>): Boolean</ID>
+    <ID>CyclomaticComplexMethod:DismissSubCommand.kt$DismissSubCommand$override fun execute(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>CyclomaticComplexMethod:EffectUtils.kt$EffectUtils$fun executeCommands(execCfg: ExecuteConfig?, placeholders: Map&lt;String, String>?)</ID>
+    <ID>CyclomaticComplexMethod:GameplayConfig.kt$GameplayConfig$fun loadFrom( config: FileConfiguration, parser: GemDefinitionParser, @Suppress("UNUSED_PARAMETER") lang: LanguageManager, logger: Logger?, cornerLoader: LocationLoader?, )</ID>
+    <ID>CyclomaticComplexMethod:GemAllowanceManager.kt$GemAllowanceManager$fun getRemainingAllowed(uid: UUID?, label: String?): Int</ID>
+    <ID>CyclomaticComplexMethod:GemAllowanceManager.kt$GemAllowanceManager$fun hasAnyAllowed(uid: UUID?, label: String?): Boolean</ID>
+    <ID>CyclomaticComplexMethod:GemAllowanceManager.kt$GemAllowanceManager$fun reassignHeldInstanceAllowance(gemId: UUID?, newOwner: UUID?, definition: GemDefinition?)</ID>
+    <ID>CyclomaticComplexMethod:GemAllowanceManager.kt$GemAllowanceManager$fun reassignRedeemInstanceAllowance( gemId: UUID?, newOwner: UUID?, definition: GemDefinition?, resetEvenIfSameOwner: Boolean, )</ID>
+    <ID>CyclomaticComplexMethod:GemAllowanceManager.kt$GemAllowanceManager$fun refundAllowed(uid: UUID?, label: String?)</ID>
+    <ID>CyclomaticComplexMethod:GemAllowanceManager.kt$GemAllowanceManager$fun tryConsumeAllowed(uid: UUID?, label: String?): Boolean</ID>
+    <ID>CyclomaticComplexMethod:GemCustodyAuditor.kt$GemCustodyAuditor$fun sweepForeignInventory(inventory: Inventory?, contextName: String?): Int</ID>
+    <ID>CyclomaticComplexMethod:GemDefinitionParser.kt$GemDefinitionParser$fun parsePowerStructure(obj: Any?): PowerStructure</ID>
+    <ID>CyclomaticComplexMethod:GemDefinitionParser.kt$GemDefinitionParser$private fun collectLegacyFromYamlFolder(folder: File?, findings: MutableSet&lt;String>, gemFile: Boolean)</ID>
+    <ID>CyclomaticComplexMethod:GemDefinitionParser.kt$GemDefinitionParser$private fun parseAppointDefinition(key: String, obj: Any?): AppointDefinition?</ID>
+    <ID>CyclomaticComplexMethod:GemDefinitionParser.kt$GemDefinitionParser$private fun parseCondition(obj: Any?): PowerCondition</ID>
+    <ID>CyclomaticComplexMethod:GemDefinitionParser.kt$GemDefinitionParser$private fun parseEffects(effectsObj: Any?): List&lt;EffectConfig></ID>
+    <ID>CyclomaticComplexMethod:GemEscapeCoordinator.kt$GemEscapeCoordinator$private fun selectEligibleGem(): UUID?</ID>
+    <ID>CyclomaticComplexMethod:GemInventoryListener.kt$GemInventoryListener$@EventHandler fun onInventoryClick(event: InventoryClickEvent)</ID>
+    <ID>CyclomaticComplexMethod:GemManager.kt$GemManager$fun redeemAll(player: Player): Boolean</ID>
+    <ID>CyclomaticComplexMethod:GemManager.kt$GemManager$private fun evaluateRedeemRecipe( requirements: RedeemRequirements, recipe: RedeemRecipe, heldGemIds: Map&lt;String, List&lt;UUID>>, redeemedCounts: Map&lt;String, Int>, targetGemId: UUID?, ): RedeemRequirementResult</ID>
+    <ID>CyclomaticComplexMethod:GemNavigator.kt$GemNavigator$private fun getDirection(from: Location, to: Location): String</ID>
+    <ID>CyclomaticComplexMethod:GemPermissionManager.kt$GemPermissionManager$fun applyPendingRevokesIfAny(player: Player?)</ID>
+    <ID>CyclomaticComplexMethod:GemPermissionManager.kt$GemPermissionManager$fun decrementOwnerKeyCount(owner: UUID?, key: String?, definition: GemDefinition?)</ID>
+    <ID>CyclomaticComplexMethod:GemPermissionManager.kt$GemPermissionManager$fun loadData(gemsData: FileConfiguration)</ID>
+    <ID>CyclomaticComplexMethod:GemPermissionManager.kt$GemPermissionManager$fun recalculateGrants(player: Player?)</ID>
+    <ID>CyclomaticComplexMethod:GemPermissionManager.kt$GemPermissionManager$fun revokeAllPlayerPermissions(player: Player?): Boolean</ID>
+    <ID>CyclomaticComplexMethod:GemPermissionManager.kt$GemPermissionManager$private fun computeOfflineRulerPending(): Map&lt;UUID, PendingRevoke></ID>
+    <ID>CyclomaticComplexMethod:GemPlacementManager.kt$GemPlacementManager$private fun placeRuleGemInternal( loc: Location?, gemId: UUID?, ignoreLimit: Boolean, allowRandomFallback: Boolean, )</ID>
+    <ID>CyclomaticComplexMethod:GemPlacementManager.kt$GemPlacementManager$private fun relocateEscapingGem( request: GemEscapeRequest, completion: Consumer&lt;GemEscapeRelocationResult>, )</ID>
+    <ID>CyclomaticComplexMethod:GemStateManager.kt$GemStateManager$fun createRuleGem(gemId: UUID): ItemStack</ID>
+    <ID>CyclomaticComplexMethod:GemStateManager.kt$GemStateManager$fun loadData(gemsData: FileConfiguration, randomPlaceGemFn: Consumer&lt;UUID>)</ID>
+    <ID>CyclomaticComplexMethod:GemStateManager.kt$GemStateManager$private fun stripMatchingGems( item: ItemStack?, depth: Int, shouldRemove: (UUID?) -> Boolean, accumulator: RemovalAccumulator, ): StripResult</ID>
+    <ID>CyclomaticComplexMethod:GemsGUI.kt$GemsGUI$private fun buildAdminLore( builder: ItemBuilder, gemId: UUID, gemKey: String?, definition: GemDefinition?, holder: Player?, location: Location?, )</ID>
+    <ID>CyclomaticComplexMethod:InfoCommandsRegistrar.kt$InfoCommandsRegistrar$fun sendHelp(sender: CommandSender)</ID>
+    <ID>CyclomaticComplexMethod:LanguageUpdater.kt$LanguageUpdater$@JvmStatic fun merge(plugin: JavaPlugin?, targetFile: File?, resourcePath: String?)</ID>
+    <ID>CyclomaticComplexMethod:PlaceSubCommand.kt$PlaceSubCommand$override fun execute(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>CyclomaticComplexMethod:QuickShopHikariBridge.kt$QuickShopHikariBridge$private fun validateContract(loader: ClassLoader): String?</ID>
+    <ID>CyclomaticComplexMethod:RevokePowerSubCommand.kt$RevokePowerSubCommand$private fun sendResult(actor: Player, result: RevokeResult)</ID>
+    <ID>CyclomaticComplexMethod:RuleGemsDoctor.kt$RuleGemsDoctor$private fun inspect(): List&lt;Entry></ID>
+    <ID>CyclomaticComplexMethod:RulerAppointeesGUI.kt$RulerAppointeesGUI$private fun createAppointeeItem(appointment: Appointment, appointFeature: AppointFeature?, isAdmin: Boolean): ItemStack</ID>
+    <ID>CyclomaticComplexMethod:RulersGUI.kt$RulersGUI$private fun createRulerItem(viewer: Player, playerUuid: UUID, gemKeys: Set&lt;String>, isAdmin: Boolean): ItemStack</ID>
+    <ID>EmptyFunctionBlock:RuleGateFeature.kt$RuleGateFeature${ }</ID>
+    <ID>EmptyFunctionBlock:RuleGems.kt$RuleGems${ }</ID>
+    <ID>ImplicitDefaultLocale:CustomCommandExecutor.kt$CustomCommandExecutor$String.format("%.2f", amount)</ID>
+    <ID>ImplicitDefaultLocale:GemManager.kt$GemManager$String.format( "(%d, %d, %d) %s", placedLoc.blockX, placedLoc.blockY, placedLoc.blockZ, placedLoc.world?.name ?: "unknown", )</ID>
+    <ID>ImplicitDefaultLocale:GemsGUI.kt$GemsGUI$String.format("%d, %d, %d (%s)", location.blockX, location.blockY, location.blockZ, world)</ID>
+    <ID>LargeClass:AppointFeature.kt$AppointFeature : Feature</ID>
+    <ID>LargeClass:GemAllowanceManager.kt$GemAllowanceManager</ID>
+    <ID>LargeClass:GemDefinitionParser.kt$GemDefinitionParser</ID>
+    <ID>LargeClass:GemManager.kt$GemManager</ID>
+    <ID>LargeClass:GemPermissionManager.kt$GemPermissionManager</ID>
+    <ID>LargeClass:GemPlacementManager.kt$GemPlacementManager</ID>
+    <ID>LargeClass:GemStateManager.kt$GemStateManager</ID>
+    <ID>LongMethod:AppointSubCommand.kt$AppointSubCommand$override fun execute(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>LongMethod:CabinetMembersGUI.kt$CabinetMembersGUI$override fun onClick( player: Player, holder: GUIHolder, slot: Int, clicked: ItemStack, pdc: PersistentDataContainer, shiftClick: Boolean, )</ID>
+    <ID>LongMethod:CloudCommandManager.kt$CloudCommandManager$private fun executeFallback(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>LongMethod:CommandAllowanceListener.kt$CommandAllowanceListener$private fun handleAllowedCommand( player: Player?, raw: String?, baseLabel: String, args: Array&lt;String>, allowDelegate: Boolean, ): Boolean</ID>
+    <ID>LongMethod:GameplayConfig.kt$GameplayConfig$fun loadFrom( config: FileConfiguration, parser: GemDefinitionParser, @Suppress("UNUSED_PARAMETER") lang: LanguageManager, logger: Logger?, cornerLoader: LocationLoader?, )</ID>
+    <ID>LongMethod:GemDefinitionParser.kt$GemDefinitionParser$fun parsePowerStructure(obj: Any?): PowerStructure</ID>
+    <ID>LongMethod:GemManager.kt$GemManager$fun loadGems(): Boolean</ID>
+    <ID>LongMethod:GemManager.kt$GemManager$fun redeemAll(player: Player): Boolean</ID>
+    <ID>LongMethod:GemPermissionManager.kt$GemPermissionManager$fun decrementOwnerKeyCount(owner: UUID?, key: String?, definition: GemDefinition?)</ID>
+    <ID>LongMethod:GemPermissionManager.kt$GemPermissionManager$fun loadData(gemsData: FileConfiguration)</ID>
+    <ID>LongMethod:GemPermissionManager.kt$GemPermissionManager$fun recalculateGrants(player: Player?)</ID>
+    <ID>LongMethod:GemPermissionManager.kt$GemPermissionManager$fun revokeAllPlayerPermissions(player: Player?): Boolean</ID>
+    <ID>LongMethod:GemPlacementManager.kt$GemPlacementManager$fun attemptCandidate(attempt: Int)</ID>
+    <ID>LongMethod:GemStateManager.kt$GemStateManager$fun loadData(gemsData: FileConfiguration, randomPlaceGemFn: Consumer&lt;UUID>)</ID>
+    <ID>LongMethod:GemStateManager.kt$GemStateManager$private fun stripMatchingGems( item: ItemStack?, depth: Int, shouldRemove: (UUID?) -> Boolean, accumulator: RemovalAccumulator, ): StripResult</ID>
+    <ID>LongMethod:InfoCommandsRegistrar.kt$InfoCommandsRegistrar$fun sendHelp(sender: CommandSender)</ID>
+    <ID>LongMethod:RevokeFeature.kt$RevokeFeature$private fun validateRequest(actor: Player, ruleKey: String?, targetName: String?, powerKey: String?): RevokeContext</ID>
+    <ID>LongMethod:RuleGems.kt$RuleGems$override fun enablePlugin()</ID>
+    <ID>LongMethod:RuleGemsDoctor.kt$RuleGemsDoctor$private fun inspect(): List&lt;Entry></ID>
+    <ID>LongMethod:RulerAppointeesGUI.kt$RulerAppointeesGUI$private fun createAppointeeItem(appointment: Appointment, appointFeature: AppointFeature?, isAdmin: Boolean): ItemStack</ID>
+    <ID>LongMethod:RulersGUI.kt$RulersGUI$private fun createRulerItem(viewer: Player, playerUuid: UUID, gemKeys: Set&lt;String>, isAdmin: Boolean): ItemStack</ID>
+    <ID>LongParameterList:ChestMenu.kt$ChestMenu$( player: Player, holder: GUIHolder, slot: Int, clicked: ItemStack, pdc: PersistentDataContainer, shiftClick: Boolean, )</ID>
+    <ID>LongParameterList:GUIManager.kt$GUIManager$(gui: Inventory, currentPage: Int, totalPages: Int, totalItems: Int, showFilter: Boolean, showBack: Boolean)</ID>
+    <ID>LongParameterList:GemEscapeCoordinator.kt$GemEscapeCoordinator$( plugin: RuleGems, gameplayConfig: GameplayConfig, stateManager: GemStateManager, retryTasks: MutableMap&lt;UUID, Any>, relocator: GemEscapeRelocator, successListener: GemEscapeSuccessListener, saveAction: Runnable, )</ID>
+    <ID>LongParameterList:GemEscapeCoordinator.kt$GemEscapeCoordinator$( private val plugin: RuleGems, private val gameplayConfig: GameplayConfig, private val stateManager: GemStateManager, private val retryTasks: MutableMap&lt;UUID, Any>, private val relocator: GemEscapeRelocator, private val successListener: GemEscapeSuccessListener, private val saveAction: Runnable, private val nowMillis: LongSupplier, private val random: Random, )</ID>
+    <ID>LongParameterList:GemScatterService.kt$GemScatterService$( private val stateManager: GemStateManager, private val placementManager: GemPlacementManager, private val gemParser: GemDefinitionParser, private val gameplayConfig: GameplayConfig, private val effectUtils: EffectUtils, private val languageManager: LanguageManager, private val resetOwnershipStateAction: Runnable?, private val saveAction: Runnable, )</ID>
+    <ID>LongParameterList:GemsGUI.kt$GemsGUI$( builder: ItemBuilder, gemId: UUID, gemKey: String?, definition: GemDefinition?, holder: Player?, location: Location?, )</ID>
+    <ID>LongParameterList:HistoryLogger.kt$HistoryLogger$( player: Player, gemKey: String, gemDisplayName: String?, permissions: List&lt;String>?, vaultGroup: String?, previousOwner: String?, )</ID>
+    <ID>LongParameterList:HistoryLogger.kt$HistoryLogger$( playerUuid: String, playerName: String?, gemKey: String, gemDisplayName: String?, permissions: List&lt;String>?, vaultGroup: String?, reason: String?, )</ID>
+    <ID>LongParameterList:RedeemRecipe.kt$RedeemRecipe.Companion$( requiresHeld: List&lt;String>?, requiresRedeemed: List&lt;String>?, consumes: List&lt;String>?, requiresAny: List&lt;String>?, requiresCount: Int, requiresCountFrom: List&lt;String>?, )</ID>
+    <ID>LongParameterList:RedeemRequirements.kt$RedeemRequirements$( requiresHeld: List&lt;String>?, requiresRedeemed: List&lt;String>?, consumes: List&lt;String>?, requiresAny: List&lt;String>?, requiresCount: Int, requiresCountFrom: List&lt;String>?, allowRedeemAll: Boolean, failureMessage: String?, )</ID>
+    <ID>LongParameterList:RevokeRule.kt$RevokeRule$( val key: String, displayName: String?, val triggerGem: String?, targetPowers: List&lt;String>?, val isRequireHeld: Boolean, val isConsumeGem: Boolean, cooldownSeconds: Long, val isConfirmRequired: Boolean, val isBroadcast: Boolean, val isAllowOfflineTarget: Boolean, )</ID>
+    <ID>LoopWithTooManyJumpStatements:CabinetMembersGUI.kt$CabinetMembersGUI$for</ID>
+    <ID>LoopWithTooManyJumpStatements:CustomCommandExecutor.kt$CustomCommandExecutor$for</ID>
+    <ID>LoopWithTooManyJumpStatements:EffectUtils.kt$EffectUtils$for</ID>
+    <ID>LoopWithTooManyJumpStatements:GemAllowanceManager.kt$GemAllowanceManager$for</ID>
+    <ID>LoopWithTooManyJumpStatements:GemCustodyAuditor.kt$GemCustodyAuditor$for</ID>
+    <ID>LoopWithTooManyJumpStatements:GemDefinitionParser.kt$GemDefinitionParser$for</ID>
+    <ID>LoopWithTooManyJumpStatements:GemEscapeCoordinator.kt$GemEscapeCoordinator$for</ID>
+    <ID>LoopWithTooManyJumpStatements:GemManager.kt$GemManager$for</ID>
+    <ID>LoopWithTooManyJumpStatements:GemNavigator.kt$GemNavigator$for</ID>
+    <ID>LoopWithTooManyJumpStatements:GemPermissionManager.kt$GemPermissionManager$for</ID>
+    <ID>LoopWithTooManyJumpStatements:GemStateManager.kt$GemStateManager$for</ID>
+    <ID>LoopWithTooManyJumpStatements:GemStateManager.kt$GemStateManager$while</ID>
+    <ID>LoopWithTooManyJumpStatements:PowerStructureManager.kt$PowerStructureManager$for</ID>
+    <ID>LoopWithTooManyJumpStatements:RevokeFeature.kt$RevokeFeature$for</ID>
+    <ID>LoopWithTooManyJumpStatements:RuleGems.kt$RuleGems$for</ID>
+    <ID>MagicNumber:AllowedCommand.kt$AllowedCommand.Companion$10</ID>
+    <ID>MagicNumber:AllowedCommand.kt$AllowedCommand.Companion$7</ID>
+    <ID>MagicNumber:AllowedCommand.kt$AllowedCommand.Companion$8</ID>
+    <ID>MagicNumber:AllowedCommand.kt$AllowedCommand.Companion$9</ID>
+    <ID>MagicNumber:AppointFeature.kt$AppointFeature$20L</ID>
+    <ID>MagicNumber:AppointFeature.kt$AppointFeature$30</ID>
+    <ID>MagicNumber:AppointFeature.kt$AppointFeature$8</ID>
+    <ID>MagicNumber:AppointFeature.kt$AppointFeature$9</ID>
+    <ID>MagicNumber:CabinetGUI.kt$CabinetGUI$13</ID>
+    <ID>MagicNumber:CabinetGUI.kt$CabinetGUI$3</ID>
+    <ID>MagicNumber:CabinetMembersGUI.kt$CabinetMembersGUI$13</ID>
+    <ID>MagicNumber:CloudCommandManager.kt$CloudCommandManager$3</ID>
+    <ID>MagicNumber:CloudCommandManager.kt$CloudCommandManager$5</ID>
+    <ID>MagicNumber:ConfigParseUtils.kt$ConfigParseUtils$20L</ID>
+    <ID>MagicNumber:ConfigParseUtils.kt$ConfigParseUtils$24</ID>
+    <ID>MagicNumber:ConfigParseUtils.kt$ConfigParseUtils$30</ID>
+    <ID>MagicNumber:ConfigParseUtils.kt$ConfigParseUtils$60</ID>
+    <ID>MagicNumber:CustomCommandExecutor.kt$CustomCommandExecutor$1000</ID>
+    <ID>MagicNumber:CustomCommandExecutor.kt$CustomCommandExecutor$1000L</ID>
+    <ID>MagicNumber:CustomCommandExecutor.kt$CustomCommandExecutor$3</ID>
+    <ID>MagicNumber:EconomyProvider.kt$EconomyProvider$4</ID>
+    <ID>MagicNumber:EffectConfig.kt$EffectConfig$10</ID>
+    <ID>MagicNumber:GUIManager.kt$GUIManager$36</ID>
+    <ID>MagicNumber:GUIManager.kt$GUIManager$44</ID>
+    <ID>MagicNumber:GUIManager.kt$GUIManager$48</ID>
+    <ID>MagicNumber:GUIManager.kt$GUIManager$50</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$10</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$15</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$16</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$16.0</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$20</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$20.0</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$20L</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$256.0</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$3</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$3.0</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$30</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$4</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$5</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$60</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$64</ID>
+    <ID>MagicNumber:GameplayConfig.kt$GameplayConfig$96.0</ID>
+    <ID>MagicNumber:GemConsumeListener.kt$GemConsumeListener$0.3f</ID>
+    <ID>MagicNumber:GemConsumeListener.kt$GemConsumeListener$0.4f</ID>
+    <ID>MagicNumber:GemConsumeListener.kt$GemConsumeListener$0.5f</ID>
+    <ID>MagicNumber:GemConsumeListener.kt$GemConsumeListener$0.8f</ID>
+    <ID>MagicNumber:GemConsumeListener.kt$GemConsumeListener$1.2f</ID>
+    <ID>MagicNumber:GemConsumeListener.kt$GemConsumeListener$10</ID>
+    <ID>MagicNumber:GemConsumeListener.kt$GemConsumeListener$100</ID>
+    <ID>MagicNumber:GemConsumeListener.kt$GemConsumeListener$20L</ID>
+    <ID>MagicNumber:GemConsumeListener.kt$GemConsumeListener$50L</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$0.05</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$0.45</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$0.62</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$0.72</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$1000L</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$17</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$1800</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$200</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$20L</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$250.0</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$255.0</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$3.0</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$300</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$360L</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$4.0</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$5.0</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$50</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$60.0</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$600.0</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$7200</ID>
+    <ID>MagicNumber:GemIntelBroadcaster.kt$GemIntelBroadcaster$96.0</ID>
+    <ID>MagicNumber:GemManager.kt$GemManager$10</ID>
+    <ID>MagicNumber:GemManager.kt$GemManager$20</ID>
+    <ID>MagicNumber:GemManager.kt$GemManager$20L</ID>
+    <ID>MagicNumber:GemManager.kt$GemManager$60</ID>
+    <ID>MagicNumber:GemManager.kt$GemManager$70</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$10</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$1000</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$1000L</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$112.5</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$150</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$157.5</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$202.5</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$22.5</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$247.5</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$292.5</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$3</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$337.5</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$360.0</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$50</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$500</ID>
+    <ID>MagicNumber:GemNavigator.kt$GemNavigator$67.5</ID>
+    <ID>MagicNumber:GemPlacementManager.kt$GemPlacementManager$0.01</ID>
+    <ID>MagicNumber:GemPlacementManager.kt$GemPlacementManager$0.1</ID>
+    <ID>MagicNumber:GemPlacementManager.kt$GemPlacementManager$0.5</ID>
+    <ID>MagicNumber:GemPlacementManager.kt$GemPlacementManager$100</ID>
+    <ID>MagicNumber:GemPlacementManager.kt$GemPlacementManager$20L</ID>
+    <ID>MagicNumber:GemPlacementManager.kt$GemPlacementManager$3</ID>
+    <ID>MagicNumber:GemPlacementManager.kt$GemPlacementManager$5</ID>
+    <ID>MagicNumber:GemPlacementManager.kt$GemPlacementManager$50</ID>
+    <ID>MagicNumber:GemPresentationManager.kt$GemPresentationManager$0.35</ID>
+    <ID>MagicNumber:GemPresentationManager.kt$GemPresentationManager$0.5</ID>
+    <ID>MagicNumber:GemPresentationManager.kt$GemPresentationManager$0.95</ID>
+    <ID>MagicNumber:GemStateManager.kt$GemStateManager$8</ID>
+    <ID>MagicNumber:GemStatusView.kt$GemStatusView$8</ID>
+    <ID>MagicNumber:GemsGUI.kt$GemsGUI$0.5</ID>
+    <ID>MagicNumber:GemsGUI.kt$GemsGUI$48</ID>
+    <ID>MagicNumber:GemsGUI.kt$GemsGUI$8</ID>
+    <ID>MagicNumber:LanguageManager.kt$LanguageManager$10</ID>
+    <ID>MagicNumber:LanguageManager.kt$LanguageManager$20</ID>
+    <ID>MagicNumber:LanguageManager.kt$LanguageManager$70</ID>
+    <ID>MagicNumber:PlaceSubCommand.kt$PlaceSubCommand$3</ID>
+    <ID>MagicNumber:PlaceSubCommand.kt$PlaceSubCommand$4</ID>
+    <ID>MagicNumber:PowerCondition.kt$PowerCondition$12000</ID>
+    <ID>MagicNumber:PowerCondition.kt$PowerCondition$24000</ID>
+    <ID>MagicNumber:PowerTogglesGUI.kt$PowerTogglesGUI$22</ID>
+    <ID>MagicNumber:PowerTogglesGUI.kt$PowerTogglesGUI$45</ID>
+    <ID>MagicNumber:ProfileGUI.kt$ProfileGUI$22</ID>
+    <ID>MagicNumber:ProfileGUI.kt$ProfileGUI$3</ID>
+    <ID>MagicNumber:ProfileGUI.kt$ProfileGUI$4</ID>
+    <ID>MagicNumber:ProfileGUI.kt$ProfileGUI$5</ID>
+    <ID>MagicNumber:RevokeFeature.kt$RevokeFeature$1000L</ID>
+    <ID>MagicNumber:RevokeFeature.kt$RevokeFeature$30</ID>
+    <ID>MagicNumber:RevokeFeature.kt$RevokeFeature$8</ID>
+    <ID>MagicNumber:RevokeFeature.kt$RevokeFeature$999L</ID>
+    <ID>MagicNumber:RevokePowerSubCommand.kt$RevokePowerSubCommand$3</ID>
+    <ID>MagicNumber:RuleGems.kt$RuleGems$27483</ID>
+    <ID>MagicNumber:RulerAppointeesGUI.kt$RulerAppointeesGUI$13</ID>
+    <ID>MagicNumber:RulerAppointeesGUI.kt$RulerAppointeesGUI$3</ID>
+    <ID>MagicNumber:RulerAppointeesGUI.kt$RulerAppointeesGUI$5</ID>
+    <ID>MagicNumber:RulersGUI.kt$RulersGUI$13</ID>
+    <ID>MagicNumber:RulersGUI.kt$RulersGUI$3</ID>
+    <ID>MagicNumber:RulersGUI.kt$RulersGUI$48</ID>
+    <ID>MagicNumber:RulersGUI.kt$RulersGUI$50</ID>
+    <ID>MagicNumber:RulersGUI.kt$RulersGUI$8</ID>
+    <ID>MagicNumber:SqliteStorageProvider.kt$SqliteStorageProvider$3</ID>
+    <ID>MagicNumber:TpSubCommand.kt$TpSubCommand$0.5</ID>
+    <ID>MaxLineLength:AppointFeature.kt$AppointFeature$"Appoint feature is enabled but no appoint definitions were loaded. Define appoints in gems/*.yml or powers/*.yml."</ID>
+    <ID>MaxLineLength:AppointFeature.kt$AppointFeature$SchedulerUtil.globalRun(plugin, Runnable { Bukkit.dispatchCommand(Bukkit.getConsoleSender(), consoleCmd) }, 0L, -1L)</ID>
+    <ID>MaxLineLength:AppointFeature.kt$AppointFeature$SchedulerUtil.globalRun(plugin, Runnable { Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalProcessed) }, 0L, -1L)</ID>
+    <ID>MaxLineLength:AppointFeature.kt$AppointFeature$plugin.logger.warning("Invalid UUID in appoint data for perm set '$permSetKey': $uuidStr — skipping entry")</ID>
+    <ID>MaxLineLength:AppointFeature.kt$AppointFeature$private</ID>
+    <ID>MaxLineLength:BackupHelper.kt$BackupHelper$Files.copy(source.toPath(), target.toPath(), StandardCopyOption.COPY_ATTRIBUTES, StandardCopyOption.REPLACE_EXISTING)</ID>
+    <ID>MaxLineLength:CabinetGUI.kt$CabinetGUI$val holder = GUIHolder(GUIHolder.GUIType.CABINET, player.uniqueId, player.hasPermission("rulegems.admin"), currentPage)</ID>
+    <ID>MaxLineLength:CabinetMembersGUI.kt$CabinetMembersGUI$val holder = GUIHolder(GUIHolder.GUIType.CABINET_MEMBERS, player.uniqueId, player.hasPermission("rulegems.admin"), currentPage, appointKey)</ID>
+    <ID>MaxLineLength:CloudCommandManager.kt$CloudCommandManager$plugin.logger.info("Bukkit static getCommandMap() succeeded with: " + (commandMap?.javaClass?.name ?: "null"))</ID>
+    <ID>MaxLineLength:CloudCommandManager.kt$CloudCommandManager$val buildOnEnable = coordinatedBuilder.javaClass.getMethod("buildOnEnable", org.bukkit.plugin.Plugin::class.java)</ID>
+    <ID>MaxLineLength:CloudCommandManager.kt$CloudCommandManager$val coordinatedBuilder = executionCoordinator.invoke(builder, ExecutionCoordinator.simpleCoordinator&lt;RuleGemsCommandActor>())</ID>
+    <ID>MaxLineLength:CloudCommandManager.kt$CloudCommandManager$val executionCoordinator = builder.javaClass.getMethod("executionCoordinator", ExecutionCoordinator::class.java)</ID>
+    <ID>MaxLineLength:EffectConfig.kt$EffectConfig$if (word.isEmpty()) word else word.substring(0, 1).uppercase(Locale.getDefault()) + word.substring(1).lowercase(Locale.getDefault())</ID>
+    <ID>MaxLineLength:EffectUtils.kt$EffectUtils$SchedulerUtil.entityRun(plugin, player, { player.playSound(player.location, sound, volume, pitch) }, 0L, -1L)</ID>
+    <ID>MaxLineLength:GUIManager.kt$GUIManager$fun</ID>
+    <ID>MaxLineLength:GUIManager.kt$GUIManager$gui.setItem(SLOT_BACK, if (showBack) ItemBuilder.backButton(navActionKey, rawMsg("control.back")) else ItemBuilder.filler())</ID>
+    <ID>MaxLineLength:GUIManager.kt$GUIManager$gui.setItem(SLOT_INFO, ItemBuilder.pageInfo(currentPage, totalPages, totalItems, rawMsg("control.page"), rawMsg("control.total")))</ID>
+    <ID>MaxLineLength:GUIManager.kt$GUIManager$gui.setItem(SLOT_NEXT, ItemBuilder.nextButton(currentPage, totalPages, navActionKey, rawMsg("control.next"), rawMsg("control.page")))</ID>
+    <ID>MaxLineLength:GUIManager.kt$GUIManager$gui.setItem(SLOT_PREV, ItemBuilder.prevButton(currentPage, navActionKey, rawMsg("control.prev"), rawMsg("control.page")))</ID>
+    <ID>MaxLineLength:GUIManager.kt$GUIManager$if (plugin.gameplayConfig.isSneakToRedeem) "command.help.hold_redeem_sneak" else "command.help.hold_redeem_normal"</ID>
+    <ID>MaxLineLength:GameplayConfig.kt$GameplayConfig$gemCollectThresholdGroups = parseThresholdGroups(config.getConfigurationSection("gem_collect_thresholds"), logger)</ID>
+    <ID>MaxLineLength:GameplayConfig.kt$GameplayConfig$isHoldToRedeemEnabled = gp != null &amp;&amp; gp.getBoolean("hold_to_redeem_enabled", gp.getBoolean("hold_to_redeem", true))</ID>
+    <ID>MaxLineLength:GemAllowanceManager.kt$GemAllowanceManager$)</ID>
+    <ID>MaxLineLength:GemAllowanceManager.kt$GemAllowanceManager$val playerAppointmentAllowedUses: MutableMap&lt;UUID, MutableMap&lt;String, MutableMap&lt;String, Int>>> = ConcurrentHashMap()</ID>
+    <ID>MaxLineLength:GemConsumeListener.kt$GemConsumeListener$SchedulerUtil.entityRun(plugin, player, { scheduleProgressCheck(player) }, CHECK_INTERVAL_TICKS.toLong(), -1L)</ID>
+    <ID>MaxLineLength:GemManager.kt$GemManager$return deniedRequirement(requirements, "command.redeem.requirements_missing_consumed", ingredientPlaceholders(ingredient))</ID>
+    <ID>MaxLineLength:GemManager.kt$GemManager$return deniedRequirement(requirements, "command.redeem.requirements_missing_held", ingredientPlaceholders(ingredient))</ID>
+    <ID>MaxLineLength:GemManager.kt$GemManager$return deniedRequirement(requirements, "command.redeem.requirements_missing_redeemed", ingredientPlaceholders(ingredient))</ID>
+    <ID>MaxLineLength:GemManager.kt$GemManager$return deniedRequirement(requirements, "command.redeem.requirements_redeemall_blocked", "gem", definition.gemKey)</ID>
+    <ID>MaxLineLength:GemManager.kt$GemManager$return lastDenied ?: deniedRequirement(requirements, "command.redeem.requirements_missing_held", "gem", definition.gemKey)</ID>
+    <ID>MaxLineLength:GemManager.kt$GemManager$val requirementResult = evaluateRedeemRequirements(player, definition, gemId, GemRedeemEvent.RedeemContext.ALTAR)</ID>
+    <ID>MaxLineLength:GemManager.kt$GemManager$val requirementResult = evaluateRedeemRequirements(player, definition, gid, GemRedeemEvent.RedeemContext.FULL_SET)</ID>
+    <ID>MaxLineLength:GemManager.kt$GemManager$val requirementResult = evaluateRedeemRequirements(player, definition, matchedGemId, GemRedeemEvent.RedeemContext.HAND)</ID>
+    <ID>MaxLineLength:GemPermissionManager.kt$GemPermissionManager$if (pending.permissions.isNotEmpty()) snapshot["pending_revokes.permissions.$uuid"] = ArrayList(pending.permissions)</ID>
+    <ID>MaxLineLength:GemPermissionManager.kt$GemPermissionManager$plugin.effectUtils.sendActionBar(player, language.translateColorCodes(language.getMessage("inventory.conflict")))</ID>
+    <ID>MaxLineLength:GemPermissionManager.kt$GemPermissionManager$plugin.logger.fine("Failed to recalculate permissions after decrementing owner key count: " + e.message)</ID>
+    <ID>MaxLineLength:GemPermissionManager.kt$GemPermissionManager$plugin.logger.fine("Failed to recalculate permissions after incrementing owner key count: " + e.message)</ID>
+    <ID>MaxLineLength:GemPlacementManager.kt$GemPlacementManager$"Cannot place gem $gemId: no usable random_place_range; it stays unplaced until the next custody audit."</ID>
+    <ID>MaxLineLength:GemPlacementManager.kt$GemPlacementManager$if</ID>
+    <ID>MaxLineLength:GemStateManager.kt$GemStateManager$"Unable to rewrite bundle contents on this server version; removing the carrier to prevent a gem duplicate."</ID>
+    <ID>MaxLineLength:GemStateManager.kt$GemStateManager$"Unable to rewrite bundle contents; removing the carrier to prevent a gem duplicate: " + error.message</ID>
+    <ID>MaxLineLength:GemStatusView.kt$GemStatusView$sender.sendMessage(languageManager.translateColorCodes(languageManager.formatMessage("gui.gem_status.total_counts", summary)))</ID>
+    <ID>MaxLineLength:GemStatusView.kt$GemStatusView$sender.sendMessage(languageManager.translateColorCodes(languageManager.formatMessage("gui.gem_status.total_expected", summary)))</ID>
+    <ID>MaxLineLength:GemsGUI.kt$GemsGUI$private</ID>
+    <ID>MaxLineLength:HistoryLogger.kt$HistoryLogger$fun getPlayerHistory(playerName: String, lines: Int): List&lt;String></ID>
+    <ID>MaxLineLength:HistoryLogger.kt$HistoryLogger$message = buildFallbackRevoke(playerUuid, playerName, gemKey, gemDisplayName, permissions, vaultGroup, reason)</ID>
+    <ID>MaxLineLength:HistoryLogger.kt$HistoryLogger$private</ID>
+    <ID>MaxLineLength:HistorySubCommand.kt$HistorySubCommand$SchedulerUtil.globalRun(plugin, { displayResult(sender, historyPage, finalPage, finalPlayerFilter) }, 0, -1)</ID>
+    <ID>MaxLineLength:HistorySubCommand.kt$HistorySubCommand$private</ID>
+    <ID>MaxLineLength:InfoCommandsRegistrar.kt$InfoCommandsRegistrar$if (gameplayConfig.isSneakToRedeem) "command.help.hold_redeem_sneak" else "command.help.hold_redeem_normal"</ID>
+    <ID>MaxLineLength:InfoCommandsRegistrar.kt$InfoCommandsRegistrar$placeholders["discord"] = plugin.config.getString("links.discord", "https://discord.com/invite/7tJeSZPZgv") ?: ""</ID>
+    <ID>MaxLineLength:InfoCommandsRegistrar.kt$InfoCommandsRegistrar$placeholders["docs"] = plugin.config.getString("links.documentation", "https://github.com/angushushu/RuleGems") ?: ""</ID>
+    <ID>MaxLineLength:ItemBuilder.kt$ItemBuilder.Companion$fun</ID>
+    <ID>MaxLineLength:ItemBuilder.kt$ItemBuilder.Companion$val glintMethod = meta.javaClass.getMethod("setEnchantmentGlintOverride", Boolean::class.javaPrimitiveType)</ID>
+    <ID>MaxLineLength:PowerCondition.kt$PowerCondition$TimeType.CUSTOM -> builder.append(msg(lang, "condition.time_custom", "Time")).append(" ").append(timeFrom).append("-").append(timeTo)</ID>
+    <ID>MaxLineLength:PowerCondition.kt$PowerCondition$fun hasAnyCondition(): Boolean</ID>
+    <ID>MaxLineLength:PowerStructureManager.kt$PowerStructureManager$private</ID>
+    <ID>MaxLineLength:PowerStructureManager.kt$PowerStructureManager$private val appliedEffects: MutableMap&lt;String, MutableMap&lt;UUID, MutableMap&lt;String, MutableList&lt;EffectConfig>>>> = HashMap()</ID>
+    <ID>MaxLineLength:PowerTogglesGUI.kt$PowerTogglesGUI$val holder = GUIHolder(GUIHolder.GUIType.POWER_TOGGLES, player.uniqueId, player.hasPermission("rulegems.admin"), currentPage)</ID>
+    <ID>MaxLineLength:ProfileGUI.kt$ProfileGUI$entries.add(CommandEntry(label, if (remaining &lt; 0) rawMsg("profile.unlimited") else remaining.toString(), cooldown))</ID>
+    <ID>MaxLineLength:ProfileGUI.kt$ProfileGUI$val appointer = appointment.appointerUuid?.let { uuid -> gemManager.getCachedPlayerName(uuid) } ?: rawMsg("profile.system")</ID>
+    <ID>MaxLineLength:ProfileGUI.kt$ProfileGUI$val holder = GUIHolder(GUIHolder.GUIType.PROFILE, player.uniqueId, player.hasPermission("rulegems.admin"), currentPage)</ID>
+    <ID>MaxLineLength:QuickShopHikariBridge.kt$QuickShopHikariBridge$val reasonMethod = findMethod(event.javaClass, "setCancelled", Boolean::class.javaPrimitiveType!!, String::class.java)</ID>
+    <ID>MaxLineLength:RedeemCommandsRegistrar.kt$RedeemCommandsRegistrar$languageManager.sendMessage(player, if (ok) "command.redeemall.success" else "command.redeemall.failed")</ID>
+    <ID>MaxLineLength:RedeemRecipe.kt$RedeemRecipe.Companion$RedeemRecipe(toIngredients(requiresHeld), toIngredients(consumes), toIngredients(requiresRedeemed), requiresAny, requiresCount, requiresCountFrom)</ID>
+    <ID>MaxLineLength:RedeemRequirements.kt$RedeemRequirements$val recipe = RedeemRecipe.legacy(requiresHeld, requiresRedeemed, consumes, requiresAny, requiresCount, requiresCountFrom)</ID>
+    <ID>MaxLineLength:RevokeFeature.kt$RevokeFeature$constructor(plugin: RuleGems, gemManager: GemManager) : this(plugin, gemManager, LongSupplier { System.currentTimeMillis() })</ID>
+    <ID>MaxLineLength:RevokeFeature.kt$RevokeFeature$private</ID>
+    <ID>MaxLineLength:RevokePowerSubCommand.kt$RevokePowerSubCommand$RevokeResult.Status.CONFIRMATION_EXPIRED -> languageManager.sendMessage(actor, "command.revoke_power.confirmation_expired")</ID>
+    <ID>MaxLineLength:RevokePowerSubCommand.kt$RevokePowerSubCommand$RevokeResult.Status.COOLDOWN -> languageManager.sendMessage(actor, "command.revoke_power.cooldown", placeholders)</ID>
+    <ID>MaxLineLength:RevokePowerSubCommand.kt$RevokePowerSubCommand$RevokeResult.Status.MISSING_TRIGGER -> languageManager.sendMessage(actor, "command.revoke_power.missing_trigger", placeholders)</ID>
+    <ID>MaxLineLength:RevokePowerSubCommand.kt$RevokePowerSubCommand$RevokeResult.Status.NO_PENDING_CONFIRMATION -> languageManager.sendMessage(actor, "command.revoke_power.no_pending_confirmation")</ID>
+    <ID>MaxLineLength:RevokePowerSubCommand.kt$RevokePowerSubCommand$RevokeResult.Status.POWER_NOT_ALLOWED -> languageManager.sendMessage(actor, "command.revoke_power.power_not_allowed", placeholders)</ID>
+    <ID>MaxLineLength:RevokePowerSubCommand.kt$RevokePowerSubCommand$RevokeResult.Status.RULE_NOT_FOUND -> languageManager.sendMessage(actor, "command.revoke_power.rule_not_found", placeholders)</ID>
+    <ID>MaxLineLength:RevokePowerSubCommand.kt$RevokePowerSubCommand$RevokeResult.Status.TARGET_HAS_NO_POWER -> languageManager.sendMessage(actor, "command.revoke_power.target_has_no_power", placeholders)</ID>
+    <ID>MaxLineLength:RevokePowerSubCommand.kt$RevokePowerSubCommand$RevokeResult.Status.TARGET_NOT_FOUND -> languageManager.sendMessage(actor, "command.revoke_power.target_not_found", placeholders)</ID>
+    <ID>MaxLineLength:RevokePowerSubCommand.kt$RevokePowerSubCommand$RevokeResult.Status.TARGET_OFFLINE_NOT_ALLOWED -> languageManager.sendMessage(actor, "command.revoke_power.target_offline_not_allowed", placeholders)</ID>
+    <ID>MaxLineLength:RuleGateFeature.kt$RuleGateFeature$if</ID>
+    <ID>MaxLineLength:RuleGems.kt$RuleGems$CloudCommandManager(this, currentGemManager, currentGameplayConfig, currentLanguageManager, currentGuiManager).registerAll()</ID>
+    <ID>MaxLineLength:RuleGemsCommandActor.kt$RuleGemsCommandActor.Companion$fun</ID>
+    <ID>MaxLineLength:RuleGemsDoctor.kt$RuleGemsDoctor$"Built-in transfer: is enabled; Vault has no cross-account atomic transaction. Prefer the economy plugin's native command."</ID>
+    <ID>MaxLineLength:RuleGemsDoctor.kt$RuleGemsDoctor$"permission_groups are configured, but the Bukkit provider has no persistent group model. Install LuckPerms or Vault. References: "</ID>
+    <ID>MaxLineLength:RuleGemsDoctor.kt$RuleGemsDoctor$entries.add(Entry(Severity.ERROR, localized("random_place_range.world 未配置。", "random_place_range.world is not configured.")))</ID>
+    <ID>MaxLineLength:RuleGemsDoctor.kt$RuleGemsDoctor$entries.add(Entry(Severity.ERROR, localized("随机放置世界不存在: ", "Random placement world not found: ") + worldName))</ID>
+    <ID>MaxLineLength:RuleGemsDoctor.kt$RuleGemsDoctor$entries.add(Entry(Severity.OK, localized("宝石实例数量匹配: ", "Configured gem instances match runtime state: ") + actual))</ID>
+    <ID>MaxLineLength:RuleGemsDoctor.kt$RuleGemsDoctor$entries.add(Entry(Severity.WARNING, localized("allow_op_escalation 已开启，存在安全风险。", "allow_op_escalation is enabled and increases security risk.")))</ID>
+    <ID>MaxLineLength:RuleGemsDoctor.kt$RuleGemsDoctor$entries.add(Entry(Severity.WARNING, localized("storage.type 为空，将回退到 YAML。", "storage.type is blank; YAML storage will be used.")))</ID>
+    <ID>MaxLineLength:RuleGemsDoctor.kt$RuleGemsDoctor$entries.add(Entry(Severity.WARNING, localized("委任功能已启用，但没有任何职位定义。", "Appoint feature is enabled, but no roles are defined.")))</ID>
+    <ID>MaxLineLength:RuleGemsDoctor.kt$RuleGemsDoctor$entries.add(Entry(Severity.WARNING, localized("撤销宝石功能已启用，但没有可用规则。", "Revoke-power is enabled, but no usable rules are loaded.")))</ID>
+    <ID>MaxLineLength:RuleGemsDoctor.kt$RuleGemsDoctor$entries.add(Entry(Severity.WARNING, localized("未知 storage.type，将回退到 YAML: ", "Unknown storage.type; YAML storage will be used: ") + type))</ID>
+    <ID>MaxLineLength:RuleGemsDoctor.kt$RuleGemsDoctor$if</ID>
+    <ID>MaxLineLength:RuleGemsDoctor.kt$RuleGemsDoctor$localized("宝石实例数量与配置不一致，配置/当前: ", "Configured gem instance count differs from runtime state, expected/current: ")</ID>
+    <ID>MaxLineLength:RuleGemsDoctor.kt$RuleGemsDoctor$localized("祭坛兑换已启用，但仍有宝石未设置祭坛数量: ", "Altar redeem is enabled, but gems are missing altar locations: ")</ID>
+    <ID>MaxLineLength:RuleGemsDoctor.kt$RuleGemsDoctor$localized("缺少 random_place_range，散落与补齐逻辑将不可用。", "Missing random_place_range; scatter and refill flows will fail.")</ID>
+    <ID>MaxLineLength:RulerAppointeesGUI.kt$RulerAppointeesGUI$private</ID>
+    <ID>MaxLineLength:YamlStorageProvider.kt$YamlStorageProvider$"Primary data/gems.yml is missing; loaded the last-known-good backup without overwriting it."</ID>
+    <ID>NestedBlockDepth:AppointFeature.kt$AppointFeature$private fun loadData()</ID>
+    <ID>NestedBlockDepth:BackupHelper.kt$BackupHelper$private fun copyIfExists(plugin: JavaPlugin, source: File?, target: File)</ID>
+    <ID>NestedBlockDepth:CloudCommandManager.kt$CloudCommandManager$private fun executeFallback(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>NestedBlockDepth:CommandAllowanceListener.kt$CommandAllowanceListener$private fun handleAllowedCommand( player: Player?, raw: String?, baseLabel: String, args: Array&lt;String>, allowDelegate: Boolean, ): Boolean</ID>
+    <ID>NestedBlockDepth:ConfigUpdater.kt$ConfigUpdater$@JvmStatic fun merge(plugin: JavaPlugin?, resourcePath: String?)</ID>
+    <ID>NestedBlockDepth:GemAllowanceManager.kt$GemAllowanceManager$fun getRemainingAllowed(uid: UUID?, label: String?): Int</ID>
+    <ID>NestedBlockDepth:GemAllowanceManager.kt$GemAllowanceManager$fun loadData(gemsData: FileConfiguration)</ID>
+    <ID>NestedBlockDepth:GemAllowanceManager.kt$GemAllowanceManager$fun refundAllowed(uid: UUID?, label: String?)</ID>
+    <ID>NestedBlockDepth:GemAllowanceManager.kt$GemAllowanceManager$private fun loadInstanceSection( playerSec: ConfigurationSection, key: String, uid: UUID, target: MutableMap&lt;UUID, MutableMap&lt;UUID, MutableMap&lt;String, Int>>>, )</ID>
+    <ID>NestedBlockDepth:GemBoundsService.kt$GemBoundsService$private fun configuredRange(gemId: UUID?): Array&lt;Location>?</ID>
+    <ID>NestedBlockDepth:GemDefinitionParser.kt$GemDefinitionParser$fun loadGemDefinitions(config: FileConfiguration, dataFolder: File)</ID>
+    <ID>NestedBlockDepth:GemDefinitionParser.kt$GemDefinitionParser$fun parsePowerStructure(obj: Any?): PowerStructure</ID>
+    <ID>NestedBlockDepth:GemDefinitionParser.kt$GemDefinitionParser$private fun collectLegacyFromYamlFolder(folder: File?, findings: MutableSet&lt;String>, gemFile: Boolean)</ID>
+    <ID>NestedBlockDepth:GemDefinitionParser.kt$GemDefinitionParser$private fun loadPowerTemplatesFromFile(file: File)</ID>
+    <ID>NestedBlockDepth:GemDefinitionParser.kt$GemDefinitionParser$private fun parseAllowedCommands(allowsObj: Any?): List&lt;AllowedCommand></ID>
+    <ID>NestedBlockDepth:GemDefinitionParser.kt$GemDefinitionParser$private fun parseCondition(obj: Any?): PowerCondition</ID>
+    <ID>NestedBlockDepth:GemDefinitionParser.kt$GemDefinitionParser$private fun parseEffects(effectsObj: Any?): List&lt;EffectConfig></ID>
+    <ID>NestedBlockDepth:GemDefinitionParser.kt$GemDefinitionParser$private fun parseRandomPlaceRange(map: Map&lt;*, *>, gemKey: String): Array&lt;Location?></ID>
+    <ID>NestedBlockDepth:GemPermissionManager.kt$GemPermissionManager$fun applyPendingRevokesIfAny(player: Player?)</ID>
+    <ID>NestedBlockDepth:GemPermissionManager.kt$GemPermissionManager$fun conflictsWithSelected(candidateKey: String?, selectedKeys: Set&lt;String>?): Boolean</ID>
+    <ID>NestedBlockDepth:GemPermissionManager.kt$GemPermissionManager$fun decrementOwnerKeyCount(owner: UUID?, key: String?, definition: GemDefinition?)</ID>
+    <ID>NestedBlockDepth:GemPermissionManager.kt$GemPermissionManager$fun loadData(gemsData: FileConfiguration)</ID>
+    <ID>NestedBlockDepth:GemPermissionManager.kt$GemPermissionManager$fun recalculateGrants(player: Player?)</ID>
+    <ID>NestedBlockDepth:GemPermissionManager.kt$GemPermissionManager$private fun computeOfflineRulerPending(): Map&lt;UUID, PendingRevoke></ID>
+    <ID>NestedBlockDepth:GemPermissionManager.kt$GemPermissionManager$private fun loadPendingRevokes(gemsData: FileConfiguration)</ID>
+    <ID>NestedBlockDepth:GemPlacementManager.kt$GemPlacementManager$private fun removeGemAltarFromConfig(gemKey: String?)</ID>
+    <ID>NestedBlockDepth:GemPlacementManager.kt$GemPlacementManager$private fun saveGemAltarToConfig(gemKey: String?, loc: Location?)</ID>
+    <ID>NestedBlockDepth:GemStateManager.kt$GemStateManager$fun loadData(gemsData: FileConfiguration, randomPlaceGemFn: Consumer&lt;UUID>)</ID>
+    <ID>NestedBlockDepth:GemStateManager.kt$GemStateManager$private fun stripMatchingGems( item: ItemStack?, depth: Int, shouldRemove: (UUID?) -> Boolean, accumulator: RemovalAccumulator, ): StripResult</ID>
+    <ID>NestedBlockDepth:GemsGUI.kt$GemsGUI$private fun buildAdminLore( builder: ItemBuilder, gemId: UUID, gemKey: String?, definition: GemDefinition?, holder: Player?, location: Location?, )</ID>
+    <ID>NestedBlockDepth:HistoryLogger.kt$HistoryLogger$fun getPlayerHistoryPage(playerName: String, page: Int, pageSize: Int): HistoryPage</ID>
+    <ID>NestedBlockDepth:HistoryLogger.kt$HistoryLogger$fun getRecentHistoryPage(page: Int, pageSize: Int): HistoryPage</ID>
+    <ID>NestedBlockDepth:HistorySubCommand.kt$HistorySubCommand$private fun sendNavigation(sender: CommandSender, currentPage: Int, totalPages: Int, playerFilter: String?)</ID>
+    <ID>NestedBlockDepth:LanguageManager.kt$LanguageManager$private fun copyLangFileIfNotExists(lang: String): Boolean</ID>
+    <ID>NestedBlockDepth:LanguageUpdater.kt$LanguageUpdater$@JvmStatic fun merge(plugin: JavaPlugin?, targetFile: File?, resourcePath: String?)</ID>
+    <ID>NestedBlockDepth:PowerStructureManager.kt$PowerStructureManager$fun clearAll()</ID>
+    <ID>NestedBlockDepth:PowerStructureManager.kt$PowerStructureManager$fun clearAllInNamespace(namespace: String)</ID>
+    <ID>NestedBlockDepth:RevokePowerSubCommand.kt$RevokePowerSubCommand$private fun sendResult(actor: Player, result: RevokeResult)</ID>
+    <ID>NestedBlockDepth:RulerAppointeesGUI.kt$RulerAppointeesGUI$override fun onClick( player: Player, holder: GUIHolder, slot: Int, clicked: ItemStack, pdc: PersistentDataContainer, shiftClick: Boolean, )</ID>
+    <ID>NestedBlockDepth:RulerAppointeesGUI.kt$RulerAppointeesGUI$private fun createAppointeeItem(appointment: Appointment, appointFeature: AppointFeature?, isAdmin: Boolean): ItemStack</ID>
+    <ID>NestedBlockDepth:SqliteStorageProvider.kt$SqliteStorageProvider$@Synchronized override fun initialize()</ID>
+    <ID>NestedBlockDepth:SqliteStorageProvider.kt$SqliteStorageProvider$override fun readGemData(): StorageLoadResult</ID>
+    <ID>NestedBlockDepth:SqliteStorageProvider.kt$SqliteStorageProvider$override fun saveGemData(data: FileConfiguration): StorageSaveResult</ID>
+    <ID>ReturnCount:AppointFeature.kt$AppointFeature$fun appoint(appointer: Player?, appointee: Player?, permSetKey: String?): Boolean</ID>
+    <ID>ReturnCount:AppointFeature.kt$AppointFeature$fun dismiss(dismisser: Player?, appointeeUuid: UUID?, permSetKey: String?): Boolean</ID>
+    <ID>ReturnCount:AppointFeature.kt$AppointFeature$fun getAppointmentsByAppointer(appointerUuid: UUID?, permSetKey: String?): List&lt;Appointment></ID>
+    <ID>ReturnCount:AppointFeature.kt$AppointFeature$fun isAppointmentToggledOff(playerUuid: UUID?, permSetKey: String?): Boolean</ID>
+    <ID>ReturnCount:AppointFeature.kt$AppointFeature$fun setAppointmentPowerEnabled(player: Player?, permSetKey: String?, enabled: Boolean): Boolean</ID>
+    <ID>ReturnCount:AppointFeature.kt$AppointFeature$private fun cascadeRevokeForPermSet( appointerUuid: UUID, appointer: Player?, permSetKey: String, visited: MutableSet&lt;UUID>, )</ID>
+    <ID>ReturnCount:AppointFeature.kt$AppointFeature$private fun isAncestorOf( potentialAncestor: UUID, descendant: UUID, permSetKey: String?, visited: MutableSet&lt;UUID>, ): Boolean</ID>
+    <ID>ReturnCount:AppointSubCommand.kt$AppointSubCommand$override fun execute(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>ReturnCount:BackupHelper.kt$BackupHelper$@JvmStatic fun createBackup(plugin: JavaPlugin?, source: File?): File?</ID>
+    <ID>ReturnCount:BackupHelper.kt$BackupHelper$@JvmStatic fun createConfigOptimizationBackup(plugin: JavaPlugin?): File?</ID>
+    <ID>ReturnCount:CabinetMembersGUI.kt$CabinetMembersGUI$override fun onClick( player: Player, holder: GUIHolder, slot: Int, clicked: ItemStack, pdc: PersistentDataContainer, shiftClick: Boolean, )</ID>
+    <ID>ReturnCount:CloudCommandManager.kt$CloudCommandManager$private fun completeFallback(sender: CommandSender, args: Array&lt;String>): List&lt;String></ID>
+    <ID>ReturnCount:CloudCommandManager.kt$CloudCommandManager$private fun executeFallback(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>ReturnCount:CloudCommandManager.kt$CloudCommandManager$private fun tryCreateModernManager(): CommandManager&lt;RuleGemsCommandActor>?</ID>
+    <ID>ReturnCount:CommandAllowanceListener.kt$CommandAllowanceListener$@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false) fun onPlayerCommand(event: PlayerCommandPreprocessEvent)</ID>
+    <ID>ReturnCount:CommandAllowanceListener.kt$CommandAllowanceListener$@EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true) fun onTabComplete(event: TabCompleteEvent)</ID>
+    <ID>ReturnCount:CommandAllowanceListener.kt$CommandAllowanceListener$fun suggestProxyTab(player: Player?, alias: String, args: Array&lt;String>): List&lt;String></ID>
+    <ID>ReturnCount:CommandAllowanceListener.kt$CommandAllowanceListener$private fun handleAllowedCommand( player: Player?, raw: String?, baseLabel: String, args: Array&lt;String>, allowDelegate: Boolean, ): Boolean</ID>
+    <ID>ReturnCount:ConfigManager.kt$ConfigManager$fun loadConfigs()</ID>
+    <ID>ReturnCount:ConfigParseUtils.kt$ConfigParseUtils$@JvmStatic fun toStringList(value: Any?): List&lt;String></ID>
+    <ID>ReturnCount:ConfigUpdater.kt$ConfigUpdater$@JvmStatic fun merge(plugin: JavaPlugin?, resourcePath: String?)</ID>
+    <ID>ReturnCount:CustomCommandExecutor.kt$CustomCommandExecutor$fun checkCooldown(playerUuid: UUID, commandName: String): Boolean</ID>
+    <ID>ReturnCount:CustomCommandExecutor.kt$CustomCommandExecutor$fun executeExtendedCommand(player: Player?, allowedCmd: AllowedCommand?, args: Array&lt;String>): Boolean</ID>
+    <ID>ReturnCount:CustomCommandExecutor.kt$CustomCommandExecutor$fun getRemainingCooldown(playerUuid: UUID, commandName: String): Long</ID>
+    <ID>ReturnCount:CustomCommandExecutor.kt$CustomCommandExecutor$private fun executeAsPlayerOp(command: String, player: Player): Boolean</ID>
+    <ID>ReturnCount:CustomCommandExecutor.kt$CustomCommandExecutor$private fun executeTransfer(player: Player, spec: String): Boolean</ID>
+    <ID>ReturnCount:DismissSubCommand.kt$DismissSubCommand$override fun execute(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>ReturnCount:EconomyProvider.kt$EconomyProvider$@Suppress("DEPRECATION") // Vault 的命名账户 API 才能正确命中 CMI/Lands 维护的虚拟账户。 fun transfer(fromName: String, toName: String, amount: Double): Result</ID>
+    <ID>ReturnCount:EconomyProvider.kt$EconomyProvider$@Suppress("DEPRECATION") private fun resolveAccounts(accountName: String): List&lt;AccountRef></ID>
+    <ID>ReturnCount:EconomyProvider.kt$EconomyProvider.Companion$@JvmStatic fun hook(plugin: Plugin): EconomyProvider?</ID>
+    <ID>ReturnCount:EffectConfig.kt$EffectConfig$private fun toRomanNumeral(number: Int): String</ID>
+    <ID>ReturnCount:GUIManager.kt$GUIManager$@EventHandler fun onInventoryClick(event: InventoryClickEvent)</ID>
+    <ID>ReturnCount:GUIManager.kt$GUIManager$fun canOpenCabinet(player: Player?): Boolean</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$fun applyAppointmentAllowedCommands(player: Player?, appointKey: String?, power: PowerStructure?, reset: Boolean)</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$fun getAllowedCommand(uid: UUID?, label: String?): AllowedCommand?</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$fun getRemainingAllowed(uid: UUID?, label: String?): Int</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$fun grantGlobalAllowedCommands(player: Player?, definition: GemDefinition?)</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$fun hasAnyAllowed(uid: UUID?, label: String?): Boolean</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$fun reassignHeldInstanceAllowance(gemId: UUID?, newOwner: UUID?, definition: GemDefinition?)</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$fun reassignRedeemInstanceAllowance( gemId: UUID?, newOwner: UUID?, definition: GemDefinition?, resetEvenIfSameOwner: Boolean, )</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$fun refundAllowed(uid: UUID?, label: String?)</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$fun refundAllowed(uid: UUID?, resolved: ResolvedAllowance?)</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$fun resolveAllowedCommand(uid: UUID?, label: String?): ResolvedAllowance?</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$fun tryConsumeAllowed(uid: UUID?, label: String?): Boolean</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$private fun canUseSource(playerId: UUID, gemId: UUID): Boolean</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$private fun findCommand(commands: List&lt;AllowedCommand>?, label: String): AllowedCommand?</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$private fun findGemDefinitionByKey(gemKey: String?): GemDefinition?</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$private fun getOrCreateSourceMap(uid: UUID, resolved: ResolvedAllowance?): MutableMap&lt;String, Int>?</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$private fun resolveFromAppointments(uid: UUID, label: String): ResolvedAllowance?</ID>
+    <ID>ReturnCount:GemAllowanceManager.kt$GemAllowanceManager$private fun resolveFromGemMap( uid: UUID, label: String, perGem: Map&lt;UUID, Map&lt;String, Int>>?, sourceType: AllowanceSourceType, ): ResolvedAllowance?</ID>
+    <ID>ReturnCount:GemBlockProtectionListener.kt$GemBlockProtectionListener$private fun movesOrCrushesGem(blocks: List&lt;Block>, direction: BlockFace): Boolean</ID>
+    <ID>ReturnCount:GemBoundsService.kt$GemBoundsService$fun boundsFor(gemId: UUID?): Bounds?</ID>
+    <ID>ReturnCount:GemBoundsService.kt$GemBoundsService$fun clampToBorder(location: Location): Location</ID>
+    <ID>ReturnCount:GemBoundsService.kt$GemBoundsService$fun isInside(gemId: UUID?, location: Location?): Boolean</ID>
+    <ID>ReturnCount:GemBoundsService.kt$GemBoundsService$fun isInsideBorder(location: Location?): Boolean</ID>
+    <ID>ReturnCount:GemBoundsService.kt$GemBoundsService$private fun configuredRange(gemId: UUID?): Array&lt;Location>?</ID>
+    <ID>ReturnCount:GemConsumeListener.kt$GemConsumeListener$@EventHandler(priority = EventPriority.HIGH) fun onPlayerInteract(event: PlayerInteractEvent)</ID>
+    <ID>ReturnCount:GemCustodyAuditor.kt$GemCustodyAuditor$fun sweepForeignInventory(inventory: Inventory?, contextName: String?): Int</ID>
+    <ID>ReturnCount:GemCustodyAuditor.kt$GemCustodyAuditor$fun sweepPlayerInventory(player: Player?): Int</ID>
+    <ID>ReturnCount:GemCustodyListener.kt$GemCustodyListener$private fun denyStorageEntity( event: Cancellable, player: Player, target: Entity, hand: EquipmentSlot?, )</ID>
+    <ID>ReturnCount:GemDefinitionParser.kt$GemDefinitionParser$fun parsePowerStructure(obj: Any?): PowerStructure</ID>
+    <ID>ReturnCount:GemDefinitionParser.kt$GemDefinitionParser$private fun containsMapItem(obj: Any?): Boolean</ID>
+    <ID>ReturnCount:GemDefinitionParser.kt$GemDefinitionParser$private fun parseAltarLocation(map: Map&lt;*, *>, gemKey: String): Location?</ID>
+    <ID>ReturnCount:GemDefinitionParser.kt$GemDefinitionParser$private fun parseBooleanLenient(obj: Any?): Boolean</ID>
+    <ID>ReturnCount:GemDefinitionParser.kt$GemDefinitionParser$private fun parseRedeemIngredient(obj: Any?, fieldName: String): RedeemIngredient?</ID>
+    <ID>ReturnCount:GemEscapeCoordinator.kt$GemEscapeCoordinator$private fun attemptEscape(gemId: UUID, bypassMinimumAge: Boolean)</ID>
+    <ID>ReturnCount:GemIntelBroadcaster.kt$GemIntelBroadcaster$private fun chooseTargetGem(recipientLocation: Location): IntelTarget?</ID>
+    <ID>ReturnCount:GemIntelBroadcaster.kt$GemIntelBroadcaster$private fun deliverIntel(recipient: Player)</ID>
+    <ID>ReturnCount:GemInventoryListener.kt$GemInventoryListener$@EventHandler fun onInventoryClick(event: InventoryClickEvent)</ID>
+    <ID>ReturnCount:GemInventoryListener.kt$GemInventoryListener$@EventHandler fun onItemHeld(event: PlayerItemHeldEvent)</ID>
+    <ID>ReturnCount:GemManager.kt$GemManager$fun blockPlacementConflictsWithDisplayedGem(player: Player, location: Location): Boolean</ID>
+    <ID>ReturnCount:GemManager.kt$GemManager$fun handleDisplayedGemHit(player: Player, entity: org.bukkit.entity.Entity?): Boolean</ID>
+    <ID>ReturnCount:GemManager.kt$GemManager$fun handleGemBlockPlace(placer: Player, inHand: ItemStack?, block: Block, event: BlockPlaceEvent)</ID>
+    <ID>ReturnCount:GemManager.kt$GemManager$fun isGemIdToggledOff(playerId: UUID?, gemId: UUID?): Boolean</ID>
+    <ID>ReturnCount:GemManager.kt$GemManager$fun loadGems(): Boolean</ID>
+    <ID>ReturnCount:GemManager.kt$GemManager$fun recoverStrayGem(gemId: UUID?, location: Location?): Boolean</ID>
+    <ID>ReturnCount:GemManager.kt$GemManager$fun redeemAll(player: Player): Boolean</ID>
+    <ID>ReturnCount:GemManager.kt$GemManager$fun redeemGemInHand(player: Player?): Boolean</ID>
+    <ID>ReturnCount:GemManager.kt$GemManager$private fun evaluateRedeemRecipe( requirements: RedeemRequirements, recipe: RedeemRecipe, heldGemIds: Map&lt;String, List&lt;UUID>>, redeemedCounts: Map&lt;String, Int>, targetGemId: UUID?, ): RedeemRequirementResult</ID>
+    <ID>ReturnCount:GemManager.kt$GemManager$private fun evaluateRedeemRequirements( player: Player?, definition: GemDefinition?, targetGemId: UUID?, context: GemRedeemEvent.RedeemContext, ): RedeemRequirementResult</ID>
+    <ID>ReturnCount:GemManager.kt$GemManager$private fun findMatchingAltarGem(loc: Location?, gemKey: String?): GemDefinition?</ID>
+    <ID>ReturnCount:GemManager.kt$GemManager$private fun handlePlaceRedeem( player: Player?, gemId: UUID?, placedLoc: Location, block: Block, definition: GemDefinition?, ): PlaceRedeemResult</ID>
+    <ID>ReturnCount:GemManager.kt$GemManager$private fun pickupPlacedGem(player: Player, gemId: UUID, location: Location): PickupResult</ID>
+    <ID>ReturnCount:GemNavigator.kt$GemNavigator$@EventHandler fun onPlayerInteract(event: PlayerInteractEvent)</ID>
+    <ID>ReturnCount:GemNavigator.kt$GemNavigator$private fun checkCooldown(player: Player): Boolean</ID>
+    <ID>ReturnCount:GemNavigator.kt$GemNavigator$private fun findNearestGem(playerLoc: Location): NearestGemResult?</ID>
+    <ID>ReturnCount:GemNavigator.kt$GemNavigator$private fun refreshNavigationSession(player: Player, sessionId: Long)</ID>
+    <ID>ReturnCount:GemNavigator.kt$internal fun relativeCompassTarget(from: Location, to: Location): Location?</ID>
+    <ID>ReturnCount:GemPermissionManager.kt$GemPermissionManager$fun conflictsWithSelected(candidateKey: String?, selectedKeys: Set&lt;String>?): Boolean</ID>
+    <ID>ReturnCount:GemPermissionManager.kt$GemPermissionManager$fun handleInventoryOwnershipOnPickup(player: Player?, gemId: UUID?)</ID>
+    <ID>ReturnCount:GemPlacementManager.kt$GemPlacementManager$fun attemptCandidate(attempt: Int)</ID>
+    <ID>ReturnCount:GemPlacementManager.kt$GemPlacementManager$fun checkPlaceRedeem(placedLoc: Location?, gemKey: String?): String?</ID>
+    <ID>ReturnCount:GemPlacementManager.kt$GemPlacementManager$private fun createLocalEscapeCandidate(gemId: UUID, origin: Location, failedRound: Int): Location?</ID>
+    <ID>ReturnCount:GemPlacementManager.kt$GemPlacementManager$private fun isEscapeRequestCurrent(request: GemEscapeRequest, operationGeneration: Long): Boolean</ID>
+    <ID>ReturnCount:GemPlacementManager.kt$GemPlacementManager$private fun isValidEscapeTarget(request: GemEscapeRequest, target: Location): Boolean</ID>
+    <ID>ReturnCount:GemPlacementManager.kt$GemPlacementManager$private fun removeGemAltarFromConfig(gemKey: String?)</ID>
+    <ID>ReturnCount:GemPlacementManager.kt$GemPlacementManager$private fun saveGemAltarToConfig(gemKey: String?, loc: Location?)</ID>
+    <ID>ReturnCount:GemPlacementManager.kt$GemPlacementManager$private fun scheduleRandomAttempt(gemId: UUID, attemptsLeft: Int)</ID>
+    <ID>ReturnCount:GemPlacementManager.kt$GemPlacementManager$private fun warnIfEscapeHasNoUsableBorder()</ID>
+    <ID>ReturnCount:GemPresentationManager.kt$GemPresentationManager$fun resolveGemId(entity: Entity?): UUID?</ID>
+    <ID>ReturnCount:GemPresentationManager.kt$GemPresentationManager$private fun spawnModernEntities(record: DisplayRecord): List&lt;Entity></ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$fun findGemDefinition(key: String?): GemDefinition?</ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$fun getCachedPlayerName(uuid: UUID?): String</ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$fun getGemDisplayName(gemId: UUID?): String?</ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$fun getGemUUID(item: ItemStack?): UUID?</ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$fun hasBlockSupport(loc: Location?): Boolean</ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$fun isRuleGem(item: ItemStack?): Boolean</ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$fun isSupportRequired(mat: Material?): Boolean</ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$fun playerHoldsGem(player: Player?, gemId: UUID?): Boolean</ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$fun removeGemItemFromInventory(player: Player?, targetId: UUID?)</ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$fun resolveGemIdentifier(input: String?): UUID?</ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$fun resolveGemKeyByNameOrKey(input: String?): String?</ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$private fun collectGemIds(item: ItemStack?, depth: Int, out: MutableList&lt;UUID>)</ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$private fun containsGem(item: ItemStack?, depth: Int): Boolean</ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$private fun nestedItems(item: ItemStack): List&lt;ItemStack?></ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$private fun shouldLoadPersistedGem(gemKey: String?, configuredKeys: Set&lt;String>?): Boolean</ID>
+    <ID>ReturnCount:GemStateManager.kt$GemStateManager$private fun stripMatchingGems( item: ItemStack?, depth: Int, shouldRemove: (UUID?) -> Boolean, accumulator: RemovalAccumulator, ): StripResult</ID>
+    <ID>ReturnCount:GemsGUI.kt$GemsGUI$private fun currentFilterLabel(filter: String?): String</ID>
+    <ID>ReturnCount:HistoryLogger.kt$HistoryLogger$private fun formatHistoryMessage(key: String, placeholders: Map&lt;String, String>?): String</ID>
+    <ID>ReturnCount:HistorySubCommand.kt$HistorySubCommand$private fun displayResult( sender: CommandSender, historyPage: HistoryLogger.HistoryPage, page: Int, playerFilter: String?, )</ID>
+    <ID>ReturnCount:InfoCommandsRegistrar.kt$InfoCommandsRegistrar$private fun hasAnyAppointPermission(sender: CommandSender?, feature: AppointFeature?): Boolean</ID>
+    <ID>ReturnCount:LanguageManager.kt$LanguageManager$private fun getLanguageConfig(lang: String?): FileConfiguration?</ID>
+    <ID>ReturnCount:LanguageManager.kt$LanguageManager$private fun lookupMessage(lang: String?, path: String?): String?</ID>
+    <ID>ReturnCount:LanguageManager.kt$LanguageManager$private fun lookupMessageList(lang: String?, path: String?): List&lt;String>?</ID>
+    <ID>ReturnCount:LanguageUpdater.kt$LanguageUpdater$@JvmStatic fun merge(plugin: JavaPlugin?, targetFile: File?, resourcePath: String?)</ID>
+    <ID>ReturnCount:LuckPermsPermissionProvider.kt$LuckPermsPermissionProvider$override fun setPermission( player: Player, permission: String, context: Map&lt;String, String>?, value: Boolean, ): Boolean</ID>
+    <ID>ReturnCount:LuckPermsPermissionProvider.kt$LuckPermsPermissionProvider$private fun buildInheritanceNode(group: String?): Any?</ID>
+    <ID>ReturnCount:LuckPermsPermissionProvider.kt$LuckPermsPermissionProvider$private fun buildPermissionNode(permission: String, context: Map&lt;String, String>?): Any?</ID>
+    <ID>ReturnCount:PlaceSubCommand.kt$PlaceSubCommand$override fun execute(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>ReturnCount:PowerCondition.kt$PowerCondition$fun checkConditions(player: Player?): Boolean</ID>
+    <ID>ReturnCount:PowerStructureManager.kt$PowerStructureManager$fun applyStructure( player: Player?, structure: PowerStructure?, namespace: String, sourceId: String, checkCondition: Boolean, ): Boolean</ID>
+    <ID>ReturnCount:PowerStructureManager.kt$PowerStructureManager$private fun clearGroupsForPlayer(player: Player?, namespace: String)</ID>
+    <ID>ReturnCount:PowerStructureManager.kt$PowerStructureManager$private fun decrementRef( refsByNamespace: MutableMap&lt;String, MutableMap&lt;UUID, MutableMap&lt;String, Int>>>, namespace: String, playerId: UUID, key: String, ): Int</ID>
+    <ID>ReturnCount:PowerStructureManager.kt$PowerStructureManager$private fun isEffectProvidedByOtherSource(playerId: UUID, namespace: String, excludeSourceId: String, effect: EffectConfig): Boolean</ID>
+    <ID>ReturnCount:QuickShopHikariBridge.kt$QuickShopHikariBridge$fun register(): QuickShopIntegrationHealth</ID>
+    <ID>ReturnCount:QuickShopHikariBridge.kt$QuickShopHikariBridge$private fun blockIfShopItemContainsGem(event: Event, phased: Boolean): Boolean</ID>
+    <ID>ReturnCount:QuickShopHikariBridge.kt$QuickShopHikariBridge$private fun cancel(event: Event): Boolean</ID>
+    <ID>ReturnCount:QuickShopHikariBridge.kt$QuickShopHikariBridge$private fun validateContract(loader: ClassLoader): String?</ID>
+    <ID>ReturnCount:RedeemSubCommand.kt$RedeemSubCommand$override fun execute(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>ReturnCount:RemoveAltarSubCommand.kt$RemoveAltarSubCommand$override fun execute(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>ReturnCount:RevokeFeature.kt$RevokeFeature$fun confirm(actor: Player): RevokeResult</ID>
+    <ID>ReturnCount:RevokeFeature.kt$RevokeFeature$fun getRevokablePowers(actor: Player?, targetUuid: UUID?, candidatePowers: Iterable&lt;String>?): List&lt;String></ID>
+    <ID>ReturnCount:RevokeFeature.kt$RevokeFeature$fun requestRevoke(actor: Player, ruleKey: String?, targetName: String?, powerKey: String?): RevokeResult</ID>
+    <ID>ReturnCount:RevokeFeature.kt$RevokeFeature$private fun executeRevoke(actor: Player, context: RevokeContext): RevokeResult</ID>
+    <ID>ReturnCount:RevokeFeature.kt$RevokeFeature$private fun findTriggerGem(player: Player, rule: RevokeRule): UUID?</ID>
+    <ID>ReturnCount:RevokeFeature.kt$RevokeFeature$private fun resolveTarget(targetName: String?, rule: RevokeRule): Target</ID>
+    <ID>ReturnCount:RevokeFeature.kt$RevokeFeature$private fun validateRequest(actor: Player, ruleKey: String?, targetName: String?, powerKey: String?): RevokeContext</ID>
+    <ID>ReturnCount:RevokePowerSubCommand.kt$RevokePowerSubCommand$override fun execute(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>ReturnCount:RevokeRule.kt$RevokeRule$fun canTargetPower(power: String?): Boolean</ID>
+    <ID>ReturnCount:RevokeSubCommand.kt$RevokeSubCommand$override fun execute(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>ReturnCount:RuleGateFeature.kt$RuleGateFeature$fun canUsePower(player: Player?, gemKey: String?): Boolean</ID>
+    <ID>ReturnCount:RuleGateFeature.kt$RuleGateFeature$private fun matchesConfiguredGate(player: Player): Boolean</ID>
+    <ID>ReturnCount:RuleGems.kt$RuleGems$private fun getCommandMapSafely(): CommandMap?</ID>
+    <ID>ReturnCount:RulerAppointeesGUI.kt$RulerAppointeesGUI$override fun onClick( player: Player, holder: GUIHolder, slot: Int, clicked: ItemStack, pdc: PersistentDataContainer, shiftClick: Boolean, )</ID>
+    <ID>ReturnCount:RulerAppointeesGUI.kt$RulerAppointeesGUI$private fun dismissAppointee(admin: Player, rulerUuid: UUID, appointeeUuid: UUID): Boolean</ID>
+    <ID>ReturnCount:RulersGUI.kt$RulersGUI$override fun onClick( player: Player, holder: GUIHolder, slot: Int, clicked: ItemStack, pdc: PersistentDataContainer, shiftClick: Boolean, )</ID>
+    <ID>ReturnCount:RulersGUI.kt$RulersGUI$private fun getAppointeeCount(rulerUuid: UUID): Int</ID>
+    <ID>ReturnCount:RulersGUI.kt$RulersGUI$private fun getRevokablePowers(viewer: Player, targetUuid: UUID, gemKeys: Set&lt;String>): List&lt;String></ID>
+    <ID>ReturnCount:SetAltarSubCommand.kt$SetAltarSubCommand$override fun execute(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>ReturnCount:TpSubCommand.kt$TpSubCommand$override fun execute(sender: CommandSender, args: Array&lt;String>): Boolean</ID>
+    <ID>ReturnCount:YamlStorageProvider.kt$YamlStorageProvider$override fun readGemData(): StorageLoadResult</ID>
+    <ID>SafeCast:GUIHolder.kt$GUIHolder.Companion$if (holder is GUIHolder) holder else null</ID>
+    <ID>SpreadOperator:GemConsumeListener.kt$GemConsumeListener$(ChatMessageType.ACTION_BAR, *TextComponent.fromLegacyText(""))</ID>
+    <ID>SpreadOperator:GemConsumeListener.kt$GemConsumeListener$(ChatMessageType.ACTION_BAR, *TextComponent.fromLegacyText(cancelledMessage))</ID>
+    <ID>SpreadOperator:GemConsumeListener.kt$GemConsumeListener$(ChatMessageType.ACTION_BAR, *TextComponent.fromLegacyText(message))</ID>
+    <ID>SpreadOperator:GemStatusView.kt$GemStatusView$(*TextComponent.fromLegacyText(ColorUtils.translateColorCodes(plain)))</ID>
+    <ID>SpreadOperator:HistorySubCommand.kt$HistorySubCommand$(*components.toTypedArray())</ID>
+    <ID>SwallowedException:HistoryLogger.kt$HistoryLogger$e: IOException</ID>
+    <ID>ThrowsCount:LuckPermsPermissionProvider.kt$LuckPermsPermissionProvider$private fun userData(user: Any?): Any?</ID>
+    <ID>TooGenericExceptionCaught:CloudCommandManager.kt$CloudCommandManager$capabilityFailure: Exception</ID>
+    <ID>TooGenericExceptionCaught:CloudCommandManager.kt$CloudCommandManager$failure: Throwable</ID>
+    <ID>TooGenericExceptionCaught:CloudCommandManager.kt$CloudCommandManager$fieldFailure: Exception</ID>
+    <ID>TooGenericExceptionCaught:CloudCommandManager.kt$CloudCommandManager$reflectiveFailure: Exception</ID>
+    <ID>TooGenericExceptionCaught:CloudCommandManager.kt$CloudCommandManager$staticFailure: Exception</ID>
+    <ID>TooGenericExceptionCaught:ConfigManager.kt$ConfigManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ConfigManager.kt$ConfigManager$failure: Exception</ID>
+    <ID>TooGenericExceptionCaught:ConfigUpdater.kt$ConfigUpdater$ex: Exception</ID>
+    <ID>TooGenericExceptionCaught:CustomCommandExecutor.kt$CustomCommandExecutor$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GUIManager.kt$GUIManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GemAllowanceManager.kt$GemAllowanceManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GemConsumeListener.kt$GemConsumeListener$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GemDefinitionParser.kt$GemDefinitionParser$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GemEscapeCoordinator.kt$GemEscapeCoordinator$error: Throwable</ID>
+    <ID>TooGenericExceptionCaught:GemManager.kt$GemManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GemManager.kt$GemManager$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:GemManager.kt$GemManager$failure: Exception</ID>
+    <ID>TooGenericExceptionCaught:GemManager.kt$GemManager$recoveryFailure: Exception</ID>
+    <ID>TooGenericExceptionCaught:GemPermissionManager.kt$GemPermissionManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GemPermissionManager.kt$GemPermissionManager$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:GemPlacementManager.kt$GemPlacementManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GemPlacementManager.kt$GemPlacementManager$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:GemPlacementManager.kt$GemPlacementManager$error: Throwable</ID>
+    <ID>TooGenericExceptionCaught:GemPresentationManager.kt$GemPresentationManager$error: Throwable</ID>
+    <ID>TooGenericExceptionCaught:GemStateManager.kt$GemStateManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GemStateManager.kt$GemStateManager$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:GemsGUI.kt$GemsGUI$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:HistoryLogger.kt$HistoryLogger$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ItemBuilder.kt$ItemBuilder$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:ItemBuilder.kt$ItemBuilder.Companion$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:LanguageUpdater.kt$LanguageUpdater$ex: Exception</ID>
+    <ID>TooGenericExceptionCaught:PowerStructureManager.kt$PowerStructureManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:QuickShopHikariBridge.kt$QuickShopHikariBridge$error: Throwable</ID>
+    <ID>TooGenericExceptionCaught:RevokeFeature.kt$RevokeFeature$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:RuleGems.kt$RuleGems$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:RulerAppointeesGUI.kt$RulerAppointeesGUI$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:RulersGUI.kt$RulersGUI$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SqliteStorageProvider.kt$SqliteStorageProvider$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:VaultPermissionProvider.kt$VaultPermissionProvider$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:YamlStorageProvider.kt$YamlStorageProvider$backupFailure: Exception</ID>
+    <ID>TooGenericExceptionCaught:YamlStorageProvider.kt$YamlStorageProvider$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:YamlStorageProvider.kt$YamlStorageProvider$primaryFailure: Exception</ID>
+    <ID>TooManyFunctions:AdminCommandsRegistrar.kt$AdminCommandsRegistrar : CommandRegistrar</ID>
+    <ID>TooManyFunctions:AppointFeature.kt$AppointFeature : Feature</ID>
+    <ID>TooManyFunctions:CabinetGUI.kt$CabinetGUI : ChestMenu</ID>
+    <ID>TooManyFunctions:CloudCommandManager.kt$CloudCommandManager</ID>
+    <ID>TooManyFunctions:ConfigManager.kt$ConfigManager</ID>
+    <ID>TooManyFunctions:GUIManager.kt$GUIManager : Listener</ID>
+    <ID>TooManyFunctions:GemAllowanceManager.kt$GemAllowanceManager</ID>
+    <ID>TooManyFunctions:GemBlockProtectionListener.kt$GemBlockProtectionListener : Listener</ID>
+    <ID>TooManyFunctions:GemBoundsService.kt$GemBoundsService</ID>
+    <ID>TooManyFunctions:GemCustodyListener.kt$GemCustodyListener : Listener</ID>
+    <ID>TooManyFunctions:GemDataValidator.kt$GemDataValidator</ID>
+    <ID>TooManyFunctions:GemDefinition.kt$GemDefinition$Builder</ID>
+    <ID>TooManyFunctions:GemDefinitionParser.kt$GemDefinitionParser</ID>
+    <ID>TooManyFunctions:GemEscapeCoordinator.kt$GemEscapeCoordinator</ID>
+    <ID>TooManyFunctions:GemIntelBroadcaster.kt$GemIntelBroadcaster : Feature</ID>
+    <ID>TooManyFunctions:GemManager.kt$GemManager</ID>
+    <ID>TooManyFunctions:GemNavigator.kt$GemNavigator : FeatureListener</ID>
+    <ID>TooManyFunctions:GemPermissionManager.kt$GemPermissionManager</ID>
+    <ID>TooManyFunctions:GemPlacementManager.kt$GemPlacementManager</ID>
+    <ID>TooManyFunctions:GemPresentationManager.kt$GemPresentationManager</ID>
+    <ID>TooManyFunctions:GemStateManager.kt$GemStateManager</ID>
+    <ID>TooManyFunctions:GemsGUI.kt$GemsGUI : ChestMenu</ID>
+    <ID>TooManyFunctions:HistoryLogger.kt$HistoryLogger</ID>
+    <ID>TooManyFunctions:ItemBuilder.kt$ItemBuilder</ID>
+    <ID>TooManyFunctions:LanguageManager.kt$LanguageManager</ID>
+    <ID>TooManyFunctions:LuckPermsPermissionProvider.kt$LuckPermsPermissionProvider : PermissionProvider</ID>
+    <ID>TooManyFunctions:PowerStructure.kt$PowerStructure</ID>
+    <ID>TooManyFunctions:PowerStructureManager.kt$PowerStructureManager</ID>
+    <ID>TooManyFunctions:ProfileGUI.kt$ProfileGUI : ChestMenu</ID>
+    <ID>TooManyFunctions:QuickShopHikariBridge.kt$QuickShopHikariBridge : Listener</ID>
+    <ID>TooManyFunctions:RevokeFeature.kt$RevokeFeature : Feature</ID>
+    <ID>TooManyFunctions:RuleGems.kt$RuleGems : CubexPlugin</ID>
+    <ID>TooManyFunctions:RuleGemsDoctor.kt$RuleGemsDoctor</ID>
+    <ID>TooManyFunctions:RulerAppointeesGUI.kt$RulerAppointeesGUI : ChestMenu</ID>
+    <ID>TooManyFunctions:RulersGUI.kt$RulersGUI : ChestMenu</ID>
+    <ID>UnusedParameter:CloudCommandManager.kt$CloudCommandManager$sender: CommandSender</ID>
+    <ID>UnusedParameter:GUIManager.kt$GUIManager$isAdmin: Boolean</ID>
+    <ID>UnusedParameter:GemManager.kt$GemManager$definitions: List&lt;GemDefinition></ID>
+    <ID>UnusedParameter:GemPlacementManager.kt$GemPlacementManager$gemId: UUID</ID>
+    <ID>UnusedParameter:GemPlacementManager.kt$GemPlacementManager$gemId: UUID?</ID>
+    <ID>UnusedParameter:GemPlacementManager.kt$GemPlacementManager$holder: Player?</ID>
+    <ID>UnusedParameter:ProfileGUI.kt$ProfileGUI$player: Player</ID>
+    <ID>UnusedPrivateProperty:GemConsumeListener.kt$GemConsumeListener$i</ID>
+    <ID>UnusedPrivateProperty:GemScatterService.kt$GemScatterService$i</ID>
+    <ID>UnusedPrivateProperty:RedeemRequirements.kt$RedeemRequirements$i</ID>
+    <ID>UseCheckOrError:CloudCommandManager.kt$CloudCommandManager$throw IllegalStateException("Modern Paper source stack did not provide a Bukkit CommandSender")</ID>
+    <ID>UseCheckOrError:GemPresentationManager.kt$GemPresentationManager$throw IllegalStateException("BlockDisplay#setBlock is unavailable")</ID>
+    <ID>UseCheckOrError:GemPresentationManager.kt$GemPresentationManager$throw IllegalStateException("Display world is unavailable")</ID>
+    <ID>UseCheckOrError:LuckPermsPermissionProvider.kt$LuckPermsPermissionProvider$throw IllegalStateException("Failed to access LuckPerms user data")</ID>
+    <ID>UseCheckOrError:RuleGems.kt$RuleGems$throw IllegalStateException("RuleGems storage load failed. Active gem state was not initialized.")</ID>
+    <ID>UseCheckOrError:SqliteStorageProvider.kt$SqliteStorageProvider$throw IllegalStateException("SQLite database file has not been initialized")</ID>
+  </CurrentIssues>
+</SmellBaseline>

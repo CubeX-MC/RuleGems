@@ -10,7 +10,7 @@ interface StorageProvider {
 
     fun initialize()
 
-    fun readGemData(): FileConfiguration
+    fun readGemData(): StorageLoadResult
 
-    fun saveGemData(data: FileConfiguration)
+    fun saveGemData(data: FileConfiguration): StorageSaveResult
 }

@@ -7,6 +7,7 @@ import org.bukkit.configuration.ConfigurationSection
 import org.cubexmc.RuleGems
 import org.cubexmc.features.appoint.AppointFeature
 import org.cubexmc.features.revoke.RevokeRule
+import org.cubexmc.listeners.QuickShopHealthStatus
 import org.cubexmc.model.GemDefinition
 import org.cubexmc.model.PowerStructure
 import org.cubexmc.provider.PermissionProvider
@@ -76,6 +77,8 @@ class RuleGemsDoctor(private val plugin: RuleGems) {
 
         inspectPermissionProvider(entries, gemDefinitions, gameplayConfig, configManager.config)
         inspectStorageConfig(entries, configManager.config)
+        inspectStorageHealth(entries)
+        inspectQuickShopHealth(entries)
 
         if (gameplayConfig != null && gameplayConfig.isPlaceRedeemEnabled && gemDefinitions != null && gemDefinitions.isNotEmpty()) {
             val missingAltars = gemDefinitions.count { definition -> definition.altarLocation == null }.toLong()
@@ -104,6 +107,17 @@ class RuleGemsDoctor(private val plugin: RuleGems) {
 
         if (gameplayConfig != null && gameplayConfig.isOpEscalationAllowed) {
             entries.add(Entry(Severity.WARNING, localized("allow_op_escalation 已开启，存在安全风险。", "allow_op_escalation is enabled and increases security risk.")))
+        }
+        if (gameplayConfig != null && gameplayConfig.isTransferDirectivesEnabled) {
+            entries.add(
+                Entry(
+                    Severity.WARNING,
+                    localized(
+                        "内置 transfer: 已开启；Vault 不提供跨账户原子事务，请优先使用经济插件原生命令。",
+                        "Built-in transfer: is enabled; Vault has no cross-account atomic transaction. Prefer the economy plugin's native command.",
+                    ),
+                ),
+            )
         }
 
         return entries
@@ -187,6 +201,60 @@ class RuleGemsDoctor(private val plugin: RuleGems) {
         val normalized = type.lowercase(Locale.ROOT)
         if (normalized != "yaml" && normalized != "sqlite") {
             entries.add(Entry(Severity.WARNING, localized("未知 storage.type，将回退到 YAML: ", "Unknown storage.type; YAML storage will be used: ") + type))
+        }
+    }
+
+    private fun inspectStorageHealth(entries: MutableList<Entry>) {
+        val storageError = plugin.gemManager?.lastStorageError ?: return
+        val detail = storageError.message?.takeIf { it.isNotBlank() }
+            ?: storageError.javaClass.simpleName
+        entries.add(
+            Entry(
+                Severity.ERROR,
+                localized(
+                    "最近一次宝石数据存储操作失败；运行状态可能尚未持久化: ",
+                    "The most recent gem storage operation failed; runtime state may not be persisted: ",
+                ) + detail,
+            ),
+        )
+        val emergencySnapshot = plugin.gemManager?.lastEmergencySnapshot
+        if (emergencySnapshot != null) {
+            entries.add(
+                Entry(
+                    Severity.WARNING,
+                    localized(
+                        "已写入紧急恢复快照: ",
+                        "An emergency recovery snapshot was written: ",
+                    ) + emergencySnapshot.absolutePath,
+                ),
+            )
+        }
+    }
+
+    private fun inspectQuickShopHealth(entries: MutableList<Entry>) {
+        val health = plugin.quickShopIntegrationHealth
+        when (health.status) {
+            QuickShopHealthStatus.ABSENT -> return
+            QuickShopHealthStatus.ACTIVE ->
+                entries.add(
+                    Entry(
+                        Severity.OK,
+                        localized(
+                            "QuickShop-Hikari 宝石交易保护已启用。",
+                            "QuickShop-Hikari gem trade protection is active.",
+                        ),
+                    ),
+                )
+            QuickShopHealthStatus.UNSUPPORTED, QuickShopHealthStatus.FAILED ->
+                entries.add(
+                    Entry(
+                        Severity.ERROR,
+                        localized(
+                            "QuickShop-Hikari 宝石交易保护未启用: ",
+                            "QuickShop-Hikari gem trade protection is inactive: ",
+                        ) + health.detail,
+                    ),
+                )
         }
     }
 

@@ -2,6 +2,8 @@ package org.cubexmc.manager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.doAnswer;
@@ -14,6 +16,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
@@ -26,6 +31,8 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.PlayerInventory;
 import org.cubexmc.RuleGems;
+import org.cubexmc.storage.StorageLoadResult;
+import org.cubexmc.storage.StorageSaveResult;
 import org.cubexmc.utils.EffectUtils;
 import org.cubexmc.utils.SchedulerUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -63,7 +70,12 @@ class GemManagerEscapeIntegrationTest {
         lenient().when(plugin.getLogger()).thenReturn(Logger.getLogger("RuleGemsEscapeIntegrationTest"));
         lenient().when(plugin.getPowerStructureManager()).thenReturn(null);
         lenient().when(gemParser.getGemDefinitions()).thenReturn(Collections.emptyList());
+        lenient().when(player.getUniqueId()).thenReturn(
+                UUID.fromString("20000000-0000-0000-0000-000000000002"));
+        lenient().when(player.getName()).thenReturn("StateHolder");
         mockedBukkit.when(Bukkit::getOnlinePlayers).thenReturn(Collections.emptyList());
+        mockedBukkit.when(() -> Bukkit.getPlayer(
+                UUID.fromString("20000000-0000-0000-0000-000000000002"))).thenReturn(player);
     }
 
     @AfterEach
@@ -81,6 +93,7 @@ class GemManagerEscapeIntegrationTest {
         YamlConfiguration gemsData = new YamlConfiguration();
         gemsData.set("escape-state.legacy", true);
         when(configManager.getGemsData()).thenReturn(gemsData);
+        when(configManager.saveGemData(gemsData)).thenReturn(StorageSaveResult.success());
 
         try (MockedConstruction<GemPlacementManager> construction = mockPlacementManager()) {
             GemManager manager = createManager();
@@ -104,19 +117,116 @@ class GemManagerEscapeIntegrationTest {
     @Test
     void loadPreparesThenLoadsAndInitializesEscapeLifecycle() {
         YamlConfiguration gemsData = new YamlConfiguration();
-        when(configManager.readGemsData()).thenReturn(gemsData);
+        when(configManager.readGemsData()).thenReturn(StorageLoadResult.success(gemsData));
 
         try (MockedConstruction<GemPlacementManager> construction = mockPlacementManager()) {
             GemManager manager = createManager();
             GemPlacementManager placementManager = construction.constructed().get(0);
 
-            manager.loadGems();
+            assertTrue(manager.loadGems());
 
             InOrder lifecycle = inOrder(placementManager);
             lifecycle.verify(placementManager).prepareEscapeReload();
             lifecycle.verify(placementManager).shutdownPresentation();
-            lifecycle.verify(placementManager).loadEscapeState(gemsData);
+            lifecycle.verify(placementManager).loadEscapeState(
+                    org.mockito.ArgumentMatchers.any(YamlConfiguration.class));
             lifecycle.verify(placementManager).initializeEscapeTasks();
+        }
+    }
+
+    @Test
+    void failedStorageReadPreservesActiveGemState() {
+        IllegalStateException storageFailure = new IllegalStateException("database locked");
+        when(configManager.readGemsData()).thenReturn(StorageLoadResult.failure(storageFailure));
+
+        try (MockedConstruction<GemPlacementManager> construction = mockPlacementManager()) {
+            GemManager manager = createManager();
+            manager.getStateManager().setGemKey(GEM_ID, "flight");
+            manager.getStateManager().setGemHolder(GEM_ID, player);
+
+            assertFalse(manager.loadGems());
+
+            assertEquals("flight", manager.getStateManager().getGemKey(GEM_ID));
+            assertEquals(player, manager.getStateManager().getGemHolder(GEM_ID));
+            assertSame(storageFailure, manager.getLastStorageError());
+            verify(construction.constructed().get(0), org.mockito.Mockito.never()).prepareEscapeReload();
+        }
+    }
+
+    @Test
+    void invalidStoragePayloadPreservesActiveGemState() {
+        YamlConfiguration gemsData = new YamlConfiguration();
+        gemsData.set("held-gems.not-a-uuid.player_uuid", UUID.randomUUID().toString());
+        gemsData.set("held-gems.not-a-uuid.gem_key", "flight");
+        when(configManager.readGemsData()).thenReturn(StorageLoadResult.success(gemsData));
+
+        try (MockedConstruction<GemPlacementManager> construction = mockPlacementManager()) {
+            GemManager manager = createManager();
+            manager.getStateManager().setGemKey(GEM_ID, "flight");
+            manager.getStateManager().setGemHolder(GEM_ID, player);
+
+            assertFalse(manager.loadGems());
+
+            assertEquals("flight", manager.getStateManager().getGemKey(GEM_ID));
+            assertEquals(player, manager.getStateManager().getGemHolder(GEM_ID));
+            assertTrue(manager.getLastStorageError().getMessage().contains("validation failed"));
+            verify(construction.constructed().get(0), org.mockito.Mockito.never()).prepareEscapeReload();
+        }
+    }
+
+    @Test
+    void failedSaveIsReportedAndCanBeRetried() {
+        YamlConfiguration gemsData = new YamlConfiguration();
+        IllegalStateException storageFailure = new IllegalStateException("disk full");
+        when(configManager.getGemsData()).thenReturn(gemsData);
+        when(configManager.saveGemData(gemsData)).thenReturn(
+                StorageSaveResult.failure(storageFailure),
+                StorageSaveResult.success());
+        when(configManager.saveEmergencyGemData(gemsData)).thenReturn(new File("gems-emergency-test.yml"));
+
+        try (MockedConstruction<GemPlacementManager> ignored = mockPlacementManager()) {
+            GemManager manager = createManager();
+
+            assertFalse(manager.saveGemsSync());
+            assertSame(storageFailure, manager.getLastStorageError());
+            assertEquals("gems-emergency-test.yml", manager.getLastEmergencySnapshot().getPath());
+            assertTrue(manager.saveGemsSync());
+            assertNull(manager.getLastStorageError());
+            assertNull(manager.getLastEmergencySnapshot());
+        }
+    }
+
+    @Test
+    void staleAsyncSaveCannotOverwriteTheNewestRevision() {
+        YamlConfiguration gemsData = new YamlConfiguration();
+        when(plugin.isEnabled()).thenReturn(true);
+        when(configManager.getGemsData()).thenReturn(gemsData);
+        when(configManager.saveGemData(gemsData)).thenReturn(StorageSaveResult.success());
+        List<Runnable> scheduled = new ArrayList<>();
+        mockedSchedulerUtil.when(() -> SchedulerUtil.asyncRun(
+                        org.mockito.Mockito.eq(plugin),
+                        org.mockito.Mockito.any(Runnable.class),
+                        org.mockito.Mockito.eq(0L)))
+                .thenAnswer(invocation -> {
+                    scheduled.add(invocation.getArgument(1, Runnable.class));
+                    return null;
+                });
+
+        try (MockedConstruction<GemPlacementManager> ignored = mockPlacementManager()) {
+            GemManager manager = createManager();
+            manager.getAllowanceManager().getPlayerGlobalAllowedUses()
+                    .computeIfAbsent(GEM_ID, ignoredKey -> new java.util.HashMap<>())
+                    .put("home", 1);
+            assertTrue(manager.saveGems());
+            manager.getAllowanceManager().getPlayerGlobalAllowedUses().get(GEM_ID).put("home", 2);
+            assertTrue(manager.saveGems());
+            assertEquals(2, scheduled.size());
+
+            scheduled.get(1).run();
+            scheduled.get(0).run();
+
+            assertEquals(2, gemsData.getInt("allowed_uses." + GEM_ID + ".global.home"));
+            verify(configManager, org.mockito.Mockito.times(1)).saveGemData(gemsData);
         }
     }
 
@@ -128,6 +238,9 @@ class GemManagerEscapeIntegrationTest {
             when(placementManager.tryBeginPickup(GEM_ID)).thenReturn(true);
 
             World world = mock(World.class);
+            when(world.getUID()).thenReturn(
+                    UUID.fromString("30000000-0000-0000-0000-000000000003"));
+            when(world.getName()).thenReturn("world");
             Location location = new Location(world, 8, 64, 8);
             manager.getStateManager().bindPlacedGem(location, GEM_ID);
 

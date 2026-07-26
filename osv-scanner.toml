@@ -1,0 +1,89 @@
+# These findings are confined to compileOnly server APIs, test dependencies, or
+# Gradle/Kotlin build tooling. The release workflow separately fails if any of
+# their package trees enter the shaded RuleGems JAR. Exceptions expire so every
+# release cycle must re-evaluate them.
+
+[[IgnoredVulns]]
+id = "GHSA-4jrv-ppp4-jm57"
+ignoreUntil = 2027-01-31
+reason = "Gson 2.8.0 is inherited from compileOnly Spigot/Vault APIs and is absent from the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-5mg8-w23w-74h3"
+ignoreUntil = 2027-01-31
+reason = "Guava 21.0 is inherited from compileOnly Spigot/Vault APIs and is absent from the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-7g45-4rm6-3mm3"
+ignoreUntil = 2027-01-31
+reason = "Guava 21.0 is inherited from compileOnly Spigot/Vault APIs and is absent from the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-mvr2-9pj6-7w5j"
+ignoreUntil = 2027-01-31
+reason = "Guava 21.0 is inherited from compileOnly Spigot/Vault APIs and is absent from the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-j288-q9x7-2f5v"
+ignoreUntil = 2027-01-31
+reason = "Commons Lang 2.6 is inherited from compileOnly Spigot/Vault APIs and is absent from the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-rcgg-9c38-7xpx"
+ignoreUntil = 2027-01-31
+reason = "OpenTelemetry is used only by Kotlin/Gradle build tooling and is absent from the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-269g-pwp5-87pp"
+ignoreUntil = 2027-01-31
+reason = "JUnit 4.10 is a transitive test/compileOnly dependency and is absent from the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-cj8j-37rh-8475"
+ignoreUntil = 2027-01-31
+reason = "Bouncy Castle is used only by Kotlin/Gradle build tooling and is absent from the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-wg6q-6289-32hp"
+ignoreUntil = 2027-01-31
+reason = "Bouncy Castle is used only by Kotlin/Gradle build tooling and is absent from the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-c3fc-8qff-9hwx"
+ignoreUntil = 2027-01-31
+reason = "Bouncy Castle is used only by Kotlin/Gradle build tooling and is absent from the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-3mc7-4q67-w48m"
+ignoreUntil = 2027-01-31
+reason = "SnakeYAML 1.27 is inherited from compileOnly Spigot API and is supplied by the server, not the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-98wm-3w3q-mw94"
+ignoreUntil = 2027-01-31
+reason = "SnakeYAML 1.27 is inherited from compileOnly Spigot API and is supplied by the server, not the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-9w3m-gqgf-c4p9"
+ignoreUntil = 2027-01-31
+reason = "SnakeYAML 1.27 is inherited from compileOnly Spigot API and is supplied by the server, not the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-c4r9-r8fh-9vj2"
+ignoreUntil = 2027-01-31
+reason = "SnakeYAML 1.27 is inherited from compileOnly Spigot API and is supplied by the server, not the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-hhhw-99gj-p3c3"
+ignoreUntil = 2027-01-31
+reason = "SnakeYAML 1.27 is inherited from compileOnly Spigot API and is supplied by the server, not the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-mjmj-j48q-9wg2"
+ignoreUntil = 2027-01-31
+reason = "SnakeYAML 1.27 is inherited from compileOnly Spigot API and is supplied by the server, not the shaded JAR."
+
+[[IgnoredVulns]]
+id = "GHSA-w37g-rhq8-7m4j"
+ignoreUntil = 2027-01-31
+reason = "SnakeYAML 1.27 is inherited from compileOnly Spigot API and is supplied by the server, not the shaded JAR."

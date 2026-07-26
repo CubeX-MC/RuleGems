@@ -282,7 +282,7 @@ class RevokeFeature : Feature {
         val triggerGemId = context.triggerGemId
         if (rule.isConsumeGem && triggerGemId != null) {
             gemManager.stateManager.removeGemItemFromInventory(actor, triggerGemId)
-            gemManager.stateManager.gemUuidToHolder.remove(triggerGemId)
+            gemManager.stateManager.clearGemHolder(triggerGemId)
             gemManager.placementManager.randomPlaceGem(triggerGemId)
             gemManager.recalculateGrants(actor)
         }

@@ -32,8 +32,8 @@ class GemPermissionManager(
     val playerUuidToRedeemedKeys: MutableMap<UUID, MutableSet<String>> = ConcurrentHashMap()
     val ownerKeyCount: MutableMap<UUID, MutableMap<String, Int>> = ConcurrentHashMap()
     val playerActiveHeldKeys: MutableMap<UUID, MutableSet<String>> = ConcurrentHashMap()
-    val invAttachments: MutableMap<UUID, PermissionAttachment> = HashMap()
-    val redeemAttachments: MutableMap<UUID, PermissionAttachment> = HashMap()
+    val invAttachments: MutableMap<UUID, PermissionAttachment> = ConcurrentHashMap()
+    val redeemAttachments: MutableMap<UUID, PermissionAttachment> = ConcurrentHashMap()
     var fullSetOwner: UUID? = null
 
     private val pendingRevokes: MutableMap<UUID, PendingRevoke> = ConcurrentHashMap()
@@ -110,7 +110,7 @@ class GemPermissionManager(
         if (player == null || gemKey == null) return
         val uid = player.uniqueId
         val normalizedKey = gemKey.lowercase(ROOT_LOCALE)
-        val toggledOff = toggledOffGems.computeIfAbsent(uid) { HashSet() }
+        val toggledOff = toggledOffGems.computeIfAbsent(uid) { ConcurrentHashMap.newKeySet() }
         val currentlyOff = toggledOff.contains(normalizedKey)
 
         if (enabled && currentlyOff) {
@@ -245,7 +245,7 @@ class GemPermissionManager(
                 try {
                     val playerId = UUID.fromString(playerUuidStr)
                     val list = redeemedSection.getStringList(playerUuidStr)
-                    playerUuidToRedeemedKeys[playerId] = HashSet(list)
+                    playerUuidToRedeemedKeys[playerId] = ConcurrentHashMap.newKeySet<String>().apply { addAll(list) }
                 } catch (_: IllegalArgumentException) {
                     plugin.logger.warning("Skipping corrupted player UUID in redeemed data: $playerUuidStr")
                 }
@@ -302,7 +302,7 @@ class GemPermissionManager(
                     val playerId = UUID.fromString(playerUuidStr)
                     val list = toggledOffSection.getStringList(playerUuidStr)
                     if (list.isNotEmpty()) {
-                        toggledOffGems[playerId] = HashSet(list)
+                        toggledOffGems[playerId] = ConcurrentHashMap.newKeySet<String>().apply { addAll(list) }
                     }
                 } catch (_: IllegalArgumentException) {
                     plugin.logger.warning("Skipping corrupted player UUID in toggled_off_gems data: $playerUuidStr")
@@ -319,7 +319,7 @@ class GemPermissionManager(
             val key = stateManager.gemUuidToKey[gemId]
             if (key.isNullOrBlank()) continue
             val normalizedKey = key.lowercase(ROOT_LOCALE)
-            ownerKeyCount.computeIfAbsent(owner) { HashMap() }
+            ownerKeyCount.computeIfAbsent(owner) { ConcurrentHashMap() }
                 .merge(normalizedKey, 1) { first, second -> first + second }
         }
     }
@@ -566,7 +566,7 @@ class GemPermissionManager(
 
     fun incrementOwnerKeyCount(owner: UUID?, key: String?, definition: GemDefinition?) {
         if (owner == null || key == null) return
-        val map = ownerKeyCount.computeIfAbsent(owner) { HashMap() }
+        val map = ownerKeyCount.computeIfAbsent(owner) { ConcurrentHashMap() }
         val before = map.getOrDefault(key, 0)
         val after = before + 1
         map[key] = after
@@ -590,7 +590,7 @@ class GemPermissionManager(
 
     fun decrementOwnerKeyCount(owner: UUID?, key: String?, definition: GemDefinition?) {
         if (owner == null || key == null) return
-        val map = ownerKeyCount.computeIfAbsent(owner) { HashMap() }
+        val map = ownerKeyCount.computeIfAbsent(owner) { ConcurrentHashMap() }
         val before = map.getOrDefault(key, 0)
         val after = maxOf(0, before - 1)
         map[key] = after
@@ -954,7 +954,7 @@ class GemPermissionManager(
     fun markGemRedeemed(player: Player?, gemKey: String?) {
         if (player == null || gemKey.isNullOrEmpty()) return
         val normalizedKey = gemKey.lowercase(ROOT_LOCALE)
-        playerUuidToRedeemedKeys.computeIfAbsent(player.uniqueId) { HashSet() }.add(normalizedKey)
+        playerUuidToRedeemedKeys.computeIfAbsent(player.uniqueId) { ConcurrentHashMap.newKeySet() }.add(normalizedKey)
     }
 
     fun getCurrentRulers(): Map<UUID, Set<String>> {

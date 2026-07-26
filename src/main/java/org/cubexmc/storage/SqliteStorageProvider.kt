@@ -36,61 +36,80 @@ class SqliteStorageProvider(
         }
         try {
             openConnection().use { connection ->
-                connection.createStatement().use { statement ->
-                    statement.executeUpdate(
-                        "CREATE TABLE IF NOT EXISTS $TABLE (" +
-                            "storage_key TEXT PRIMARY KEY," +
-                            "yaml_payload TEXT NOT NULL," +
-                            "updated_at INTEGER NOT NULL" +
-                            ")",
-                    )
+                connection.autoCommit = false
+                try {
+                    connection.createStatement().use { statement ->
+                        statement.executeUpdate(
+                            "CREATE TABLE IF NOT EXISTS $TABLE (" +
+                                "storage_key TEXT PRIMARY KEY," +
+                                "yaml_payload TEXT NOT NULL," +
+                                "updated_at INTEGER NOT NULL" +
+                                ")",
+                        )
+                    }
+                    migrateYamlIfEmpty(connection)
+                    connection.commit()
+                    initialized = true
+                } catch (e: Exception) {
+                    connection.rollback()
+                    throw e
                 }
-                migrateYamlIfEmpty(connection)
-                initialized = true
             }
         } catch (e: Exception) {
             plugin.logger.log(Level.SEVERE, "Failed to initialize SQLite storage", e)
+            throw StorageException("Failed to initialize SQLite storage", e)
         }
     }
 
-    override fun readGemData(): FileConfiguration {
-        initialize()
-        val data = YamlConfiguration()
-        try {
+    override fun readGemData(): StorageLoadResult {
+        return try {
+            initialize()
+            val data = YamlConfiguration()
             openConnection().use { connection ->
                 connection.prepareStatement("SELECT yaml_payload FROM $TABLE WHERE storage_key = ?").use { statement ->
                     statement.setString(1, GEM_DATA_KEY)
                     statement.executeQuery().use { result ->
-                        if (result.next()) {
-                            data.loadFromString(result.getString("yaml_payload"))
+                        if (!result.next()) {
+                            return StorageLoadResult.notFound(data)
                         }
+                        data.loadFromString(result.getString("yaml_payload"))
                     }
                 }
             }
+            StorageLoadResult.success(data)
         } catch (e: Exception) {
             plugin.logger.log(Level.SEVERE, "Failed to read gem data from SQLite", e)
+            StorageLoadResult.failure(e)
         }
-        return data
     }
 
-    override fun saveGemData(data: FileConfiguration) {
-        initialize()
-        val payload = if (data is YamlConfiguration) data.saveToString() else copyToYaml(data).saveToString()
-        try {
+    override fun saveGemData(data: FileConfiguration): StorageSaveResult {
+        return try {
+            initialize()
+            val payload = if (data is YamlConfiguration) data.saveToString() else copyToYaml(data).saveToString()
             openConnection().use { connection ->
-                connection.prepareStatement(
-                    "INSERT INTO $TABLE (storage_key, yaml_payload, updated_at) VALUES (?, ?, ?) " +
-                        "ON CONFLICT(storage_key) DO UPDATE SET " +
-                        "yaml_payload = excluded.yaml_payload, updated_at = excluded.updated_at",
-                ).use { statement ->
-                    statement.setString(1, GEM_DATA_KEY)
-                    statement.setString(2, payload)
-                    statement.setLong(3, System.currentTimeMillis())
-                    statement.executeUpdate()
+                connection.autoCommit = false
+                try {
+                    connection.prepareStatement(
+                        "INSERT INTO $TABLE (storage_key, yaml_payload, updated_at) VALUES (?, ?, ?) " +
+                            "ON CONFLICT(storage_key) DO UPDATE SET " +
+                            "yaml_payload = excluded.yaml_payload, updated_at = excluded.updated_at",
+                    ).use { statement ->
+                        statement.setString(1, GEM_DATA_KEY)
+                        statement.setString(2, payload)
+                        statement.setLong(3, System.currentTimeMillis())
+                        statement.executeUpdate()
+                    }
+                    connection.commit()
+                } catch (e: Exception) {
+                    connection.rollback()
+                    throw e
                 }
             }
+            StorageSaveResult.success()
         } catch (e: Exception) {
             plugin.logger.log(Level.SEVERE, "Failed to save gem data to SQLite", e)
+            StorageSaveResult.failure(e)
         }
     }
 
@@ -105,7 +124,11 @@ class SqliteStorageProvider(
 
     private fun openConnection(): Connection {
         val file = databaseFile ?: throw IllegalStateException("SQLite database file has not been initialized")
-        return DriverManager.getConnection("jdbc:sqlite:" + file.absolutePath)
+        return DriverManager.getConnection("jdbc:sqlite:" + file.absolutePath).also { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute("PRAGMA busy_timeout = 5000")
+            }
+        }
     }
 
     private fun migrateYamlIfEmpty(connection: Connection) {
@@ -116,7 +139,8 @@ class SqliteStorageProvider(
         if (!yamlFile.exists()) {
             return
         }
-        val yaml = YamlConfiguration.loadConfiguration(yamlFile)
+        val yaml = YamlConfiguration()
+        yaml.load(yamlFile)
         connection.prepareStatement("INSERT INTO $TABLE (storage_key, yaml_payload, updated_at) VALUES (?, ?, ?)")
             .use { statement ->
                 statement.setString(1, GEM_DATA_KEY)

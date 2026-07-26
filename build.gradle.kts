@@ -1,6 +1,11 @@
 import com.github.jengelman.gradle.plugins.shadow.transformers.ServiceFileTransformer
+import io.gitlab.arturbosch.detekt.Detekt
 
-plugins { id("cubex-kotlin-plugin") }
+plugins {
+    id("cubex-kotlin-plugin")
+    id("io.gitlab.arturbosch.detekt") version "1.23.8"
+    jacoco
+}
 
 version = "1.0.9"
 description = "A Minecraft plugin that grants power through collecting gems"
@@ -25,10 +30,14 @@ dependencies {
     implementation("net.kyori:examination-string:1.3.0")
     implementation("org.jetbrains:annotations:24.1.0")
     implementation("org.apiguardian:apiguardian-api:1.1.2")
-    implementation("org.xerial:sqlite-jdbc:3.45.3.0")
+    implementation("org.xerial:sqlite-jdbc:3.53.2.0")
     testImplementation("org.junit.jupiter:junit-jupiter:5.9.2")
     testImplementation(CubexDeps.mockitoCore)
     testImplementation("org.mockito:mockito-junit-jupiter:5.11.0")
+}
+
+dependencyLocking {
+    lockAllConfigurations()
 }
 
 tasks.shadowJar {
@@ -38,4 +47,34 @@ tasks.shadowJar {
     relocate("com.tcoded.folialib", "org.cubexmc.rulegems.libs.folialib")
     relocate("org.incendo", "org.cubexmc.shaded.incendo")
     relocate("io.leangen.geantyref", "org.cubexmc.shaded.geantyref")
+}
+
+tasks.test {
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
+    }
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    baseline = file("detekt-baseline.xml")
+    ignoreFailures = false
+    parallel = true
+}
+
+tasks.withType<Detekt>().configureEach {
+    reports {
+        html.required.set(true)
+        sarif.required.set(true)
+        xml.required.set(true)
+        txt.required.set(false)
+        md.required.set(false)
+    }
 }

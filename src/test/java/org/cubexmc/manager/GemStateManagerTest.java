@@ -66,6 +66,7 @@ class GemStateManagerTest {
     private Location mockLocation(String worldName, double x, double y, double z) {
         World world = mock(World.class);
         lenient().when(world.getName()).thenReturn(worldName);
+        lenient().when(world.getUID()).thenReturn(UUID.nameUUIDFromBytes(worldName.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         Location loc = mock(Location.class);
         lenient().when(loc.getWorld()).thenReturn(world);
         lenient().when(loc.getX()).thenReturn(x);
@@ -101,8 +102,7 @@ class GemStateManagerTest {
         @Test
         void locationToGemAndGemToLocationAreConsistent() {
             Location loc = mockLocation("world", 10, 64, 20);
-            manager.getLocationToGemUuid().put(loc, GEM_1);
-            manager.getGemUuidToLocation().put(GEM_1, loc);
+            manager.bindPlacedGem(loc, GEM_1);
 
             assertEquals(GEM_1, manager.getGemUuidByLocation(loc));
             assertEquals(loc, manager.getGemLocation(GEM_1));
@@ -112,9 +112,11 @@ class GemStateManagerTest {
         @Test
         void holderMappingWorks() {
             Player mockPlayer = mock(Player.class);
-            manager.getGemUuidToHolder().put(GEM_1, mockPlayer);
+            when(mockPlayer.getUniqueId()).thenReturn(PLAYER_A);
+            when(mockPlayer.getName()).thenReturn("Alice");
+            manager.setGemHolder(GEM_1, mockPlayer);
 
-            assertEquals(mockPlayer, manager.getGemHolder(GEM_1));
+            assertEquals(PLAYER_A, manager.getGemUuidToHolder().get(GEM_1));
             assertNull(manager.getGemHolder(GEM_2));
         }
 
@@ -138,8 +140,8 @@ class GemStateManagerTest {
         void placedCount() {
             Location loc1 = mockLocation("world", 10, 64, 20);
             Location loc2 = mockLocation("world", 30, 70, 40);
-            manager.getLocationToGemUuid().put(loc1, GEM_1);
-            manager.getLocationToGemUuid().put(loc2, GEM_2);
+            manager.bindPlacedGem(loc1, GEM_1);
+            manager.bindPlacedGem(loc2, GEM_2);
 
             assertEquals(2, manager.getPlacedCount());
         }
@@ -147,7 +149,9 @@ class GemStateManagerTest {
         @Test
         void heldCount() {
             Player p = mock(Player.class);
-            manager.getGemUuidToHolder().put(GEM_1, p);
+            when(p.getUniqueId()).thenReturn(PLAYER_A);
+            when(p.getName()).thenReturn("Alice");
+            manager.setGemHolder(GEM_1, p);
 
             assertEquals(1, manager.getHeldCount());
         }
@@ -155,9 +159,11 @@ class GemStateManagerTest {
         @Test
         void totalCount() {
             Location loc1 = mockLocation("world", 10, 64, 20);
-            manager.getLocationToGemUuid().put(loc1, GEM_1);
+            manager.bindPlacedGem(loc1, GEM_1);
             Player p = mock(Player.class);
-            manager.getGemUuidToHolder().put(GEM_2, p);
+            when(p.getUniqueId()).thenReturn(PLAYER_A);
+            when(p.getName()).thenReturn("Alice");
+            manager.setGemHolder(GEM_2, p);
 
             assertEquals(2, manager.getTotalGemCount());
         }
@@ -240,7 +246,7 @@ class GemStateManagerTest {
         @Test
         void returnsTrueWhenBlockLocationInMap() {
             Location loc = mockLocation("world", 10, 64, 20);
-            manager.getLocationToGemUuid().put(loc, GEM_1);
+            manager.bindPlacedGem(loc, GEM_1);
 
             Block block = mock(Block.class);
             when(block.getLocation()).thenReturn(loc);
@@ -329,7 +335,7 @@ class GemStateManagerTest {
         @Test
         void returnsUUIDFromLocationMap() {
             Location loc = mockLocation("world", 10, 64, 20);
-            manager.getLocationToGemUuid().put(loc, GEM_1);
+            manager.bindPlacedGem(loc, GEM_1);
 
             Block block = mock(Block.class);
             when(block.getLocation()).thenReturn(loc);
@@ -444,7 +450,7 @@ class GemStateManagerTest {
         void resolvesByGemKey() {
             manager.getGemUuidToKey().put(GEM_1, "fire_gem");
             Location loc = mockLocation("world", 10, 64, 20);
-            manager.getGemUuidToLocation().put(GEM_1, loc);
+            manager.bindPlacedGem(loc, GEM_1);
 
             GemDefinition def = createSimpleDef("fire_gem", "Fire Gem");
             when(gemParser.getGemDefinitions()).thenReturn(Collections.singletonList(def));
@@ -459,9 +465,11 @@ class GemStateManagerTest {
             manager.getGemUuidToKey().put(GEM_2, "fire_gem");
 
             Location loc = mockLocation("world", 10, 64, 20);
-            manager.getGemUuidToLocation().put(GEM_1, loc);
+            manager.bindPlacedGem(loc, GEM_1);
             Player holder = mock(Player.class);
-            manager.getGemUuidToHolder().put(GEM_2, holder);
+            when(holder.getUniqueId()).thenReturn(PLAYER_A);
+            when(holder.getName()).thenReturn("Alice");
+            manager.setGemHolder(GEM_2, holder);
 
             GemDefinition def = createSimpleDef("fire_gem", "Fire Gem");
             when(gemParser.getGemDefinitions()).thenReturn(Collections.singletonList(def));
@@ -542,9 +550,11 @@ class GemStateManagerTest {
         @Test
         void clearsAllMaps() {
             Location loc = mockLocation("world", 10, 64, 20);
-            manager.getLocationToGemUuid().put(loc, GEM_1);
-            manager.getGemUuidToLocation().put(GEM_1, loc);
-            manager.getGemUuidToHolder().put(GEM_2, mock(Player.class));
+            manager.bindPlacedGem(loc, GEM_1);
+            Player holder = mock(Player.class);
+            when(holder.getUniqueId()).thenReturn(PLAYER_A);
+            when(holder.getName()).thenReturn("Alice");
+            manager.setGemHolder(GEM_2, holder);
             manager.getGemUuidToKey().put(GEM_1, "fire_gem");
             manager.getPlayerNameCache().put(PLAYER_A, "TestPlayer");
 
@@ -660,7 +670,7 @@ class GemStateManagerTest {
         @Test
         void returnsDefensiveCopy() {
             Location loc = mockLocation("world", 10, 64, 20);
-            manager.getGemUuidToLocation().put(GEM_1, loc);
+            manager.bindPlacedGem(loc, GEM_1);
 
             Map<UUID, Location> copy = manager.getAllGemLocations();
             copy.put(GEM_2, mockLocation("world", 0, 0, 0));
@@ -673,8 +683,8 @@ class GemStateManagerTest {
         void returnsAllLocations() {
             Location loc1 = mockLocation("world", 10, 64, 20);
             Location loc2 = mockLocation("world", 30, 70, 40);
-            manager.getGemUuidToLocation().put(GEM_1, loc1);
-            manager.getGemUuidToLocation().put(GEM_2, loc2);
+            manager.bindPlacedGem(loc1, GEM_1);
+            manager.bindPlacedGem(loc2, GEM_2);
 
             Map<UUID, Location> all = manager.getAllGemLocations();
             assertEquals(2, all.size());
@@ -699,6 +709,8 @@ class GemStateManagerTest {
             putPlacedGem(data, GEM_2, "justice");
 
             World world = mock(World.class);
+            when(world.getUID()).thenReturn(UUID.nameUUIDFromBytes("world".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            when(world.getName()).thenReturn("world");
 
             try (MockedStatic<Bukkit> bukkit = mockStatic(Bukkit.class)) {
                 bukkit.when(() -> Bukkit.getWorld("world")).thenReturn(world);
@@ -727,6 +739,8 @@ class GemStateManagerTest {
             putPlacedGem(data, GEM_1, "life");
 
             World world = mock(World.class);
+            when(world.getUID()).thenReturn(UUID.nameUUIDFromBytes("world".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            when(world.getName()).thenReturn("world");
 
             try (MockedStatic<Bukkit> bukkit = mockStatic(Bukkit.class)) {
                 bukkit.when(() -> Bukkit.getWorld("world")).thenReturn(world);

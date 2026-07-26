@@ -57,6 +57,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class GemManagerTest {
+    private static final UUID WORLD_ID = UUID.fromString("30000000-0000-0000-0000-000000000003");
 
     private static final UUID PLAYER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final UUID GEM_ID = UUID.fromString("10000000-0000-0000-0000-000000000001");
@@ -103,6 +104,8 @@ class GemManagerTest {
         lenient().when(plugin.getPowerStructureManager()).thenReturn(null);
 
         world = mock(World.class);
+        lenient().when(world.getUID()).thenReturn(WORLD_ID);
+        lenient().when(world.getName()).thenReturn("world");
         altarLocation = new Location(world, 10, 64, 10);
         fireGem = new GemDefinition.Builder("fire")
                 .material(Material.DIAMOND_BLOCK)
@@ -132,6 +135,8 @@ class GemManagerTest {
         lenient().when(block.getLocation()).thenReturn(altarLocation);
 
         mockedBukkit.when(Bukkit::getPluginManager).thenReturn(pluginManager);
+        mockedBukkit.when(() -> Bukkit.getWorld(WORLD_ID)).thenReturn(world);
+        mockedBukkit.when(() -> Bukkit.getWorld("world")).thenReturn(world);
         mockedBukkit.when(() -> Bukkit.getPlayer(any(UUID.class))).thenReturn(null);
         mockedBukkit.when(Bukkit::getOnlinePlayers).thenReturn(Collections.emptyList());
     }
@@ -246,7 +251,7 @@ class GemManagerTest {
         setInventory(ruleGemItem(GEM_ID), ruleGemItem(OATH_GEM_ID));
         GemManager manager = createManagerWithHeldFireGem();
         manager.getStateManager().getGemUuidToKey().put(OATH_GEM_ID, "oath");
-        manager.getStateManager().getGemUuidToHolder().put(OATH_GEM_ID, player);
+        manager.getStateManager().setGemHolder(OATH_GEM_ID, player);
 
         assertTrue(manager.redeemGemInHand(player));
 
@@ -262,7 +267,7 @@ class GemManagerTest {
         setInventory(ruleGemItem(GEM_ID), ruleGemItem(OATH_GEM_ID));
         GemManager manager = createManagerWithHeldFireGem();
         manager.getStateManager().getGemUuidToKey().put(OATH_GEM_ID, "oath");
-        manager.getStateManager().getGemUuidToHolder().put(OATH_GEM_ID, player);
+        manager.getStateManager().setGemHolder(OATH_GEM_ID, player);
         doAnswer(invocation -> {
             GemRedeemEvent event = invocation.getArgument(0);
             event.setCancelled(true);
@@ -360,7 +365,7 @@ class GemManagerTest {
         GemManager manager = new GemManager(plugin, configManager, gemParser, gameplayConfig, effectUtils,
                 languageManager);
         Location gemLoc = new Location(world, 5, 64, 5);
-        manager.getStateManager().getLocationToGemUuid().put(gemLoc, GEM_ID);
+        manager.getStateManager().bindPlacedGem(gemLoc, GEM_ID);
 
         Block gemBlock = mock(Block.class);
         when(gemBlock.getLocation()).thenReturn(gemLoc);
@@ -380,7 +385,7 @@ class GemManagerTest {
         GemManager manager = new GemManager(plugin, configManager, gemParser, gameplayConfig, effectUtils,
                 languageManager);
         Location gemLoc = new Location(world, 5, 64, 5);
-        manager.getStateManager().getLocationToGemUuid().put(gemLoc, GEM_ID);
+        manager.getStateManager().bindPlacedGem(gemLoc, GEM_ID);
 
         Block gemBlock = mock(Block.class);
         when(gemBlock.getLocation()).thenReturn(gemLoc);
@@ -416,7 +421,7 @@ class GemManagerTest {
         GemManager manager = new GemManager(plugin, configManager, gemParser, gameplayConfig, effectUtils,
                 languageManager);
         Location gemLoc = new Location(world, 5, 64, 5);
-        manager.getStateManager().getLocationToGemUuid().put(gemLoc, GEM_ID);
+        manager.getStateManager().bindPlacedGem(gemLoc, GEM_ID);
 
         Block gemBlock = mock(Block.class);
         when(gemBlock.getLocation()).thenReturn(gemLoc);
@@ -429,11 +434,86 @@ class GemManagerTest {
         verify(event, never()).setUseInteractedBlock(any());
     }
 
+    @Test
+    void holdingAGemDeniesTheBlockFromConsumingIt() {
+        // 反转白名单：不枚举容器材质，因此置物架、饰纹陶罐等新方块无需改代码就被覆盖。
+        GemManager manager = new GemManager(plugin, configManager, gemParser, gameplayConfig, effectUtils,
+                languageManager);
+
+        ItemStack heldGem = heldRuleGem();
+        PlayerInteractEvent event = mock(PlayerInteractEvent.class);
+        when(event.getAction()).thenReturn(Action.RIGHT_CLICK_BLOCK);
+        when(event.getItem()).thenReturn(heldGem);
+
+        manager.handleGemBlockInteract(event);
+
+        // 不看方块材质就直接拒绝，这正是它对未来版本新方块也有效的原因。
+        verify(event).setUseInteractedBlock(Event.Result.DENY);
+        // useItemInHand 必须保持不变：放置宝石方块、祭坛兑换、长按兑换都走它。
+        verify(event, never()).setUseItemInHand(any());
+    }
+
+    @Test
+    void holdingAGemDeniesEvenAGemBlockFromConsumingIt() {
+        // 材质恰好是箱子/木桶的宝石，不能因为"绕过领地保护"的强制 ALLOW 变成一个可以塞宝石的容器。
+        GemManager manager = new GemManager(plugin, configManager, gemParser, gameplayConfig, effectUtils,
+                languageManager);
+        Location gemLoc = new Location(world, 5, 64, 5);
+        manager.getStateManager().bindPlacedGem(gemLoc, GEM_ID);
+
+        Block gemBlock = mock(Block.class);
+        ItemStack heldGem = heldRuleGem();
+        lenient().when(gemBlock.getLocation()).thenReturn(gemLoc);
+        PlayerInteractEvent event = mock(PlayerInteractEvent.class);
+        lenient().when(event.getClickedBlock()).thenReturn(gemBlock);
+        when(event.getAction()).thenReturn(Action.RIGHT_CLICK_BLOCK);
+        when(event.getItem()).thenReturn(heldGem);
+
+        manager.handleGemBlockInteract(event);
+
+        verify(event).setUseInteractedBlock(Event.Result.DENY);
+        verify(event, never()).setUseInteractedBlock(Event.Result.ALLOW);
+    }
+
+    @Test
+    void leftClickMiningStillBypassesProtectionWhileHoldingAGem() {
+        // 左键挖掘是设计内的拾取路径，不能被上面的右键规则误伤。
+        GemManager manager = new GemManager(plugin, configManager, gemParser, gameplayConfig, effectUtils,
+                languageManager);
+        Location gemLoc = new Location(world, 5, 64, 5);
+        manager.getStateManager().bindPlacedGem(gemLoc, GEM_ID);
+
+        Block gemBlock = mock(Block.class);
+        ItemStack heldGem = heldRuleGem();
+        when(gemBlock.getLocation()).thenReturn(gemLoc);
+        PlayerInteractEvent event = mock(PlayerInteractEvent.class);
+        when(event.getClickedBlock()).thenReturn(gemBlock);
+        when(event.getAction()).thenReturn(Action.LEFT_CLICK_BLOCK);
+        lenient().when(event.getItem()).thenReturn(heldGem);
+        when(event.useInteractedBlock()).thenReturn(Event.Result.DENY);
+        when(event.useItemInHand()).thenReturn(Event.Result.DENY);
+
+        manager.handleGemBlockInteract(event);
+
+        verify(event).setUseInteractedBlock(Event.Result.ALLOW);
+        verify(event).setUseItemInHand(Event.Result.ALLOW);
+    }
+
+    @Test
+    void aDroppedItemEntityCanScheduleCustodyRecoveryOnlyOnce() {
+        GemManager manager = new GemManager(plugin, configManager, gemParser, gameplayConfig, effectUtils,
+                languageManager);
+        UUID entityId = UUID.fromString("70000000-0000-0000-0000-000000000007");
+
+        assertTrue(manager.claimItemCustody(entityId));
+        assertFalse(manager.claimItemCustody(entityId));
+    }
+
     private GemManager createManagerWithHeldFireGem() {
         GemManager manager = new GemManager(plugin, configManager, gemParser, gameplayConfig, effectUtils,
                 languageManager);
         manager.getStateManager().getGemUuidToKey().put(GEM_ID, "fire");
-        manager.getStateManager().getGemUuidToHolder().put(GEM_ID, player);
+        manager.getStateManager().setGemHolder(GEM_ID, player);
         return manager;
     }
 
@@ -445,8 +525,8 @@ class GemManagerTest {
                 languageManager);
         manager.getStateManager().getGemUuidToKey().put(GEM_ID, "fire");
         manager.getStateManager().getGemUuidToKey().put(ICE_GEM_ID, "ice");
-        manager.getStateManager().getGemUuidToHolder().put(GEM_ID, player);
-        manager.getStateManager().getGemUuidToHolder().put(ICE_GEM_ID, player);
+        manager.getStateManager().setGemHolder(GEM_ID, player);
+        manager.getStateManager().setGemHolder(ICE_GEM_ID, player);
         return manager;
     }
 
@@ -483,7 +563,19 @@ class GemManagerTest {
 
     private void addHeldGem(GemManager manager, UUID gemId, String gemKey) {
         manager.getStateManager().getGemUuidToKey().put(gemId, gemKey);
-        manager.getStateManager().getGemUuidToHolder().put(gemId, player);
+        manager.getStateManager().setGemHolder(gemId, player);
+    }
+
+    /** 只关心"这是一颗宝石"的场景用它：不预设 UUID 读取，避免多余打桩。 */
+    private ItemStack heldRuleGem() {
+        ItemStack item = mock(ItemStack.class);
+        ItemMeta meta = mock(ItemMeta.class);
+        PersistentDataContainer pdc = mock(PersistentDataContainer.class);
+        lenient().when(item.hasItemMeta()).thenReturn(true);
+        lenient().when(item.getItemMeta()).thenReturn(meta);
+        lenient().when(meta.getPersistentDataContainer()).thenReturn(pdc);
+        lenient().when(pdc.has(any(NamespacedKey.class), eq(PersistentDataType.BYTE))).thenReturn(true);
+        return item;
     }
 
     private ItemStack ruleGemItem() {
