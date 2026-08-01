@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 1.1.0 (2026-07-27)
+
+- **Chat presentation refresh**: give `/rg help` clearer player/admin/community
+  sections and separate link rows; give `/rg history` a page summary, stable
+  record numbers, and cleaner clickable navigation.
+- **Official repository migration**: point documentation links at
+  `CubeX-MC/RuleGems` and migrate only the former built-in default, leaving
+  server-defined documentation URLs untouched.
+- **Bare-command GUI parity**: install the declared Bukkit command bridge even
+  when modern or legacy Cloud initializes, so bare `/rulegems` and `/rg` keep
+  opening the player GUI instead of falling through to the plugin usage text.
+- **Unlimited-use persistence compatibility**: accept the documented `-1`
+  sentinel in persisted limited-command counters during semantic validation,
+  preventing valid pre-upgrade data from disabling RuleGems at startup.
 - **Compatibility claim correction**: remove `folia-supported: true` and the
   unconditional Folia support claim until the documented real two-region gate
   has passed.

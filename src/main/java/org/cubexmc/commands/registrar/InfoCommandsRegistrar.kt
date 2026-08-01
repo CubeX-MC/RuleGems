@@ -9,6 +9,7 @@ import org.cubexmc.gui.GUIManager
 import org.cubexmc.manager.GameplayConfig
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
+import org.cubexmc.update.RuleGemsLinks
 import org.incendo.cloud.CommandManager
 import java.util.Locale
 import java.util.UUID
@@ -81,123 +82,142 @@ class InfoCommandsRegistrar(
     }
 
     fun sendHelp(sender: CommandSender) {
-        languageManager.sendMessage(sender, "command.help.header")
-        languageManager.sendMessage(sender, "command.help.overview")
+        languageManager.sendMessage(sender, "command.help.title")
+        languageManager.sendMessage(sender, "command.help.intro")
+        languageManager.sendMessage(sender, "command.help.tip")
 
         val isPlayer = sender is Player
         val isAdmin = sender.hasPermission("rulegems.admin")
         var hasPlayerSection = false
 
         if (isPlayer) {
+            languageManager.sendMessage(sender, "command.help.spacer")
             languageManager.sendMessage(sender, "command.help.section_player")
             hasPlayerSection = true
-            languageManager.sendMessage(sender, "command.help.gui")
+            sendHelpItem(sender, "gui")
         }
         if (sender.hasPermission("rulegems.gems")) {
             if (!hasPlayerSection) {
+                languageManager.sendMessage(sender, "command.help.spacer")
                 languageManager.sendMessage(sender, "command.help.section_player")
                 hasPlayerSection = true
             }
-            languageManager.sendMessage(sender, "command.help.gems")
+            sendHelpItem(sender, "gems")
         }
         if (sender.hasPermission("rulegems.rulers")) {
             if (!hasPlayerSection) {
+                languageManager.sendMessage(sender, "command.help.spacer")
                 languageManager.sendMessage(sender, "command.help.section_player")
                 hasPlayerSection = true
             }
-            languageManager.sendMessage(sender, "command.help.rulers")
+            sendHelpItem(sender, "rulers")
         }
         if (isPlayer && sender.hasPermission("rulegems.profile")) {
-            languageManager.sendMessage(sender, "command.help.profile")
+            sendHelpItem(sender, "profile")
         }
         if (gameplayConfig.isRedeemEnabled && sender.hasPermission("rulegems.redeem")) {
             if (!hasPlayerSection) {
+                languageManager.sendMessage(sender, "command.help.spacer")
                 languageManager.sendMessage(sender, "command.help.section_player")
                 hasPlayerSection = true
             }
-            languageManager.sendMessage(sender, "command.help.redeem")
+            sendHelpItem(sender, "redeem")
         }
         if (gameplayConfig.isFullSetGrantsAllEnabled && sender.hasPermission("rulegems.redeemall")) {
             if (!hasPlayerSection) {
+                languageManager.sendMessage(sender, "command.help.spacer")
                 languageManager.sendMessage(sender, "command.help.section_player")
                 hasPlayerSection = true
             }
-            languageManager.sendMessage(sender, "command.help.redeemall")
+            sendHelpItem(sender, "redeemall")
         }
         if (gameplayConfig.isHoldToRedeemEnabled && gameplayConfig.isRedeemEnabled &&
             sender.hasPermission("rulegems.redeem")
         ) {
             if (!hasPlayerSection) {
+                languageManager.sendMessage(sender, "command.help.spacer")
                 languageManager.sendMessage(sender, "command.help.section_player")
                 hasPlayerSection = true
             }
-            languageManager.sendMessage(
+            sendHelpItem(
                 sender,
-                if (gameplayConfig.isSneakToRedeem) "command.help.hold_redeem_sneak" else "command.help.hold_redeem_normal",
+                if (gameplayConfig.isSneakToRedeem) "hold_redeem_sneak" else "hold_redeem_normal",
             )
         }
         if (gameplayConfig.isPlaceRedeemEnabled) {
             if (!hasPlayerSection) {
+                languageManager.sendMessage(sender, "command.help.spacer")
                 languageManager.sendMessage(sender, "command.help.section_player")
                 hasPlayerSection = true
             }
-            languageManager.sendMessage(sender, "command.help.place_redeem")
+            sendHelpItem(sender, "place_redeem")
         }
 
         val navigator = plugin.featureManager?.getNavigator()
         if (navigator != null && navigator.isEnabled && sender.hasPermission("rulegems.navigate")) {
             if (!hasPlayerSection) {
+                languageManager.sendMessage(sender, "command.help.spacer")
                 languageManager.sendMessage(sender, "command.help.section_player")
                 hasPlayerSection = true
             }
-            languageManager.sendMessage(sender, "command.help.navigate")
+            sendHelpItem(sender, "navigate")
         }
 
         val appointFeature = plugin.featureManager?.appointFeature
         if (appointFeature != null && appointFeature.isEnabled && hasAnyAppointPermission(sender, appointFeature)) {
             if (!hasPlayerSection) {
+                languageManager.sendMessage(sender, "command.help.spacer")
                 languageManager.sendMessage(sender, "command.help.section_player")
                 hasPlayerSection = true
             }
-            languageManager.sendMessage(sender, "command.help.cabinet")
-            languageManager.sendMessage(sender, "command.help.appoint")
-            languageManager.sendMessage(sender, "command.help.dismiss")
+            sendHelpItem(sender, "cabinet")
+            sendHelpItem(sender, "appoint")
+            sendHelpItem(sender, "dismiss")
         }
 
         val revokeFeature = plugin.featureManager?.revokeFeature
         if (revokeFeature != null && revokeFeature.isEnabled && sender.hasPermission("rulegems.revoke")) {
             if (!hasPlayerSection) {
+                languageManager.sendMessage(sender, "command.help.spacer")
                 languageManager.sendMessage(sender, "command.help.section_player")
                 hasPlayerSection = true
             }
-            languageManager.sendMessage(sender, "command.help.revoke_power")
+            sendHelpItem(sender, "revoke_power")
         }
 
         if (isAdmin) {
+            languageManager.sendMessage(sender, "command.help.spacer")
             languageManager.sendMessage(sender, "command.help.section_admin")
-            languageManager.sendMessage(sender, "command.help.place")
-            languageManager.sendMessage(sender, "command.help.tp")
-            languageManager.sendMessage(sender, "command.help.revoke")
-            languageManager.sendMessage(sender, "command.help.scatter")
-            languageManager.sendMessage(sender, "command.help.history")
-            languageManager.sendMessage(sender, "command.help.setaltar")
-            languageManager.sendMessage(sender, "command.help.removealtar")
-            languageManager.sendMessage(sender, "command.help.appointees")
-            languageManager.sendMessage(sender, "command.help.doctor")
-            languageManager.sendMessage(sender, "command.help.reload")
+            sendHelpItem(sender, "place")
+            sendHelpItem(sender, "tp")
+            sendHelpItem(sender, "revoke")
+            sendHelpItem(sender, "scatter")
+            sendHelpItem(sender, "history")
+            sendHelpItem(sender, "setaltar")
+            sendHelpItem(sender, "removealtar")
+            sendHelpItem(sender, "appointees")
+            sendHelpItem(sender, "doctor")
+            sendHelpItem(sender, "reload")
         }
 
-        languageManager.sendMessage(sender, "command.help.help")
-        languageManager.sendMessage(sender, "command.help.links", linkPlaceholders())
+        languageManager.sendMessage(sender, "command.help.spacer")
+        languageManager.sendMessage(sender, "command.help.section_more")
+        sendHelpItem(sender, "help")
+        val links = RuleGemsLinks.placeholders(plugin.config)
+        sendHelpItem(sender, "link_documentation", links)
+        sendHelpItem(sender, "link_discord", links)
+        sendHelpItem(sender, "link_qq", links)
         languageManager.sendMessage(sender, "command.help.footer")
     }
 
-    private fun linkPlaceholders(): Map<String, String> {
-        val placeholders = HashMap<String, String>()
-        placeholders["docs"] = plugin.config.getString("links.documentation", "https://github.com/angushushu/RuleGems") ?: ""
-        placeholders["discord"] = plugin.config.getString("links.discord", "https://discord.com/invite/7tJeSZPZgv") ?: ""
-        placeholders["qq"] = plugin.config.getString("links.qq", "https://pd.qq.com/s/1n3hpe4e7?b=9") ?: ""
-        return placeholders
+    private fun sendHelpItem(
+        sender: CommandSender,
+        key: String,
+        placeholders: Map<String, String> = emptyMap(),
+    ) {
+        val marker = languageManager.formatMessage("messages.command.help.item_marker", emptyMap())
+        val item = languageManager.formatMessage("messages.command.help.$key", placeholders)
+        sender.sendMessage(languageManager.translateColorCodes(marker + item))
     }
 
     private fun hasAnyAppointPermission(sender: CommandSender?, feature: AppointFeature?): Boolean {

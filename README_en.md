@@ -18,6 +18,7 @@ A lightweight plugin that passes player power around through collectible "rule g
 
 ## Commands
 - All `/rulegems ...` commands have the alias `/rg ...` (see `aliases: [rg]` in plugin.yml)
+- Running `/rulegems` or `/rg` with no arguments opens the main GUI for players and shows help for the console
 - `/rulegems place <gemId> [x|~ y|~ z|~]` Place a specific gem instance at the given coordinates; omitting coordinates is equivalent to `~ ~ ~` and uses your current location
 - `/rulegems tp <gemId>` Teleport to the current location of the gem instance
 - `/rulegems revoke <player>` Force clear all gem-granted permissions and allowances from a player (admin intervention). If `inventory_grants` is enabled and the player still holds gems, permissions will be re-issued on the next inventory recalculation.
@@ -30,7 +31,7 @@ A lightweight plugin that passes player power around through collectible "rule g
 - `/rulegems scatter` Collect and scatter every gem; existing UUIDs are preserved by gem type by default while holders, grants, and allowances are reset
 - `/rulegems redeem` Redeem the gem held in main hand
 - `/rulegems redeemall` Redeem all gem types once the player has at least one of each
-- `/rulegems history [lines] [player]` View recent history records, optionally filtered by player
+- `/rulegems history [page] [player]` View paged history records, optionally filtered by player
 - `/rulegems setaltar <gemKey>` Set the altar location for a gem at your current position
 - `/rulegems removealtar <gemKey>` Remove the altar location for a gem
 - `/rulegems appoint <perm_set> <player>` Appoint a player to a permission set
@@ -71,7 +72,7 @@ Each gem type can grant permissions, Vault groups and limited-use commands. Ever
 ## Features & Configuration Notes
 - Every gem instance has its own UUID; use `/rulegems place <gemId> ...` for precise placement.
 - Scatter reuses existing UUIDs by `gem key` and configured `count`: increasing a count creates only the missing UUIDs, while decreasing a count or removing a type retires surplus UUIDs. Locations, holders, grants, and command allowances are still reset.
-- Help links: `links.documentation`, `links.discord`, and `links.qq` appear in the `/rg help` footer and startup log.
+- Help links: `links.documentation`, `links.discord`, and `links.qq` appear in the `/rg help` footer and startup log. The bundled documentation link now points to `https://github.com/CubeX-MC/RuleGems`; upgrades migrate only the former official default and preserve custom server URLs.
 - Bundled gem and power examples are starter templates only. Existing `gems/` and `powers/` files are not repopulated with removed example definitions on reload.
 - `gems.<key>.count` defines how many instances of a gem type should exist; full-set checks only require at least one per key.
 - `gems.<key>.mutual_exclusive` declares mutually exclusive types (applies to `inventory_grants` and `redeem_enabled`; ignored for `redeem_all`).

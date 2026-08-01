@@ -65,6 +65,8 @@ class CloudCommandManager(
     }
 
     fun registerAll() {
+        installBukkitCompatibilityBridge()
+
         val modernManager = tryCreateModernManager()
         if (modernManager != null) {
             configureManager(modernManager)
@@ -80,8 +82,9 @@ class CloudCommandManager(
             return
         }
 
-        plugin.logger.warning("Cloud command bootstrap exhausted modern and legacy paths; using Bukkit fallback.")
-        registerFallbackExecutor()
+        plugin.logger.warning(
+            "Cloud command bootstrap exhausted modern and legacy paths; using the installed Bukkit fallback.",
+        )
     }
 
     private fun tryCreateModernManager(): CommandManager<RuleGemsCommandActor>? {
@@ -205,7 +208,7 @@ class CloudCommandManager(
         }
     }
 
-    private fun registerFallbackExecutor() {
+    internal fun installBukkitCompatibilityBridge() {
         val command = plugin.getCommand("rulegems")
         if (command == null) {
             plugin.logger.severe("Bukkit fallback command is missing from plugin.yml; /rulegems is unavailable.")
@@ -220,7 +223,7 @@ class CloudCommandManager(
             TabCompleter { sender: CommandSender, _: Command, _: String, args: Array<String> ->
                 completeFallback(sender, args)
             }
-        plugin.logger.warning("Registered the plugin.yml Bukkit fallback executor for /rulegems and /rg.")
+        plugin.logger.info("Installed the plugin.yml Bukkit compatibility bridge for /rulegems and /rg.")
     }
 
     private fun executeFallback(sender: CommandSender, args: Array<String>): Boolean {

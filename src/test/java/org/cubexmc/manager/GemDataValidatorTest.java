@@ -62,14 +62,40 @@ class GemDataValidatorTest {
     }
 
     @Test
-    void rejectsNegativeAllowanceCount() {
+    void acceptsUnlimitedAllowanceSentinelAcrossPersistedSources() {
         YamlConfiguration data = new YamlConfiguration();
         data.set("allowed_uses." + PLAYER_ID + ".held_instances." + GEM_ID + ".home", -1);
+        data.set("allowed_uses." + PLAYER_ID + ".redeemed_instances." + GEM_ID + ".announce", -1);
+        data.set("allowed_uses." + PLAYER_ID + ".appointments.police.jaillist", -1);
+        data.set("allowed_uses." + PLAYER_ID + ".global.help", -1);
+
+        GemDataValidator.ValidationResult result =
+                GemDataValidator.INSTANCE.validate(data, DEFINITIONS);
+
+        assertTrue(result.getValid());
+    }
+
+    @Test
+    void rejectsAllowanceBelowUnlimitedSentinel() {
+        YamlConfiguration data = new YamlConfiguration();
+        data.set("allowed_uses." + PLAYER_ID + ".held_instances." + GEM_ID + ".home", -2);
 
         GemDataValidator.ValidationResult result =
                 GemDataValidator.INSTANCE.validate(data, DEFINITIONS);
 
         assertFalse(result.getValid());
-        assertTrue(result.getErrors().stream().anyMatch(error -> error.contains("non-negative integer")));
+        assertTrue(result.getErrors().stream().anyMatch(error -> error.contains("-1 (unlimited)")));
+    }
+
+    @Test
+    void rejectsFractionalAllowanceCount() {
+        YamlConfiguration data = new YamlConfiguration();
+        data.set("allowed_uses." + PLAYER_ID + ".held_instances." + GEM_ID + ".home", 1.5);
+
+        GemDataValidator.ValidationResult result =
+                GemDataValidator.INSTANCE.validate(data, DEFINITIONS);
+
+        assertFalse(result.getValid());
+        assertTrue(result.getErrors().stream().anyMatch(error -> error.contains("-1 (unlimited)")));
     }
 }

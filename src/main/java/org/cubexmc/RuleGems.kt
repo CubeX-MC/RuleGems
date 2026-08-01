@@ -49,6 +49,8 @@ import org.cubexmc.provider.PermissionProvider
 import org.cubexmc.provider.VaultPermissionProvider
 import org.cubexmc.utils.EffectUtils
 import org.cubexmc.utils.SchedulerUtil
+import org.cubexmc.update.OfficialLinkMigrationStep
+import org.cubexmc.update.RuleGemsLinks
 import java.lang.reflect.Field
 import java.util.Collections
 import java.util.Locale
@@ -373,8 +375,15 @@ class RuleGems : CubexPlugin() {
         migrations.run(
             MigrationPlan.yaml("RuleGems config", "config.yml")
                 .versionKey("config-version")
-                .targetVersion(2)
-                .addStep(NoOpMigrationStep(1, 2, "Add RuleGems config-version.")),
+                .targetVersion(CURRENT_CONFIG_VERSION)
+                .addStep(
+                    NoOpMigrationStep(
+                        LEGACY_CONFIG_VERSION,
+                        VERSIONED_CONFIG_VERSION,
+                        "Add RuleGems config-version.",
+                    ),
+                )
+                .addStep(OfficialLinkMigrationStep(VERSIONED_CONFIG_VERSION, CURRENT_CONFIG_VERSION)),
         )
         migrateLang(migrations, "zh_CN")
         migrateLang(migrations, "en_US")
@@ -390,16 +399,7 @@ class RuleGems : CubexPlugin() {
         )
     }
 
-    private fun linkPlaceholders(): Map<String, String> {
-        val placeholders: MutableMap<String, String> = HashMap()
-        placeholders["docs"] = config.getString("links.documentation", "https://github.com/angushushu/RuleGems")
-            ?: "https://github.com/angushushu/RuleGems"
-        placeholders["discord"] = config.getString("links.discord", "https://discord.com/invite/7tJeSZPZgv")
-            ?: "https://discord.com/invite/7tJeSZPZgv"
-        placeholders["qq"] = config.getString("links.qq", "https://pd.qq.com/s/1n3hpe4e7?b=9")
-            ?: "https://pd.qq.com/s/1n3hpe4e7?b=9"
-        return placeholders
-    }
+    private fun linkPlaceholders(): Map<String, String> = RuleGemsLinks.placeholders(config)
 
     fun refreshAllowedCommandProxies() {
         val map = getCommandMapSafely()
@@ -492,6 +492,9 @@ class RuleGems : CubexPlugin() {
     }
 
     companion object {
+        private const val LEGACY_CONFIG_VERSION = 1
+        private const val VERSIONED_CONFIG_VERSION = 2
+        private const val CURRENT_CONFIG_VERSION = 3
         private const val TICKS_PER_SECOND = 20L
         private const val PROXIMITY_CHECK_INTERVAL = TICKS_PER_SECOND
         private const val AUTO_SAVE_INTERVAL = TICKS_PER_SECOND * 60 * 60

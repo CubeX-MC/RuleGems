@@ -18,6 +18,7 @@
 
 ## 命令
 - 所有 `/rulegems ...` 命令均可用别名 `/rg ...`（见 plugin.yml 的 `aliases: [rg]`）
+- 玩家直接执行 `/rulegems` 或 `/rg` 会打开主 GUI；控制台无参数执行时显示帮助
 - `/rulegems place <gemId> [x|~ y|~ z|~]` 将指定宝石实例放置到坐标；省略坐标时等同于 `~ ~ ~`，使用当前位置
 - `/rulegems tp <gemId>` 传送到指定宝石位置
 - `/rulegems revoke <玩家>` 强制清理指定玩家的宝石权限与限次额度（管理员干预）。若启用了 `inventory_grants` 且玩家仍持有宝石，下一次背包重算时权限会再次授予。
@@ -30,7 +31,7 @@
 - `/rulegems scatter` 收回所有宝石并随机散布；默认按宝石类型保留已有 UUID，同时重置持有者、权限与限次状态
 - `/rulegems redeem` 主手持宝石时兑换单颗
 - `/rulegems redeemall` 集齐所有种类后一次性兑换
-- `/rulegems history [行数] [玩家名]` 查看宝石历史记录，可选过滤玩家
+- `/rulegems history [页码] [玩家名]` 分页查看宝石历史记录，可选过滤玩家
 - `/rulegems setaltar <gemKey>` 在当前位置设置该宝石的祭坛坐标
 - `/rulegems removealtar <gemKey>` 移除该宝石的祭坛坐标
 - `/rulegems appoint <权限集> <玩家>` 任命玩家获得指定权限集
@@ -87,7 +88,7 @@
 ## 特性与配置要点
 - 每颗宝石唯一：每件宝石有独立 UUID（实例级归属），可通过 `/rulegems place <gemId> ...` 精确放置。
 - 重新散布会按 `gem key` 与 `count` 复用已有 UUID：数量增加时只补新 UUID，数量减少或删除类型时淘汰多余 UUID；位置、持有者、权限和限次额度仍会重置。
-- 帮助链接：`links.documentation` / `links.discord` / `links.qq` 会显示在 `/rg help` 页脚与插件启动日志中。
+- 帮助链接：`links.documentation` / `links.discord` / `links.qq` 会显示在 `/rg help` 页脚与插件启动日志中。官方文档默认指向 `https://github.com/CubeX-MC/RuleGems`；升级时仅旧官方默认地址会自动迁移，服主自定义地址保持不变。
 - 内置宝石与 power 示例只是初始模板；已有 `gems/`、`powers/` 文件不会在 reload 时自动补回被删除的示例定义，删除不用的默认节点后会保持停用。
 - 每类宝石数量：`gems.<key>.count: <int>`，散落与补齐按 count 生成；“集齐种类”判定为每个 key 至少 1 件。
 - 互斥：`gems.<key>.mutual_exclusive: [otherKey, ...]`；仅在 inventory_grants 与 redeem 生效，redeem_all 忽略互斥。

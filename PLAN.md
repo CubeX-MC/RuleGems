@@ -21,7 +21,7 @@ Risk class: **R4 release-critical**.
 ## Implementation Record (2026-07-26)
 
 Local implementation is complete for the Spigot/Paper release candidate. The
-automated gate passes, but the version remains `1.0.9` and publication remains
+automated gate passes and the version is now `1.1.0`, but publication remains
 blocked on the real-server gates listed at the end of this file.
 
 Completed:
@@ -352,8 +352,8 @@ Exit criteria:
 
 ## Phase 7 - Dependency, Documentation, And Release Governance
 
-Status: **implementation complete; release version bump deferred until manual
-gates pass**.
+Status: **implementation complete; version prepared as 1.1.0, with publication
+still deferred until the manual gates pass**.
 
 Implementation:
 
@@ -366,8 +366,8 @@ Implementation:
 6. Synchronize README files, the server-ready guide, project profile, metadata,
    changelog, compatibility matrix, storage recovery instructions, and rollback
    notes.
-7. Update the plugin version only after release gates pass. Prefer `1.1.0` for
-   the storage/threading architecture change.
+7. Prepare plugin version `1.1.0` for the storage/threading architecture
+   change, while keeping publication blocked until the release gates pass.
 
 ## Release Verification Matrix
 
@@ -399,14 +399,14 @@ All gates are mandatory:
 
 Current local evidence:
 
-- 429 tests passed, 0 failed, 0 skipped.
-- Detekt strict-baseline gate passed; 655 pre-existing maintainability findings
+- 437 tests passed, 0 failed, 0 skipped.
+- Detekt strict-baseline gate passed; 654 pre-existing maintainability findings
   are recorded so newly introduced findings fail the gate.
-- JaCoCo baseline: 4,935 / 12,979 lines (38.02%).
+- JaCoCo baseline: 5,074 / 13,008 lines (39.01%).
 - Shaded artifact:
-  `build/libs/RuleGems-1.0.9.jar`, 7,944,438 bytes,
+  `build/libs/RuleGems-1.1.0.jar`, 7,949,578 bytes,
   SHA-256
-  `7735C1729D5398931CB6E33DB3D12B2E1BDA5443D3A492C71A20BA7D4DE3056C`.
+  `495782FBC371B3305C9A28E45E2F3B5237510D3562142CEF3CBBB496DD671EBA`.
 - OSV Scanner 2.3.8 scanned 136 locked packages and found no untriaged finding
   after 17 ID-specific, time-limited build/test/compileOnly exceptions. CI
   verifies those package trees remain absent from the shaded artifact.

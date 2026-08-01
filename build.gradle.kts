@@ -7,7 +7,7 @@ plugins {
     jacoco
 }
 
-version = "1.0.9"
+version = "1.1.0"
 description = "A Minecraft plugin that grants power through collecting gems"
 
 dependencies {

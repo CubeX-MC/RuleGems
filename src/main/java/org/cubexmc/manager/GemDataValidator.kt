@@ -242,10 +242,21 @@ object GemDataValidator {
         }
         for (label in section.getKeys(false)) {
             val value = section.get(label)
-            if (value !is Number || value.toInt() < 0) {
-                errors.add("$parentPath.$relativePath.$label must be a non-negative integer")
+            if (!isValidAllowanceCount(value)) {
+                errors.add(
+                    "$parentPath.$relativePath.$label must be -1 (unlimited) or a non-negative integer",
+                )
             }
         }
+    }
+
+    private fun isValidAllowanceCount(value: Any?): Boolean {
+        if (value !is Number) return false
+        val count = value.toDouble()
+        return count.isFinite() &&
+            count == kotlin.math.floor(count) &&
+            count >= UNLIMITED_USES &&
+            count <= Int.MAX_VALUE.toDouble()
     }
 
     private fun sectionOrError(
@@ -271,4 +282,6 @@ object GemDataValidator {
             null
         }
     }
+
+    private const val UNLIMITED_USES = -1
 }

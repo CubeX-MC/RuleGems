@@ -8,14 +8,14 @@
 # - powers/*.yml：可复用的能力模板与委任结构
 # 如果你想先跑通玩法，优先只改本文件和 gems/*.yml。
 
-config-version: 2
+config-version: 3
 
 # 语言设置 (示例: zh_CN / en_US)
 language: zh_CN
 
 # 文档与社区链接，会显示在 /rg help 和启动日志中
 links:
-  documentation: "https://github.com/angushushu/RuleGems"
+  documentation: "https://github.com/CubeX-MC/RuleGems"
   discord: "https://discord.com/invite/7tJeSZPZgv"
   qq: "https://pd.qq.com/s/1n3hpe4e7?b=9"
 

@@ -68,60 +68,59 @@ class HistorySubCommand(
         return true
     }
 
-    private fun displayResult(
+    internal fun displayResult(
         sender: CommandSender,
         historyPage: HistoryLogger.HistoryPage,
         page: Int,
         playerFilter: String?,
     ) {
-        val totalPages: Int
-        if (playerFilter != null) {
-            if (historyPage.totalCount == 0) {
-                val placeholders = HashMap<String, String>()
-                placeholders["player"] = playerFilter
-                languageManager.sendMessage(sender, "command.history.no_player_records", placeholders)
-                return
-            }
-            if (historyPage.entries.isEmpty()) {
-                val placeholders = HashMap<String, String>()
-                placeholders["page"] = page.toString()
-                languageManager.sendMessage(sender, "command.history.page_out_of_range", placeholders)
-                return
-            }
-            val placeholders = HashMap<String, String>()
-            placeholders["player"] = playerFilter
-            placeholders["count"] = historyPage.entries.size.toString()
-            placeholders["total"] = historyPage.totalCount.toString()
-            totalPages = max(1, ceil(historyPage.totalCount / PAGE_SIZE.toDouble()).toInt())
-            placeholders["page"] = page.toString()
-            placeholders["pages"] = totalPages.toString()
-            languageManager.sendMessage(sender, "command.history.player_header", placeholders)
-        } else {
-            if (historyPage.totalCount == 0) {
+        if (historyPage.totalCount == 0) {
+            if (playerFilter == null) {
                 languageManager.sendMessage(sender, "command.history.no_records")
-                return
+            } else {
+                languageManager.sendMessage(
+                    sender,
+                    "command.history.no_player_records",
+                    mapOf("player" to playerFilter),
+                )
             }
-            if (historyPage.entries.isEmpty()) {
-                val placeholders = HashMap<String, String>()
-                placeholders["page"] = page.toString()
-                languageManager.sendMessage(sender, "command.history.page_out_of_range", placeholders)
-                return
-            }
-            val placeholders = HashMap<String, String>()
-            placeholders["count"] = historyPage.entries.size.toString()
-            placeholders["total"] = historyPage.totalCount.toString()
-            totalPages = max(1, ceil(historyPage.totalCount / PAGE_SIZE.toDouble()).toInt())
-            placeholders["page"] = page.toString()
-            placeholders["pages"] = totalPages.toString()
-            languageManager.sendMessage(sender, "command.history.recent_header", placeholders)
+            return
+        }
+        if (historyPage.entries.isEmpty()) {
+            languageManager.sendMessage(
+                sender,
+                "command.history.page_out_of_range",
+                mapOf("page" to page.toString()),
+            )
+            return
         }
 
-        for (line in historyPage.entries) {
-            val placeholders = HashMap<String, String>()
-            placeholders["line"] = line
-            languageManager.sendMessage(sender, "command.history.line", placeholders)
+        val totalPages = max(1, ceil(historyPage.totalCount / PAGE_SIZE.toDouble()).toInt())
+        val summary = HashMap<String, String>()
+        summary["count"] = historyPage.entries.size.toString()
+        summary["total"] = historyPage.totalCount.toString()
+        summary["page"] = page.toString()
+        summary["pages"] = totalPages.toString()
+        if (playerFilter != null) {
+            summary["player"] = playerFilter
+        }
+        languageManager.sendMessage(
+            sender,
+            if (playerFilter == null) "command.history.title_recent" else "command.history.title_player",
+            summary,
+        )
+        languageManager.sendMessage(sender, "command.history.summary", summary)
+
+        historyPage.entries.forEachIndexed { offset, line ->
+            val recordIndex = (page - 1).toLong() * PAGE_SIZE + offset + 1
+            languageManager.sendMessage(
+                sender,
+                "command.history.entry",
+                mapOf("index" to recordIndex.toString(), "line" to line),
+            )
         }
 
+        languageManager.sendMessage(sender, "command.history.footer")
         if (totalPages > 1) {
             sendNavigation(sender, page, totalPages, playerFilter)
         }
@@ -138,38 +137,28 @@ class HistorySubCommand(
             basePlaceholders["page"] = currentPage.toString()
             basePlaceholders["pages"] = totalPages.toString()
 
-            val divider = safeFormat("command.history.page_nav_divider", basePlaceholders)
-
             if (prevPage > 0) {
                 val prevPlaceholders = HashMap(basePlaceholders)
-                prevPlaceholders["target"] = prevPage.toString()
                 prevPlaceholders["page"] = prevPage.toString()
-                val prevLabel = safeFormat("command.history.page_nav_previous", prevPlaceholders)
-                val prevHover = safeFormat("command.history.page_nav_hover", prevPlaceholders)
+                val prevLabel = safeFormat("command.history.navigation_previous", prevPlaceholders)
+                val prevHover = safeFormat("command.history.navigation_hover", prevPlaceholders)
                 appendInteractiveComponent(components, prevLabel, prevHover, buildCommand(prevPage, playerFilter))
             } else {
-                val prevDisabled = safeFormat("command.history.page_nav_previous_disabled", basePlaceholders)
+                val prevDisabled = safeFormat("command.history.navigation_previous_disabled", basePlaceholders)
                 appendStaticComponent(components, prevDisabled)
             }
 
+            appendStaticComponent(components, safeFormat("command.history.navigation_page", basePlaceholders))
+
             if (nextPage > 0) {
                 val nextPlaceholders = HashMap(basePlaceholders)
-                nextPlaceholders["target"] = nextPage.toString()
                 nextPlaceholders["page"] = nextPage.toString()
-                val nextLabel = safeFormat("command.history.page_nav_next", nextPlaceholders)
-                val nextHover = safeFormat("command.history.page_nav_hover", nextPlaceholders)
-                if (components.isNotEmpty() && divider.isNotEmpty()) {
-                    appendStaticComponent(components, divider)
-                }
+                val nextLabel = safeFormat("command.history.navigation_next", nextPlaceholders)
+                val nextHover = safeFormat("command.history.navigation_hover", nextPlaceholders)
                 appendInteractiveComponent(components, nextLabel, nextHover, buildCommand(nextPage, playerFilter))
             } else {
-                val nextDisabled = safeFormat("command.history.page_nav_next_disabled", basePlaceholders)
-                if (nextDisabled.isNotEmpty()) {
-                    if (components.isNotEmpty() && divider.isNotEmpty()) {
-                        appendStaticComponent(components, divider)
-                    }
-                    appendStaticComponent(components, nextDisabled)
-                }
+                val nextDisabled = safeFormat("command.history.navigation_next_disabled", basePlaceholders)
+                appendStaticComponent(components, nextDisabled)
             }
 
             if (components.isNotEmpty()) {
@@ -181,7 +170,7 @@ class HistorySubCommand(
             placeholders["pages"] = totalPages.toString()
             placeholders["prev"] = if (prevPage > 0) prevPage.toString() else "-"
             placeholders["next"] = if (nextPage > 0) nextPage.toString() else "-"
-            languageManager.sendMessage(sender, "command.history.pagination_hint", placeholders)
+            languageManager.sendMessage(sender, "command.history.console_navigation", placeholders)
         }
     }
 

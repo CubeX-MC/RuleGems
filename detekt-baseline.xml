@@ -307,7 +307,6 @@
     <ID>MaxLineLength:HistorySubCommand.kt$HistorySubCommand$private</ID>
     <ID>MaxLineLength:InfoCommandsRegistrar.kt$InfoCommandsRegistrar$if (gameplayConfig.isSneakToRedeem) "command.help.hold_redeem_sneak" else "command.help.hold_redeem_normal"</ID>
     <ID>MaxLineLength:InfoCommandsRegistrar.kt$InfoCommandsRegistrar$placeholders["discord"] = plugin.config.getString("links.discord", "https://discord.com/invite/7tJeSZPZgv") ?: ""</ID>
-    <ID>MaxLineLength:InfoCommandsRegistrar.kt$InfoCommandsRegistrar$placeholders["docs"] = plugin.config.getString("links.documentation", "https://github.com/angushushu/RuleGems") ?: ""</ID>
     <ID>MaxLineLength:ItemBuilder.kt$ItemBuilder.Companion$fun</ID>
     <ID>MaxLineLength:ItemBuilder.kt$ItemBuilder.Companion$val glintMethod = meta.javaClass.getMethod("setEnchantmentGlintOverride", Boolean::class.javaPrimitiveType)</ID>
     <ID>MaxLineLength:PowerCondition.kt$PowerCondition$TimeType.CUSTOM -> builder.append(msg(lang, "condition.time_custom", "Time")).append(" ").append(timeFrom).append("-").append(timeTo)</ID>
