@@ -15,18 +15,30 @@ class LuckPermsPermissionProvider(private val plugin: RuleGems) : PermissionProv
     private val userManager: Any?
     private val nodeClass: Class<*>?
     private val inheritanceNodeClass: Class<*>?
+    private val nodeMapAdd: Method?
+    private val nodeMapRemove: Method?
 
     init {
         var loadedLuckPerms: Any? = null
         var loadedUserManager: Any? = null
         var loadedNodeClass: Class<*>? = null
         var loadedInheritanceNodeClass: Class<*>? = null
+        var loadedAdd: Method? = null
+        var loadedRemove: Method? = null
         try {
             val providerClass = Class.forName("net.luckperms.api.LuckPermsProvider")
             loadedLuckPerms = providerClass.getMethod("get").invoke(null)
             loadedUserManager = loadedLuckPerms.javaClass.getMethod("getUserManager").invoke(loadedLuckPerms)
             loadedNodeClass = Class.forName("net.luckperms.api.node.Node")
             loadedInheritanceNodeClass = Class.forName("net.luckperms.api.node.types.InheritanceNode")
+            // 必须从公开接口 NodeMap 上取方法，不能从 user.data() 返回的那个对象的 javaClass 取:
+            // 实现类 ApiPermissionHolder$NodeMapImpl 是包私有的,getMethod 找得到 add/remove
+            // (方法本身是 public),invoke 却会抛 IllegalAccessException——声明它的类不可访问。
+            // 这条路径断掉时玩法看不出异常(权限靠 PermissionAttachment 生效),只是兑换的权限和
+            // 权限组一个都写不进 LuckPerms。
+            val nodeMapClass = Class.forName("net.luckperms.api.model.data.NodeMap")
+            loadedAdd = nodeMapClass.getMethod("add", loadedNodeClass)
+            loadedRemove = nodeMapClass.getMethod("remove", loadedNodeClass)
         } catch (e: ReflectiveOperationException) {
             plugin.logger.fine("LuckPerms API is not available: " + e.message)
         } catch (e: LinkageError) {
@@ -36,10 +48,20 @@ class LuckPermsPermissionProvider(private val plugin: RuleGems) : PermissionProv
         userManager = loadedUserManager
         nodeClass = loadedNodeClass
         inheritanceNodeClass = loadedInheritanceNodeClass
+        nodeMapAdd = loadedAdd
+        nodeMapRemove = loadedRemove
     }
 
+    /**
+     * 写入用到的每一个反射目标都在这里解析完毕才算可用。
+     *
+     * 这一点是有意的：RuleGems 只选一个 provider,LuckPerms 说可用就轮不到 Vault/Bukkit 后备。
+     * 所以"能加载 API 类"不够格——真正要用的方法解析不出来时必须报不可用,让上层降级，
+     * 而不是启动成功、然后每次写入都失败。
+     */
     override fun isAvailable(): Boolean =
-        luckPerms != null && userManager != null && nodeClass != null && inheritanceNodeClass != null
+        luckPerms != null && userManager != null && nodeClass != null && inheritanceNodeClass != null &&
+            nodeMapAdd != null && nodeMapRemove != null
 
     override fun supportsContext(): Boolean = isAvailable()
 
@@ -166,19 +188,18 @@ class LuckPermsPermissionProvider(private val plugin: RuleGems) : PermissionProv
     }
 
     private fun addNode(data: Any?, node: Any?) {
-        invokeDataMutation(data, "add", node)
+        invokeDataMutation(data, nodeMapAdd, node)
     }
 
     private fun removeNode(data: Any?, node: Any?) {
-        invokeDataMutation(data, "remove", node)
+        invokeDataMutation(data, nodeMapRemove, node)
     }
 
-    private fun invokeDataMutation(data: Any?, methodName: String, node: Any?) {
-        if (data == null || node == null) {
+    private fun invokeDataMutation(data: Any?, method: Method?, node: Any?) {
+        if (data == null || method == null || node == null) {
             return
         }
         try {
-            val method = data.javaClass.getMethod(methodName, nodeClass)
             method.invoke(data, node)
         } catch (e: ReflectiveOperationException) {
             plugin.logger.warning("Failed to mutate LuckPerms node: " + e.message)

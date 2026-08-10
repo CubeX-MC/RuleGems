@@ -2,12 +2,15 @@ package org.cubexmc.listeners
 
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
+import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.inventory.ClickType
+import org.bukkit.event.inventory.CraftItemEvent
 import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.event.inventory.InventoryMoveItemEvent
 import org.bukkit.event.inventory.InventoryType
+import org.bukkit.event.inventory.PrepareItemCraftEvent
 import org.bukkit.event.player.PlayerItemHeldEvent
 import org.bukkit.inventory.ItemStack
 import org.cubexmc.manager.GemManager
@@ -108,6 +111,29 @@ class GemInventoryListener(
         }
     }
 
+    /**
+     * 宝石本体是一块普通方块，默认配置里就有 DIAMOND_BLOCK、REDSTONE_BLOCK 这种可逆合成的材质；
+     * 原版配方只认材质、不看自定义数据，所以带标记的宝石照样能被拆成 9 个原料，宝石随之凭空消失。
+     *
+     * 工作台、砂轮这类外部界面已经被 [onInventoryClick] 的容器规则挡住了，但玩家背包自带的 2x2 合成格
+     * 属于 [InventoryType.CRAFTING] 视图、是那条规则有意放行的（否则在自己背包里整理宝石都会被拦），
+     * 所以必须在合成这一层单独再堵一次。这里先让结果格空掉，玩家一眼就能看出这条路不通。
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    fun onPrepareCraft(event: PrepareItemCraftEvent) {
+        if (containsGemInMatrix(event.inventory.matrix)) {
+            event.inventory.result = null
+        }
+    }
+
+    /** 兜底 [onPrepareCraft]，覆盖 shift 批量合成和任何跳过结果预览直接提交的路径。 */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    fun onCraft(event: CraftItemEvent) {
+        if (!containsGemInMatrix(event.inventory.matrix)) return
+        event.isCancelled = true
+        languageManager.sendMessage(event.whoClicked, "inventory.craft_denied")
+    }
+
     @EventHandler
     fun onItemHeld(event: PlayerItemHeldEvent) {
         if (gemManager.isInventoryGrantsEnabled) {
@@ -156,6 +182,9 @@ class GemInventoryListener(
             event.isCancelled = true
         }
     }
+
+    private fun containsGemInMatrix(matrix: Array<ItemStack?>): Boolean =
+        matrix.any { gemManager.containsGem(it) }
 
     private fun stashesGemIntoContainerItem(currentItem: ItemStack?, cursorItem: ItemStack?): Boolean =
         (gemManager.isContainerItem(currentItem) && gemManager.containsGem(cursorItem)) ||

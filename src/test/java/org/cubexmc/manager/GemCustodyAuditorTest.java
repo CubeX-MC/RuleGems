@@ -86,6 +86,23 @@ class GemCustodyAuditorTest {
     }
 
     @Test
+    void aGemWaitingOnANotYetLoadedWorldIsNotTreatedAsMissing() {
+        // 回归防护：多世界服上晚加载（或被停用）的世界里那颗宝石，坐标记在 pendingWorldGems 里，
+        // getGemLocation 暂时算不出来。曾经会被判成走失并"补种"到别处，世界再加载又绑回原坐标，
+        // 原地就留下一块无人认领的宝石方块。
+        when(stateManager.getGemHolder(GEM_ID)).thenReturn(null);
+        when(stateManager.getGemLocation(GEM_ID)).thenReturn(null);
+        when(stateManager.hasPendingWorldPlacement(GEM_ID)).thenReturn(true);
+
+        auditor.runAudit();
+        auditor.runAudit();
+        auditor.runAudit();
+
+        verify(placementManager, never()).randomPlaceGem(any(UUID.class));
+        verify(saveAction, never()).run();
+    }
+
+    @Test
     void anIntermittentAnomalyNeverTriggersACorrection() {
         when(stateManager.getGemHolder(GEM_ID)).thenReturn(null);
         Location location = new Location(world, 10, 64, 10);

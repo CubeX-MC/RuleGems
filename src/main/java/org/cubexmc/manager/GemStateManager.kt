@@ -322,6 +322,13 @@ class GemStateManager(
         }
     }
 
+    /**
+     * 这颗宝石是否记录着一个"世界还没加载"的坐标，正等着 [bindPendingWorldGems] 绑定。
+     * 这种宝石已经有归属，只是暂时算不出 [getGemLocation]，不该被当成走失。
+     */
+    fun hasPendingWorldPlacement(gemId: UUID?): Boolean =
+        gemId != null && pendingWorldGems.containsKey(gemId)
+
     fun bindPendingWorldGems(world: World?): Map<UUID, Location> {
         val rebound: MutableMap<UUID, Location> = HashMap()
         if (world == null || pendingWorldGems.isEmpty()) {

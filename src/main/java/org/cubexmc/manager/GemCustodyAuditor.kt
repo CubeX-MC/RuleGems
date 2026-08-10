@@ -98,6 +98,13 @@ class GemCustodyAuditor(
     private fun inspectUnheld(gemId: UUID) {
         val location = stateManager.getGemLocation(gemId)
         if (location == null) {
+            // 世界还没加载的宝石不算走失：坐标记在 pendingWorldGems 里，等 WorldLoadListener 绑定。
+            // 少了这层判断，多世界服上晚加载（或被停用）的世界里那颗宝石会在启动几分钟后被"补种"
+            // 到别处；世界一旦再加载又被绑回原坐标，原地就留下一块无人认领的宝石方块。
+            if (stateManager.hasPendingWorldPlacement(gemId)) {
+                suspects.remove(gemId)
+                return
+            }
             flag(gemId, Anomaly.MISSING)
             return
         }

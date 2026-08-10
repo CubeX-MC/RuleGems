@@ -183,6 +183,7 @@ messages:
   inventory:
     drag_denied: "<red><prefix> Cannot drag Gem here!"
     container_denied: "<red><prefix> Cannot put Gem into containers!"
+    craft_denied: "<red><prefix> Gems cannot be used in crafting!"
     display_location_occupied: "<red><prefix> A proximity-display gem already occupies this location."
     inventory_full: "<gray><prefix> Inventory full, gem has been placed."
     conflict: "<red>The gem in your hand is mutually exclusive with your other powers!"

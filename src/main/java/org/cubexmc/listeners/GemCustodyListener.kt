@@ -39,8 +39,14 @@ class GemCustodyListener(
     private val languageManager: LanguageManager,
 ) : Listener {
 
-    /** 宝石掉落物一律不允许在世界上存在：直接取消生成并把宝石收回托管。 */
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    /**
+     * 宝石掉落物一律不允许在世界上存在：直接取消生成并把宝石收回托管。
+     *
+     * 这里刻意**不**设 `ignoreCancelled`：别的插件（清理掉落物、禁掉落一类）可能已经先取消了这次生成，
+     * 那时物品同样不会落地，但宝石还没被收回——正是最需要兜底的时候。取消过的照样要走一遍回收，
+     * [GemManager.claimItemCustody] 保证不会重复处理。
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
     fun onItemSpawn(event: ItemSpawnEvent) {
         val stack = event.entity.itemStack
         if (!gemManager.containsGem(stack)) return

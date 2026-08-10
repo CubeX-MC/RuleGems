@@ -183,6 +183,7 @@ messages:
   inventory:
     drag_denied: "<red><prefix> 不能将宝石拖拽到此处！"
     container_denied: "<red><prefix> 不能将宝石放入容器！"
+    craft_denied: "<red><prefix> 宝石不能用于合成！"
     display_location_occupied: "<red><prefix> 此处已有一颗以近距离模式显示的宝石。"
     inventory_full: "<gray><prefix> 检查背包已满, 宝石被放置。"
     conflict: "<red>手持宝石的力量与你已拥有的力量排斥！"
