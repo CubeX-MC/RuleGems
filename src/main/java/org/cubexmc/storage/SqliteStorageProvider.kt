@@ -5,8 +5,9 @@ import org.bukkit.configuration.file.YamlConfiguration
 import org.cubexmc.RuleGems
 import java.io.File
 import java.sql.Connection
-import java.sql.DriverManager
 import java.util.logging.Level
+import org.cubexmc.database.SQLiteDatabase
+import org.cubexmc.database.SQLitePragmas
 
 /**
  * SQLite-backed storage for mutable RuleGems runtime data.
@@ -124,11 +125,7 @@ class SqliteStorageProvider(
 
     private fun openConnection(): Connection {
         val file = databaseFile ?: throw IllegalStateException("SQLite database file has not been initialized")
-        return DriverManager.getConnection("jdbc:sqlite:" + file.absolutePath).also { connection ->
-            connection.createStatement().use { statement ->
-                statement.execute("PRAGMA busy_timeout = 5000")
-            }
-        }
+        return SQLiteDatabase(file, PRAGMAS).openConnection()
     }
 
     private fun migrateYamlIfEmpty(connection: Connection) {
@@ -170,6 +167,7 @@ class SqliteStorageProvider(
 
     companion object {
         private const val DEFAULT_DATABASE = "data/rulegems.db"
+        private val PRAGMAS = SQLitePragmas.builder().busyTimeoutMillis(5000).build()
         private const val TABLE = "rulegems_storage"
         private const val GEM_DATA_KEY = "gems"
     }

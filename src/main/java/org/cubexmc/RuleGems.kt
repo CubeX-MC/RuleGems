@@ -6,6 +6,7 @@ import org.bukkit.Particle
 import org.bukkit.command.Command
 import org.bukkit.command.CommandMap
 import org.bukkit.command.SimpleCommandMap
+import org.cubexmc.command.CommandMaps
 import org.cubexmc.commands.AllowedCommandProxy
 import org.cubexmc.commands.CloudCommandManager
 import org.cubexmc.config.LegacyTextToMiniMessageStep
@@ -411,7 +412,7 @@ class RuleGems : CubexPlugin() {
         val configuredLabels = configManager.collectAllowedCommandLabels() ?: Collections.emptySet()
 
         val registered: MutableSet<String> = HashSet()
-        val known = getKnownCommands(map)
+        val known = CommandMaps.knownCommands(map, logger)
         for (label in configuredLabels) {
             if (label.isNullOrEmpty()) {
                 continue
@@ -442,54 +443,18 @@ class RuleGems : CubexPlugin() {
         if (proxyCommands.isEmpty()) {
             return
         }
-        val known = getKnownCommands(map)
+        // Removes by identity, so a label another plugin won is never deleted out from under it.
         for (proxy in proxyCommands.values) {
-            proxy.unregister(map)
-            if (known != null) {
-                known.remove(proxy.name)
-                known.remove("rulegems:" + proxy.name)
-            }
+            CommandMaps.unregister(map, proxy, logger)
         }
         proxyCommands.clear()
     }
 
     private fun getCommandMapSafely(): CommandMap? {
-        if (cachedCommandMap != null) {
-            return cachedCommandMap
-        }
-        try {
-            cachedCommandMap = Bukkit::class.java.getMethod("getCommandMap").invoke(null) as CommandMap
-            return cachedCommandMap
-        } catch (_: NoSuchMethodException) {
-        } catch (e: Exception) {
-            logger.fine("Bukkit.getCommandMap() failed: " + e.message)
-        }
-
-        try {
-            val field: Field = server.javaClass.getDeclaredField("commandMap")
-            field.isAccessible = true
-            cachedCommandMap = field.get(server) as CommandMap
-        } catch (ex: ReflectiveOperationException) {
-            logger.log(Level.SEVERE, "Unable to access Bukkit command map via reflection", ex)
-        } catch (ex: SecurityException) {
-            logger.log(Level.SEVERE, "Unable to access Bukkit command map via reflection", ex)
-        }
-        return cachedCommandMap
+        cachedCommandMap?.let { return it }
+        return CommandMaps.resolve(server, logger).also { cachedCommandMap = it }
     }
 
-    @Suppress("UNCHECKED_CAST")
-    private fun getKnownCommands(map: CommandMap): MutableMap<String, Command>? {
-        if (map !is SimpleCommandMap) {
-            return null
-        }
-        return try {
-            val field = SimpleCommandMap::class.java.getDeclaredField("knownCommands")
-            field.isAccessible = true
-            field.get(map) as MutableMap<String, Command>
-        } catch (_: Exception) {
-            null
-        }
-    }
 
     companion object {
         private const val LEGACY_CONFIG_VERSION = 1
