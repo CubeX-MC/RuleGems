@@ -5,6 +5,19 @@
 
 一个用“宝石收集”来流转玩家权限的轻量插件，面向 Spigot/Paper 多版本。
 
+## 定位
+
+RuleGems 用"宝石收集"承载权限流转：权限不是管理员在后台点出来的，而是玩家在世界里
+**拿到、持有、兑换**出来的一件实物。宝石可以被交易、被抢、被放置展示，权限随之流动。
+
+架构上保持 **gem-centric**：一切都围绕"宝石实例"展开——归属、撤销、限次都挂在具体那一颗上，
+而不是抽象的 power 身份。这让"谁现在有这个权限"永远能追溯到一颗看得见的宝石。
+
+**不做什么**（避免误装）：
+
+- 不是权限管理插件，不替代 LuckPerms 一类的权限后端。
+- 不把 power 做成一等身份：不提供跨宝石的统一撤销与统一计数（有需要会另立项目）。
+
 ## 安装
 1. 将 JAR 放入 `plugins` 目录
 2. 启动服务器自动生成配置
@@ -257,3 +270,25 @@ permission_sets:
 #### GUI 支持
 在统治者列表 GUI 中点击任意统治者可查看其任命的所有玩家及详细信息。
 
+## 构建
+
+```powershell
+.\gradlew.bat :RuleGems:build      # 编译 + 测试 + 部署 jar
+.\gradlew.bat :RuleGems:test       # 只跑测试
+.\gradlew.bat :RuleGems:jarGate    # 部署 jar 门禁
+```
+
+Windows 必须用 PowerShell 跑 `.\gradlew.bat`（仓库路径含空格）。
+产物在 `RuleGems/build/libs/`；`*-plain.jar` **不要**部署。
+
+## 已知边界
+
+- 升级策略为"备份优先 + 粗兼容 + 明确警告"：不提供复杂的自动配置迁移器，
+  升级前请先备份 `config.yml`、`gems/`、`powers/`、`features/`。
+- 部分旧配置写法仍被粗兼容接受并给出警告，后续大版本会移除。
+
+## 相关文档
+
+- 待办与路线：仓库根 [`PLAN.md`](../PLAN.md)
+- 服主上手：[docs/server-ready-guide.md](docs/server-ready-guide.md)
+- 版本记录：[`CHANGELOG.md`](CHANGELOG.md)
