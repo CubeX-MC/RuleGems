@@ -51,6 +51,11 @@ tasks.shadowJar {
     relocate("io.leangen.geantyref", "org.cubexmc.shaded.geantyref")
 }
 
+// 钉住 JaCoCo 工具版本:Gradle 8.14.3 的默认值是 0.8.13,而 gradle.lockfile 把它锁在
+// {strictly 0.8.11},升 Gradle 时会直接解析失败。锁文件是本插件安全流程的一部分
+// (见 .github/workflows/rulegems-security.yml),不该为了跟随 Gradle 默认值就动它。
+jacoco { toolVersion = "0.8.11" }
+
 tasks.test {
     finalizedBy(tasks.jacocoTestReport)
 }
