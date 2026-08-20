@@ -18,6 +18,7 @@ import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import org.cubexmc.core.Cooldown
 
 /**
  * Periodically leaks soft, fragmentary information about placed gems to players outside power.
@@ -27,7 +28,8 @@ class GemIntelBroadcaster(
     private val gemManager: GemManager,
 ) : Feature(plugin, PERMISSION) {
     private val random = Random()
-    private val recipientCooldowns: MutableMap<UUID, Long> = ConcurrentHashMap()
+    // 冷却时长现读字段:reload 改了 perPlayerCooldownSeconds 立刻生效。
+    private val recipientCooldowns = Cooldown({ perPlayerCooldownSeconds * 1000L })
     private var task: Any? = null
 
     private var intervalSeconds = 1800
@@ -59,7 +61,7 @@ class GemIntelBroadcaster(
 
     override fun shutdown() {
         stopTask()
-        recipientCooldowns.clear()
+        recipientCooldowns.clearAll()
     }
 
     override fun reload() {
@@ -150,12 +152,11 @@ class GemIntelBroadcaster(
         val target = chooseTargetGem(recipient.location) ?: return
         val message = buildMessage(target) ?: return
 
-        recipientCooldowns[recipient.uniqueId] = System.currentTimeMillis()
+        recipientCooldowns.mark(recipient.uniqueId)
         recipient.sendMessage(ColorUtils.translateColorCodes(message) ?: "")
     }
 
     private fun chooseRecipient(): Player? {
-        val now = System.currentTimeMillis()
         val rulers = gemManager.currentRulers
         val eligible = Bukkit.getOnlinePlayers().filter { player ->
             val redeemedCount = rulers[player.uniqueId]?.size ?: 0
@@ -165,8 +166,7 @@ class GemIntelBroadcaster(
             if (maxRedeemedGems >= 0 && redeemedCount > maxRedeemedGems) {
                 return@filter false
             }
-            val last = recipientCooldowns[player.uniqueId]
-            if (last != null && now - last < perPlayerCooldownSeconds * 1000L) {
+            if (!recipientCooldowns.isReady(player.uniqueId)) {
                 return@filter false
             }
             true
