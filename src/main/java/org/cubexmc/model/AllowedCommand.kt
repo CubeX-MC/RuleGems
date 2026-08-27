@@ -6,11 +6,13 @@ import kotlin.math.max
 /**
  * AllowedCommand 描述一条玩家可用的指令以及可用次数。
  */
-class AllowedCommand(
+class AllowedCommand @JvmOverloads constructor(
     val label: String,
     uses: Int,
     executeCommands: List<String>?,
     cooldown: Int,
+    val argumentConstraints: CommandArgumentConstraints = CommandArgumentConstraints(),
+    val usage: String = "/$label",
 ) {
     val uses: Int = max(-1, uses)
     private val executeCommands: List<String> =

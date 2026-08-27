@@ -99,6 +99,56 @@ Each gem type can grant permissions, Vault groups and limited-use commands. Ever
   the economy plugin's responsibility.
 - Power gate: `features/rule.yml` is disabled by default. When enabled, `rulegems.rule` allows all gem powers and `rulegems.rule.<gemKey>` allows one specific gem. This is useful during testing when only trusted players should be able to activate powers.
 
+### Limited-command argument constraints
+
+List entries in `command_allows` accept `args` and an optional `usage`, including gem, appointment,
+and `redeem_all` commands. For example, configure `/cxfine <player> <amount>` in the owner's power template:
+
+```yaml
+command_allows:
+  - command: /cxfine
+    usage: '/cxfine <player> <amount>'
+    args:
+      arg1: {type: string, required: true}
+      arg2: {type: number, min: 0.01, max: 10000}
+    execute:
+      - 'transfer:%arg1% cubex_bank %arg2%'
+    time_limit: 5
+    cooldown: 7200
+```
+
+For the appointment template, change `arg2.max` to `500` and `time_limit` to `3`.
+Both have a 120-minute cooldown. Constraints follow the resolved power source along with its counter
+and cooldown. `time_limit` is a use allowance, not a replenishing charge pool; this feature does not
+change the existing counter or cooldown lifecycle.
+
+| Setting | Behavior |
+|---|---|
+| `args.arg1`, `args.arg2`, … | Validate the corresponding input position; unconfigured and extra arguments remain unrestricted |
+| `type: string` | Default type; checks presence only, not whether a player exists |
+| `type: number` | Plain decimal such as `25` or `0.01`; rejects NaN, Infinity, exponent notation, hexadecimal and suffixes; maximum 128 characters |
+| `type: integer` | Integer text such as `25`; rejects `25.0` |
+| `required: true` | Required by default; `false` skips missing inputs but still validates supplied values |
+| `min` / `max` | Optional inclusive bounds for numeric types; excess values are rejected, never clamped |
+| `usage` | Usage shown on input errors, rendered as plain text; defaults to the command name |
+
+Validation runs before placeholder substitution, the entire command chain, counter consumption, and
+cooldown updates. Invalid input produces a reason and usage without executing any action. It applies
+to `console:`, `player:`, `player-op:`, and `transfer:` commands. Malformed constraints (unknown types,
+misspelled `max`, reversed bounds, etc.) log a warning and block execution rather than silently dropping
+the restriction. Configurations without `args` retain their behavior. New language keys are merged
+without overwriting existing translations.
+
+**Keep money amounts required.** Constraints validate player input, not configured defaults in
+`%argN|default%`, fixed amounts in templates, or the total of several transfers in a chain. This is not
+a global economy-account limit. The example still requires Vault, an economy plugin, and explicit
+`economy.transfer_directives_enabled` opt-in. Transfer compensation risks remain; this is not an atomic
+transaction. Put transfers before success broadcasts.
+
+After upgrading, edit powers and run `/rg reload`; existing counters are not automatically refilled.
+**Disable dynamic-amount commands relying on these constraints before rolling back to an older jar**
+that ignores `args`, or their limits will no longer be enforced.
+
 ### Gem Presentation Modes
 
 `gem_presentation.mode` in `config.yml` selects the presentation backend:

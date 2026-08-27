@@ -628,7 +628,9 @@ class GemDefinitionParser(
                     }
                     val commandLabel = command.split("\\s+".toRegex())[0].lowercase(Locale.getDefault())
                     val executeCommands = toStringList(executeObj)
-                    allowed.add(AllowedCommand(commandLabel, useLimit, executeCommands, cooldown))
+                    val constraints = CommandArgumentParser.parse(entry, commandLabel, logger)
+                    val usage = (entry["usage"] as? String)?.takeIf { it.isNotBlank() } ?: "/$commandLabel"
+                    allowed.add(AllowedCommand(commandLabel, useLimit, executeCommands, cooldown, constraints, usage))
                 }
             }
         }

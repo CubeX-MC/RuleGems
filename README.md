@@ -139,6 +139,51 @@ RuleGems 用"宝石收集"承载权限流转：权限不是管理员在后台点
   - `grant_policy.place_redeem_enabled: true` 启用祭坛放置兑换（配合 `/rulegems setaltar`）
   - `grant_policy.hold_to_redeem_enabled: true` 启用长按右键兑换（`hold_to_redeem` 配置）
 
+### 限次命令参数约束
+
+`command_allows` 的列表项支持 `args` 和可选的 `usage`，适用于宝石、委任及 `redeem_all` 的命令。
+例如在主人的权力模板中配置 `/cxfine <玩家> <金额>`：
+
+```yaml
+command_allows:
+  - command: /cxfine
+    usage: '/cxfine <玩家> <金额>'
+    args:
+      arg1: {type: string, required: true}
+      arg2: {type: number, min: 0.01, max: 10000}
+    execute:
+      - 'transfer:%arg1% cubex_bank %arg2%'
+    time_limit: 5
+    cooldown: 7200
+```
+
+委任模板将 `arg2.max` 改为 `500`、`time_limit` 改为 `3`；两者均为 120 分钟冷却。
+约束跟随实际使用的权力来源，与该来源的次数和冷却一起生效。
+`time_limit` 是使用额度，不会随冷却结束自动恢复；此功能不改变原有额度和冷却生命周期。
+
+| 配置 | 行为 |
+|---|---|
+| `args.arg1`、`args.arg2`… | 按位置校验对应输入；未配置的参数和额外参数不受限制 |
+| `type: string` | 默认类型，只检查必填，不检查玩家是否存在 |
+| `type: number` | 普通十进制数，如 `25`、`0.01`；拒绝 NaN、Infinity、指数、十六进制和单位后缀，最多 128 字符 |
+| `type: integer` | 整数字符串，如 `25`；不接受 `25.0` |
+| `required: true` | 默认必填；设为 `false` 时缺省跳过，提供值时仍校验 |
+| `min` / `max` | 可分别省略，包含边界，仅适用于数值类型；超限拒绝，不截断金额 |
+| `usage` | 参数错误时显示的用法，按普通文本渲染；省略时显示命令名 |
+
+校验在占位符替换、整条执行链、次数扣减和冷却设置之前完成；失败只提示原因及用法，不执行任何动作。
+支持 `console:`、`player:`、`player-op:` 和 `transfer:`，不限于转账。规则格式错误（例如未知类型、
+`max` 拼错、最小值大于最大值）会记录日志并阻止该命令执行，不会忽略错误约束继续放行。
+不配置 `args` 时保持旧行为；语言文件会自动合并新增提示，不覆盖已有翻译。
+
+**金额应保持必填。** 校验对象是玩家输入，不校验 `%argN|默认值%` 中的配置默认值，
+也不限制模板写死的金额或执行链累计转账总额。此功能不是经济账户的全局限额。
+上例的 `transfer:` 仍需 Vault、经济插件及显式启用 `economy.transfer_directives_enabled`；
+它仍是有补偿回滚风险的转账，不是原子事务。转账应放在成功广播之前。
+
+升级后可编辑 powers 配置并 `/rg reload` 生效，已有次数不会因此自动补满。
+**回退不支持 `args` 的旧 jar 前，先停用依赖这些约束的动态金额命令**，否则旧版本会忽略金额限制。
+
 ### 宝石表现模式
 
 `config.yml` 的 `gem_presentation.mode` 支持两种后端：

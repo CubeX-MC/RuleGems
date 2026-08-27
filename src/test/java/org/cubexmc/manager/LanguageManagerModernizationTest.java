@@ -27,6 +27,8 @@ class LanguageManagerModernizationTest {
                 reload_success: "<green><prefix> Reloaded <name>"
               hold_redeem:
                 progress_bar: "<gold>* <bar> <yellow><percent>%"
+              allowance:
+                args_required: "<red>Missing <argument>. Usage: <usage>"
             title:
               gems_scattered:
                 - "<red>Scattered <count>"
@@ -80,6 +82,12 @@ class LanguageManagerModernizationTest {
                 languageManager.renderTitleLine("<red>Scattered <count>", Map.of("count", "3")));
         assertEquals("§7Done <id>",
                 languageManager.renderTitleLine("<gray>Done \\<id>", Map.of()));
+    }
+
+    @Test
+    void argumentUsageIsRenderedAsLiteralTextIncludingAngleBrackets() {
+        assertEquals("§cMissing arg2. Usage: /cxfine <player> <amount>", languageManager.formatMessage(
+                "messages.allowance.args_required", Map.of("argument", "arg2", "usage", "/cxfine <player> <amount>")));
     }
 
     private static ByteArrayInputStream resource(String value) {

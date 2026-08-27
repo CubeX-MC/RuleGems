@@ -8,6 +8,26 @@
 #   1. 直接引用: power: "template_name"
 #   2. 组合引用: power: ["template1", "template2"]
 #   3. 继承扩展: power: { base: "template_name", permissions: [...] }
+#
+# 限次命令可配置输入约束（不配置 args 时保持原行为）：
+# command_allows:
+#   - command: /cxfine
+#     usage: '/cxfine <玩家> <金额>'
+#     args:
+#       arg1: {type: string, required: true}
+#       arg2: {type: number, min: 0.01, max: 10000}
+#     execute:
+#       - 'transfer:%arg1% cubex_bank %arg2%'
+#     time_limit: 5
+#     cooldown: 7200
+# 委任版本可将 max 改为 500、time_limit 改为 3；规则随实际权力来源解析。
+# type 支持 string（默认）、number、integer；required 默认为 true。
+# min/max 包含边界，只能用于数值类型；只校验配置的参数，不禁止额外参数。
+# number 只接受普通十进制写法，不接受 NaN、Infinity、指数、十六进制或单位后缀。
+# 校验发生在任何命令、次数扣减、冷却之前；错误规则会阻止执行并记录日志。
+# required: false 允许缺省；只校验玩家输入，不校验 %argN|默认值% 的默认值。
+# 金额建议保持必填。transfer: 仍需显式启用 economy.transfer_directives_enabled，
+# 并接受 Vault 补偿式转账的风险（不是跨账户原子事务）。
 # ==========================================
 
 # ==========================================

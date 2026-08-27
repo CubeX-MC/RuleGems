@@ -188,7 +188,12 @@ class CustomCommandExecutor(
      * 执行扩展命令（多命令链或带执行者前缀）
      */
     fun executeExtendedCommand(player: Player?, allowedCmd: AllowedCommand?, args: Array<String>): Boolean {
-        if (player == null || allowedCmd == null) {
+        if (player == null || allowedCmd == null) return false
+
+        // Also guard direct callers before the first command in the chain can run.
+        val error = allowedCmd.argumentConstraints.validate(args)
+        if (error != null) {
+            languageManager?.sendMessage(player, error.messageKey, error.placeholders + ("usage" to allowedCmd.usage))
             return false
         }
 

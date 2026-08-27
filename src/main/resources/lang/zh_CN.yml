@@ -170,6 +170,12 @@ messages:
       navigation_hover: "<yellow>点击查看第 <page> 页"
       console_navigation: "<gray>上一页 <yellow><prev> <dark_gray>· <gray>下一页 <yellow><next> <dark_gray>· <gray>共 <yellow><pages> <gray>页"
   allowance:
+    args_required: "<prefix> <#E63946>缺少必填参数 <#FFFFFF><argument><#E63946>。<#FFE066>用法：<usage>"
+    args_number: "<prefix> <#E63946>参数 <#FFFFFF><argument><#E63946> 必须是普通十进制数字（不支持指数写法）。<#FFE066>用法：<usage>"
+    args_integer: "<prefix> <#E63946>参数 <#FFFFFF><argument><#E63946> 必须是整数。<#FFE066>用法：<usage>"
+    args_min: "<prefix> <#E63946>参数 <#FFFFFF><argument><#E63946> 不能小于 <#FFFFFF><min><#E63946>。<#FFE066>用法：<usage>"
+    args_max: "<prefix> <#E63946>参数 <#FFFFFF><argument><#E63946> 不能大于 <#FFFFFF><max><#E63946>。<#FFE066>用法：<usage>"
+    args_config_error: "<prefix> <#E63946>此命令的参数约束配置有误，已阻止执行，请联系管理员检查控制台。"
     used: "<prefix> <green>已使用 <yellow>/<command><green>，剩余 <yellow><remain><green> 次。"
     none_left: "<prefix> <red>该指令已无剩余次数。"
     execute_failed: "<prefix> <red>指令执行失败，已为你退回次数。"

@@ -1,7 +1,10 @@
 package org.cubexmc.model;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -12,6 +15,60 @@ import static org.junit.jupiter.api.Assertions.*;
  * AllowedCommand 单元测试
  */
 class AllowedCommandTest {
+
+    @Test
+    void legacyCommandsDoNotRestrictArguments() {
+        AllowedCommand command = new AllowedCommand("fly", 3, null, 0);
+        assertNull(command.getArgumentConstraints().validate(new String[]{"anything", "NaN"}));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0.01", "25", "500", "10000", "10000.000"})
+    void numericConstraintsIncludeBothBoundaries(String amount) {
+        assertNull(amountConstraints(CommandArgumentConstraints.Type.NUMBER, true)
+                .validate(new String[]{"Alex", amount}));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"NaN", "Infinity", "-Infinity", "1e3", "0x1p4", "1d", "1,000", "abc", "%arg3%"})
+    void numericConstraintsRejectNonDecimalInputs(String amount) {
+        assertEquals("allowance.args_number", amountConstraints(CommandArgumentConstraints.Type.NUMBER, true)
+                .validate(new String[]{"Alex", amount}).getMessageKey());
+    }
+
+    @Test
+    void numericConstraintsUseExactComparisonAndBoundInputLength() {
+        CommandArgumentConstraints constraints = amountConstraints(CommandArgumentConstraints.Type.NUMBER, true);
+        assertEquals("allowance.args_max", constraints.validate(new String[]{"Alex", "10000.0000000000000001"}).getMessageKey());
+        assertEquals("allowance.args_min", constraints.validate(new String[]{"Alex", "0.009999999999999999"}).getMessageKey());
+        assertEquals("allowance.args_min", constraints.validate(new String[]{"Alex", "-1"}).getMessageKey());
+        assertEquals("allowance.args_min", constraints.validate(new String[]{"Alex", "0"}).getMessageKey());
+        assertEquals("allowance.args_number", constraints.validate(new String[]{"Alex", "9".repeat(129)}).getMessageKey());
+    }
+
+    @Test
+    void requiredAndOptionalArgumentsHaveExplicitMissingValueSemantics() {
+        assertEquals("allowance.args_required", amountConstraints(CommandArgumentConstraints.Type.NUMBER, true)
+                .validate(new String[]{"Alex"}).getMessageKey());
+        assertEquals("allowance.args_required", amountConstraints(CommandArgumentConstraints.Type.NUMBER, true)
+                .validate(new String[]{"Alex", " "}).getMessageKey());
+        CommandArgumentConstraints optional = amountConstraints(CommandArgumentConstraints.Type.NUMBER, false);
+        assertNull(optional.validate(new String[]{"Alex"}));
+        assertEquals("allowance.args_number", optional.validate(new String[]{"Alex", "bad"}).getMessageKey());
+    }
+
+    @Test
+    void integerConstraintsRejectFractionalSyntax() {
+        CommandArgumentConstraints constraints = amountConstraints(CommandArgumentConstraints.Type.INTEGER, true);
+        assertNull(constraints.validate(new String[]{"Alex", "500"}));
+        assertEquals("allowance.args_integer", constraints.validate(new String[]{"Alex", "500.0"}).getMessageKey());
+        assertEquals("allowance.args_integer", constraints.validate(new String[]{"Alex", "0.5"}).getMessageKey());
+    }
+
+    private CommandArgumentConstraints amountConstraints(CommandArgumentConstraints.Type type, boolean required) {
+        return new CommandArgumentConstraints(List.of(new CommandArgumentConstraints.Rule(
+                2, type, required, new BigDecimal("0.01"), new BigDecimal("10000"))), null);
+    }
 
     // ==================== 构造函数边界值 ====================
 

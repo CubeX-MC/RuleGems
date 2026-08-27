@@ -195,6 +195,15 @@ class CommandAllowanceListener(
         }
 
         val allowedCommand = resolved.command
+        val argumentFailure = allowedCommand.argumentConstraints.validate(args)
+        if (argumentFailure != null) {
+            languageManager.sendMessage(
+                player,
+                argumentFailure.messageKey,
+                argumentFailure.placeholders + ("usage" to allowedCommand.usage),
+            )
+            return true
+        }
         val cooldownKey = resolved.cooldownKey
         if (allowedCommand != null && allowedCommand.cooldown > 0) {
             if (!customCommandExecutor.checkCooldown(uid, cooldownKey)) {

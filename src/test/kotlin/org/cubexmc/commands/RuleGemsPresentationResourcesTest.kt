@@ -36,6 +36,12 @@ class RuleGemsPresentationResourcesTest {
 
     private companion object {
         val REQUIRED_PRESENTATION_KEYS = listOf(
+            "messages.allowance.args_required",
+            "messages.allowance.args_number",
+            "messages.allowance.args_integer",
+            "messages.allowance.args_min",
+            "messages.allowance.args_max",
+            "messages.allowance.args_config_error",
             "messages.command.help.title",
             "messages.command.help.section_player",
             "messages.command.help.section_admin",

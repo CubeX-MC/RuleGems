@@ -170,6 +170,12 @@ messages:
       navigation_hover: "<yellow>Click to view page <page>"
       console_navigation: "<gray>Prev <yellow><prev> <dark_gray>· <gray>Next <yellow><next> <dark_gray>· <yellow><pages> <gray>pages"
   allowance:
+    args_required: "<prefix> <#E63946>Missing required argument <#FFFFFF><argument><#E63946>. <#FFE066>Usage: <usage>"
+    args_number: "<prefix> <#E63946>Argument <#FFFFFF><argument><#E63946> must be a plain decimal number (no exponent notation). <#FFE066>Usage: <usage>"
+    args_integer: "<prefix> <#E63946>Argument <#FFFFFF><argument><#E63946> must be an integer. <#FFE066>Usage: <usage>"
+    args_min: "<prefix> <#E63946>Argument <#FFFFFF><argument><#E63946> must be at least <#FFFFFF><min><#E63946>. <#FFE066>Usage: <usage>"
+    args_max: "<prefix> <#E63946>Argument <#FFFFFF><argument><#E63946> must not exceed <#FFFFFF><max><#E63946>. <#FFE066>Usage: <usage>"
+    args_config_error: "<prefix> <#E63946>This command has invalid argument constraints and is blocked. Ask an administrator to check the console."
     used: "<prefix> <green>Used <yellow>/<command><green>, remaining <yellow><remain><green> times."
     none_left: "<prefix> <red>This command has no remaining attempts."
     execute_failed: "<prefix> <red>Command execution failed, attempts have been refunded."
