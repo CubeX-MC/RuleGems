@@ -5,10 +5,11 @@ import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.cubexmc.RuleGems
 import org.cubexmc.commands.SubCommand
+import org.cubexmc.features.appoint.AppointFeature
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
 import org.cubexmc.model.AppointDefinition
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import java.util.UUID
 
 /**
@@ -54,19 +55,7 @@ class DismissSubCommand(
         }
         val permSetKey = resolvedKey
 
-        val target = Bukkit.getPlayer(targetName)
-        var targetUuid: UUID? = null
-        if (target != null) {
-            targetUuid = target.uniqueId
-        } else {
-            for (appointment in appointFeature.getAppointees(permSetKey)) {
-                val cachedName = gemManager.getCachedPlayerName(appointment.appointeeUuid)
-                if (cachedName.equals(targetName, ignoreCase = true)) {
-                    targetUuid = appointment.appointeeUuid
-                    break
-                }
-            }
-        }
+        val targetUuid = resolveTarget(appointFeature, permSetKey, targetName)
 
         if (targetUuid == null) {
             val placeholders = HashMap<String, String>()
@@ -80,11 +69,20 @@ class DismissSubCommand(
         if (success) {
             val placeholders = HashMap<String, String>()
             placeholders["player"] = targetName
-            placeholders["perm_set"] = ColorUtils.translateColorCodes(definition.displayName ?: "") ?: ""
+            placeholders["perm_set"] = CubexText.translateColorCodes(definition.displayName ?: "") ?: ""
             languageManager.sendMessage(sender, "command.dismiss.success", placeholders)
         } else {
-            languageManager.sendMessage(sender, "command.dismiss.failed")
+            val key = if (appointFeature.storageFailure) {
+                "command.appointment_storage_failed"
+            } else {
+                "command.dismiss.failed"
+            }
+            languageManager.sendMessage(sender, key)
         }
         return true
     }
+    private fun resolveTarget(feature: AppointFeature, key: String, name: String): UUID? =
+        Bukkit.getPlayer(name)?.uniqueId ?: feature.getAppointees(key).firstOrNull {
+            gemManager.getCachedPlayerName(it.appointeeUuid).equals(name, ignoreCase = true)
+        }?.appointeeUuid
 }

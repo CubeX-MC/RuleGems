@@ -8,6 +8,7 @@ class RevokeResult private constructor(
 ) {
     enum class Status {
         SUCCESS,
+        STORAGE_FAILED,
         CONFIRMATION_REQUIRED,
         LIST,
         DISABLED,

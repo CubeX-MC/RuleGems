@@ -10,7 +10,7 @@ import org.bukkit.entity.Player
 import org.cubexmc.manager.GemStateManager
 import org.cubexmc.manager.LanguageManager
 import org.cubexmc.model.GemDefinition
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import java.util.Locale
 import java.util.UUID
 
@@ -78,12 +78,12 @@ class GemStatusView(
     }
 
     private fun sendClickableGemStatus(player: Player, gemId: UUID, plain: String, definition: GemDefinition?) {
-        val component = TextComponent(*TextComponent.fromLegacyText(ColorUtils.translateColorCodes(plain)))
+        val component = TextComponent(*TextComponent.fromLegacyText(CubexText.translateColorCodes(plain)))
 
         val loreBuilder = StringBuilder()
         if (definition != null && !definition.lore.isNullOrEmpty()) {
             for (line in definition.lore) {
-                loreBuilder.append(ColorUtils.translateColorCodes(line)).append("\n")
+                loreBuilder.append(CubexText.translateColorCodes(line)).append("\n")
             }
         } else {
             val noMoreInfo = languageManager.getMessage("gui.no_more_info")

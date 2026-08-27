@@ -1,6 +1,9 @@
 package org.cubexmc.features
 
 import org.bukkit.entity.Player
+import org.cubexmc.core.Reloadable
+import org.cubexmc.core.Terminable
+import org.cubexmc.core.TerminableRegistry
 import org.cubexmc.RuleGems
 import org.cubexmc.features.appoint.AppointFeature
 import org.cubexmc.features.revoke.RevokeFeature
@@ -14,8 +17,10 @@ import org.cubexmc.manager.GemManager
 class FeatureManager(
     private val plugin: RuleGems,
     private val gemManager: GemManager,
-) {
-    private val features: MutableMap<String, Feature> = HashMap()
+) : Reloadable, Terminable {
+    private val features: MutableMap<String, Feature> = LinkedHashMap()
+
+    private var registered = false
 
     // 特定功能的快捷引用
     var appointFeature: AppointFeature? = null
@@ -31,6 +36,7 @@ class FeatureManager(
      * 注册所有功能
      */
     fun registerFeatures() {
+        prepareRuleGate()
         // 注册指南针导航功能
         registerFeature(GemNavigator(plugin, gemManager))
 
@@ -39,16 +45,28 @@ class FeatureManager(
         registerFeature(intelBroadcaster)
 
         // 注册委任功能
-        appointFeature = AppointFeature(plugin)
         registerFeature(appointFeature)
-
-        // 注册 Rule 权力门控功能
-        ruleGateFeature = RuleGateFeature(plugin, gemManager)
-        registerFeature(ruleGateFeature)
 
         // 注册撤销宝石制衡功能
         revokeFeature = RevokeFeature(plugin, gemManager)
         registerFeature(revokeFeature)
+        registered = true
+    }
+
+    /** Gate must be loaded before restoring any gem or appointment grants. */
+    fun prepareRuleGate() {
+        val current = ruleGateFeature
+        if (current != null) {
+            current.reload()
+        } else {
+            ruleGateFeature = RuleGateFeature(plugin, gemManager)
+            registerFeature(ruleGateFeature)
+        }
+        val appointments = appointFeature ?: AppointFeature(plugin).also {
+            appointFeature = it
+            features[it.permissionNode] = it
+        }
+        appointments.prepare()
     }
 
     /**
@@ -91,6 +109,12 @@ class FeatureManager(
     /**
      * 重载所有功能配置
      */
+    override fun reload() {
+        if (registered) reloadAll() else registerFeatures()
+    }
+
+    override fun close() = shutdownAll()
+
     fun reloadAll() {
         for (feature in features.values) {
             feature.reload()
@@ -101,8 +125,10 @@ class FeatureManager(
      * 关闭所有功能
      */
     fun shutdownAll() {
-        for (feature in features.values) {
-            feature.shutdown()
+        val cleanup = TerminableRegistry()
+        features.values.forEach { cleanup.bind(it) }
+        cleanup.closeAll { failure ->
+            plugin.logger.log(java.util.logging.Level.SEVERE, "Failed to close feature.", failure)
         }
         features.clear()
     }

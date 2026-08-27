@@ -77,8 +77,11 @@ class AppointFeatureTest {
                 .thenReturn(true);
 
         mockedBukkit = org.mockito.Mockito.mockStatic(Bukkit.class);
+        when(plugin.getDataFolder()).thenReturn(tempDir.toFile());
+        java.nio.file.Files.createDirectories(tempDir.resolve("features"));
+        java.nio.file.Files.writeString(tempDir.resolve("features/appoint.yml"), "enabled: true\n");
         feature = new AppointFeature(plugin);
-        configureBackingStore(feature);
+        feature.initialize();
     }
 
     @AfterEach
@@ -310,6 +313,58 @@ class AppointFeatureTest {
         return createDefinition(key, permissions, groups, effects, childAppoints, List.of());
     }
 
+    @Test
+    void failedDismissKeepsAppointmentAndDoesNotReturnSuccessAfterReload() throws Exception {
+        Player ruler = mockPlayer(APPOINTER_ID, "Ruler");
+        Player knight = mockPlayer(APPOINTEE_ID, "Knight");
+        when(ruler.hasPermission("rulegems.appoint.guard")).thenReturn(true);
+        appointDefinitions(feature).put("guard", createDefinition("guard", List.of(), List.of(), List.of(), Map.of()));
+        assertTrue(feature.appoint(ruler, knight, "guard"));
+        Path file = tempDir.resolve("data/appoints.yml");
+        String saved = java.nio.file.Files.readString(file);
+        java.nio.file.Files.delete(file);
+        java.nio.file.Files.createDirectory(file);
+        reset(psm, allowanceManager);
+        assertFalse(feature.dismiss(ruler, APPOINTEE_ID, "guard"));
+        assertTrue(feature.getStorageFailure());
+        assertTrue(feature.isAppointed(APPOINTEE_ID, "guard"));
+        verify(allowanceManager, never()).removeAppointmentAllowedCommands(any(), any());
+        java.nio.file.Files.delete(file);
+        java.nio.file.Files.writeString(file, saved);
+        feature.reload();
+        assertTrue(feature.isAppointed(APPOINTEE_ID, "guard"));
+        feature.shutdown();
+        org.junit.jupiter.api.Assertions.assertEquals(saved, java.nio.file.Files.readString(file));
+    }
+
+    @Test
+    void failedAppointmentSaveDoesNotPublishGrant() throws Exception {
+        Player ruler = mockPlayer(APPOINTER_ID, "Ruler");
+        Player knight = mockPlayer(APPOINTEE_ID, "Knight");
+        when(ruler.hasPermission("rulegems.appoint.guard")).thenReturn(true);
+        appointDefinitions(feature).put("guard", createDefinition("guard", List.of(), List.of(), List.of(), Map.of()));
+        java.nio.file.Files.createDirectories(tempDir.resolve("data/appoints.yml"));
+        reset(psm, allowanceManager);
+        assertFalse(feature.appoint(ruler, knight, "guard"));
+        assertFalse(feature.isAppointed(APPOINTEE_ID, "guard"));
+        verify(psm, never()).applyStructure(any(), any(), anyString(), anyString(), anyBoolean());
+    }
+
+    @Test
+    void invalidAppointmentDataReloadKeepsStateAndDoesNotOverwriteOnClose() throws Exception {
+        Player ruler = mockPlayer(APPOINTER_ID, "Ruler");
+        Player knight = mockPlayer(APPOINTEE_ID, "Knight");
+        when(ruler.hasPermission("rulegems.appoint.guard")).thenReturn(true);
+        appointDefinitions(feature).put("guard", createDefinition("guard", List.of(), List.of(), List.of(), Map.of()));
+        assertTrue(feature.appoint(ruler, knight, "guard"));
+        Path file = tempDir.resolve("data/appoints.yml");
+        java.nio.file.Files.writeString(file, "appointments: [broken\n");
+        org.junit.jupiter.api.Assertions.assertThrows(Exception.class, feature::reload);
+        assertTrue(feature.isAppointed(APPOINTEE_ID, "guard"));
+        feature.shutdown();
+        org.junit.jupiter.api.Assertions.assertEquals("appointments: [broken\n", java.nio.file.Files.readString(file));
+    }
+
     private AppointDefinition createDefinition(String key, List<String> permissions, List<String> groups,
             List<EffectConfig> effects, Map<String, AppointDefinition> childAppoints,
             List<AllowedCommand> allowedCommands) {
@@ -335,15 +390,6 @@ class AppointFeatureTest {
         Field field = AppointFeature.class.getDeclaredField("appointDefinitions");
         field.setAccessible(true);
         return (Map<String, AppointDefinition>) field.get(appointFeature);
-    }
-
-    private void configureBackingStore(AppointFeature appointFeature) throws Exception {
-        File dataFile = tempDir.resolve("appoints.yml").toFile();
-        if (!dataFile.exists()) {
-            dataFile.createNewFile();
-        }
-        setField(appointFeature, "data", new YamlConfiguration());
-        setField(appointFeature, "dataFile", dataFile);
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {

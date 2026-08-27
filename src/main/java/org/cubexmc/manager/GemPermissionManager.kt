@@ -588,6 +588,25 @@ class GemPermissionManager(
         }
     }
 
+    /** Removes all redeemed instances for one power through the permission/allowance boundary. */
+    fun revokeRedeemedPower(target: UUID, key: String, definition: GemDefinition?): Int {
+        val matching = gemIdToRedeemer.filter { (id, owner) ->
+            owner == target && key.equals(stateManager.getGemKey(id), ignoreCase = true)
+        }.keys.toList()
+        for (id in matching) {
+            decrementOwnerKeyCount(target, key, definition)
+            gemIdToRedeemer.remove(id, target)
+            allowanceManager?.removeRedeemInstanceAllowance(target, id)
+        }
+        if (ownerKeyCount[target]?.get(key) ?: 0 <= 0) {
+            playerUuidToRedeemedKeys[target]?.let { redeemed ->
+                redeemed.remove(key)
+                if (redeemed.isEmpty()) playerUuidToRedeemedKeys.remove(target)
+            }
+        }
+        return matching.size
+    }
+
     fun decrementOwnerKeyCount(owner: UUID?, key: String?, definition: GemDefinition?) {
         if (owner == null || key == null) return
         val map = ownerKeyCount.computeIfAbsent(owner) { ConcurrentHashMap() }

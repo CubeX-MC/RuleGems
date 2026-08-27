@@ -22,6 +22,53 @@ import java.util.logging.Logger
  * 因此 reload 后持有引用的消费者自动看到新值。
  */
 class GameplayConfig {
+    internal fun copyFrom(other: GameplayConfig) {
+        isInventoryGrantsEnabled = other.isInventoryGrantsEnabled
+        isRedeemEnabled = other.isRedeemEnabled
+        isFullSetGrantsAllEnabled = other.isFullSetGrantsAllEnabled
+        isBroadcastRedeemTitle = other.isBroadcastRedeemTitle
+        redeemAllTitle = other.redeemAllTitle
+        redeemAllBroadcastOverride = other.redeemAllBroadcastOverride
+        redeemAllSound = other.redeemAllSound
+        redeemAllPowerStructure = other.redeemAllPowerStructure
+        gemCollectThresholdGroups = other.gemCollectThresholdGroups
+        gemScatterExecute = other.gemScatterExecute
+        randomPlaceCorner1 = other.randomPlaceCorner1
+        randomPlaceCorner2 = other.randomPlaceCorner2
+        gemPresentationMode = other.gemPresentationMode
+        gemDisplayRevealRange = other.gemDisplayRevealRange
+        gemDisplayHideRange = other.gemDisplayHideRange
+        isGemEscapeEnabled = other.isGemEscapeEnabled
+        gemEscapeMinIntervalTicks = other.gemEscapeMinIntervalTicks
+        gemEscapeMaxIntervalTicks = other.gemEscapeMaxIntervalTicks
+        gemEscapeMinimumUnmovedTicks = other.gemEscapeMinimumUnmovedTicks
+        gemEscapeClusterRadius = other.gemEscapeClusterRadius
+        gemEscapeClusterWeight = other.gemEscapeClusterWeight
+        gemEscapeLocalMinDistance = other.gemEscapeLocalMinDistance
+        gemEscapeLocalMaxDistance = other.gemEscapeLocalMaxDistance
+        gemEscapeDistanceGrowth = other.gemEscapeDistanceGrowth
+        gemEscapeAttemptsPerRound = other.gemEscapeAttemptsPerRound
+        gemEscapeMaxFailedRounds = other.gemEscapeMaxFailedRounds
+        gemEscapeRetryDelayTicks = other.gemEscapeRetryDelayTicks
+        gemEscapeMaxLocalEscapesWithoutPickup = other.gemEscapeMaxLocalEscapesWithoutPickup
+        isGemEscapeBroadcast = other.isGemEscapeBroadcast
+        gemEscapeSound = other.gemEscapeSound
+        gemEscapeParticle = other.gemEscapeParticle
+        isPlaceRedeemEnabled = other.isPlaceRedeemEnabled
+        placeRedeemRadius = other.placeRedeemRadius
+        placeRedeemSound = other.placeRedeemSound
+        placeRedeemParticle = other.placeRedeemParticle
+        isPlaceRedeemBeaconBeam = other.isPlaceRedeemBeaconBeam
+        placeRedeemBeaconDuration = other.placeRedeemBeaconDuration
+        isHoldToRedeemEnabled = other.isHoldToRedeemEnabled
+        isSneakToRedeem = other.isSneakToRedeem
+        holdToRedeemDurationTicks = other.holdToRedeemDurationTicks
+        effectDurationTicks = other.effectDurationTicks
+        effectRefreshIntervalTicks = other.effectRefreshIntervalTicks
+        isOpEscalationAllowed = other.isOpEscalationAllowed
+        isTransferDirectivesEnabled = other.isTransferDirectivesEnabled
+    }
+
     // ==================== 授权策略 ====================
     var isInventoryGrantsEnabled = false
         private set

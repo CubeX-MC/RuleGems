@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Persist transfer retry guards and add permission-gated reconciliation commands;
+  retain consumed uses after committed/uncertain outcomes, including later command failure.
+- Save appointment changes and revoke cooldowns before publishing; strictly load
+  rule/revoke state, preserving the last valid state on read failure.
+- Test the reload persistence barrier and partial initialization cleanup; initialize
+  permission providers and Rule gates before restoring grants.
+- Stream history pagination with overflow-safe offsets; create unique backups and
+  report partial copy failures. Migrate only obsolete bundled refund messages.
+
+- Complete shared lifecycle, staged reload, language/title fallback, text and GUI
+  integration while preserving gem identities, counters and persisted data formats.
+- Move transfer compensation into `cubex-economy`; support explicit `name:` /
+  `uuid:` / `bank:` routing without offline-player directory scans. Keep transfers
+  opt-in and report ambiguous provider results for manual reconciliation.
+- Reject malformed config/language/definition/appointment YAML before publishing
+  new runtime config. Refuse default merging when its required backup fails.
+- Bind cleanup as resources are created; never save an uninitialized gem/appointment
+  store after a failed startup. Close managed menus on reload/disable.
+- Isolate embedded shared modules as well as Kotlin, enforce the layout in jarGate,
+  and retain the Java 17 shared-module check inside Java 21 plugins.
+- Explicit player/amount suggestions remain available; automatic inheritance of
+  privileged native-command completion is intentionally not enabled.
+
 ## 1.1.0 (2026-07-27)
 
 - **Chat presentation refresh**: give `/rg help` clearer player/admin/community

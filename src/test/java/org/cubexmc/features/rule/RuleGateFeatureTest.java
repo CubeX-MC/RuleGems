@@ -53,6 +53,25 @@ class RuleGateFeatureTest {
         assertTrue(feature.canUsePower(player, "justice"));
     }
 
+    @Test
+    void malformedReloadKeepsGateAndOriginalFile() throws Exception {
+        RuleGateFeature feature = createFeature("enabled: true\npermission_gate:\n  enabled: true\n");
+        Player player = mock(Player.class);
+        Path file = tempDir.resolve("features/rule.yml");
+        java.nio.file.Files.writeString(file, "enabled: [broken\n");
+        org.junit.jupiter.api.Assertions.assertThrows(Exception.class, feature::reload);
+        assertFalse(feature.canUsePower(player, "justice"));
+        org.junit.jupiter.api.Assertions.assertEquals("enabled: [broken\n", java.nio.file.Files.readString(file));
+    }
+
+    @Test
+    void wrongEnabledTypeDoesNotSilentlyDisableGate() throws Exception {
+        RuleGateFeature feature = createFeature("enabled: true\n");
+        java.nio.file.Files.writeString(tempDir.resolve("features/rule.yml"), "enabled: typo\n");
+        org.junit.jupiter.api.Assertions.assertThrows(Exception.class, feature::reload);
+        assertFalse(feature.canUsePower(mock(Player.class), "justice"));
+    }
+
     private RuleGateFeature createFeature(String yaml) throws Exception {
         File dataFolder = tempDir.toFile();
         File featuresFolder = new File(dataFolder, "features");

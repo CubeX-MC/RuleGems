@@ -6,6 +6,7 @@ import org.bukkit.World
 import org.bukkit.configuration.ConfigurationSection
 import org.bukkit.configuration.file.FileConfiguration
 import org.cubexmc.RuleGems
+import org.cubexmc.core.Reloadable
 import org.cubexmc.model.AllowedCommand
 import org.cubexmc.model.AppointDefinition
 import org.cubexmc.model.PowerStructure
@@ -37,13 +38,14 @@ import org.bukkit.configuration.file.YamlConfiguration
 class ConfigManager(
     private val plugin: RuleGems,
     private val languageManager: LanguageManager,
-) {
+) : Reloadable {
     var config: FileConfiguration? = null
         private set
     private var gemsData: FileConfiguration? = null
     var language: String? = null
         private set
     private var storageProvider: StorageProvider? = null
+    private var preparedGemData: StorageLoadResult? = null
 
     // 内部委托对象
     /** 宝石定义解析器 */
@@ -54,59 +56,46 @@ class ConfigManager(
 
     // ==================== 加载 / 重载 ====================
 
+    override fun reload() = loadConfigs()
+
     fun loadConfigs() {
         plugin.saveDefaultConfig()
         ConfigUpdater.merge(plugin)
-        plugin.reloadConfig()
-        config = plugin.config
-        initStorageProvider()
-
-        // 确保默认资源存在
+        val candidate = YamlConfiguration().apply { load(File(plugin.dataFolder, "config.yml")) }
         ensurePowersFolder()
         initGemsFolder()
+        validateYamlInputs(candidate)
+        val parser = GemDefinitionParser(plugin.logger, languageManager)
+        parser.loadPowerTemplates(plugin.dataFolder)
+        val range = requireNotNull(candidate.getConfigurationSection("random_place_range")) {
+            "Missing random_place_range"
+        }
+        val worldName = requireNotNull(range.getString("world")) { "Missing random_place_range.world" }
+        val world = requireNotNull(Bukkit.getWorld(worldName)) { "Unknown random placement world: $worldName" }
+        requireNotNull(getLocationFromConfig(range, "corner1", world)) { "Invalid random_place_range.corner1" }
+        requireNotNull(getLocationFromConfig(range, "corner2", world)) { "Invalid random_place_range.corner2" }
+        parser.loadGemDefinitions(candidate, plugin.dataFolder)
+
+        val provider = createStorageProvider(candidate)
+        val loaded = provider.readGemData()
+        check(loaded.isUsable) { "Gem storage is unavailable: " + loaded.error?.message }
+        val validation = GemDataValidator.validate(requireNotNull(loaded.data), parser.gemDefinitions)
+        check(validation.valid) { "Invalid gem data: " + validation.errors.joinToString("; ") }
+        // Validate the full snapshot before publishing any new config/parser/provider.
+        GemDataSnapshot.capture(requireNotNull(loaded.data)).materialize()
+        // loadFrom publishes global effect timing, so run it only after all input/storage validation.
+        val gameplay = GameplayConfig()
+        gameplay.loadFrom(candidate, parser, languageManager, plugin.logger) { section, path, loadedWorld ->
+            getLocationFromConfig(section, path, loadedWorld)
+        }
+        config = candidate
+        language = candidate.getString("language", "zh_CN")
+        storageProvider = provider
+        preparedGemData = loaded
+        gemParser.copyFrom(parser)
+        gameplayConfig.copyFrom(gameplay)
+        plugin.reloadConfig()
         backupLegacyConfigIfNeeded()
-
-        val loadedConfig = config ?: return
-        language = loadedConfig.getString("language", "zh_CN")
-
-        // 1) 加载权力结构模板
-        gemParser.loadPowerTemplates(plugin.dataFolder)
-
-        // 2) 校验全局随机放置范围（提前退出逻辑保留，与旧版行为一致）
-        val randomPlaceRange = loadedConfig.getConfigurationSection("random_place_range")
-        if (randomPlaceRange == null) {
-            languageManager.logMessage("config.missing_random_place")
-            return
-        }
-        val worldName = randomPlaceRange.getString("world")
-        if (worldName == null) {
-            languageManager.logMessage("config.missing_world_name")
-            return
-        }
-        val world = Bukkit.getWorld(worldName)
-        if (world == null) {
-            val placeholders = HashMap<String, String>()
-            placeholders["world"] = worldName
-            languageManager.logMessage("config.world_not_found", placeholders)
-            return
-        }
-        val corner1 = getLocationFromConfig(randomPlaceRange, "corner1", world)
-        val corner2 = getLocationFromConfig(randomPlaceRange, "corner2", world)
-        if (corner1 == null || corner2 == null) {
-            languageManager.logMessage("config.invalid_corners")
-            return
-        }
-
-        // 3) 加载宝石定义
-        gemParser.loadGemDefinitions(loadedConfig, plugin.dataFolder)
-
-        // 4) 加载游戏玩法配置（GameplayConfig 原地刷新）
-        gameplayConfig.loadFrom(
-            loadedConfig,
-            gemParser,
-            languageManager,
-            plugin.logger,
-        ) { section, path, loadedWorld -> getLocationFromConfig(section, path, loadedWorld) }
     }
 
     fun reloadConfigs() {
@@ -154,7 +143,8 @@ class ConfigManager(
     }
 
     fun readGemsData(): StorageLoadResult {
-        val result = getStorageProvider().readGemData()
+        val result = preparedGemData ?: getStorageProvider().readGemData()
+        preparedGemData = null
         if (result.isUsable) {
             gemsData = result.data
         }
@@ -225,6 +215,28 @@ class ConfigManager(
 
     // ==================== 内部辅助 ====================
 
+    private fun validateYamlInputs(candidate: FileConfiguration) {
+        for (directory in listOf("powers", "gems", "features")) {
+            File(plugin.dataFolder, directory).walkTopDown()
+                .onFail { _, failure -> throw failure }
+                .filter { it.isFile && it.name.endsWith(".yml", ignoreCase = true) }
+                .forEach { YamlConfiguration().load(it) }
+        }
+        val appointmentData = File(plugin.dataFolder, "data/appoints.yml")
+            .takeIf { it.exists() } ?: File(plugin.dataFolder, "features/appoint_data.yml")
+        if (appointmentData.exists()) YamlConfiguration().load(appointmentData)
+        for (fileName in listOf("revokes.yml", "transfer-operations.yml")) {
+            val file = File(plugin.dataFolder, "data/$fileName")
+            if (file.exists()) YamlConfiguration().load(file)
+        }
+        val selected = candidate.getString("language", "zh_CN").orEmpty()
+            .takeIf { it.matches(Regex("[A-Za-z0-9_-]+")) } ?: "zh_CN"
+        for (locale in setOf(selected, "en_US", "zh_CN")) {
+            val file = File(plugin.dataFolder, "lang/$locale.yml")
+            if (file.exists()) YamlConfiguration().load(file)
+        }
+    }
+
     private fun initGemsFolder() {
         val gemsFolder = File(plugin.dataFolder, "gems")
         if (!gemsFolder.exists()) {
@@ -240,18 +252,16 @@ class ConfigManager(
     }
 
     private fun initStorageProvider() {
-        var type = config?.getString("storage.type", "yaml") ?: "yaml"
-        if (type.isBlank()) {
-            type = "yaml"
-        }
-        if ("sqlite".equals(type, ignoreCase = true)) {
-            storageProvider = SqliteStorageProvider(plugin, config)
-            return
-        }
+        storageProvider = createStorageProvider(config)
+    }
+
+    private fun createStorageProvider(candidate: FileConfiguration?): StorageProvider {
+        val type = candidate?.getString("storage.type", "yaml").orEmpty().ifBlank { "yaml" }
+        if ("sqlite".equals(type, ignoreCase = true)) return SqliteStorageProvider(plugin, candidate)
         if (!"yaml".equals(type, ignoreCase = true)) {
             plugin.logger.warning("storage.type '$type' is not supported. Falling back to YAML storage.")
         }
-        storageProvider = YamlStorageProvider(plugin)
+        return YamlStorageProvider(plugin)
     }
 
     private fun ensurePowersFolder() {

@@ -1,15 +1,17 @@
-lang-version: 2
+lang-version: 3
 prefix: "<gray>[<red>RuleGems<gray>]<reset>"
 
 messages:
   gem:
     default_display_name: "<red>Rule Gem"
   command:
+    appointment_storage_failed: "<prefix> <#E63946>Appointment data could not be saved. This change was not applied; ask an administrator to check storage."
     no_permission: "<red><prefix> You don't have permission to execute this command!"
     player_only: "<red><prefix> Only players can execute this command!"
-    usage: "<yellow><prefix> Usage: /rulegems \\<gui|profile|cabinet|place|tp|revoke|revoke-power|reload|rulers|gems|scatter|redeem|redeemall|history|setaltar|removealtar|appoint|dismiss|appointees|doctor|help>"
+    usage: "<yellow><prefix> Usage: /rulegems \\<gui|profile|cabinet|place|tp|revoke|revoke-power|reload|rulers|gems|scatter|redeem|redeemall|history|setaltar|removealtar|appoint|dismiss|appointees|doctor|transfer-review|help>"
     reload_success: "<green><prefix> Configuration reloaded!"
     reload_failed: "<red><prefix> Reload aborted: gem storage could not be read. The active runtime state was preserved; check the console."
+    reload_failed_stage: "<red><prefix> Reload did not finish (stage: <stages>). Later stages were stopped; check the console, fix the problem, and retry."
     operation_busy: "<yellow><prefix> Another reload or scatter operation is already running. Try again when it completes."
     rulers_status: "<green><prefix> Current ruler is: <yellow><player>"
     no_rulers: "<red><prefix> No ruler online!"
@@ -54,6 +56,7 @@ messages:
       revoked_notice: "<red><prefix> Your gem powers have been revoked by an admin."
       broadcast: "<yellow><prefix> An admin revoked <white><player><yellow>'s gem powers."
     revoke_power:
+      storage_failed: "<prefix> <#E63946>Cannot save the revoke cooldown. No power was revoked; ask an administrator to check storage."
       usage: "<red><prefix> Usage: /rg revoke-power \\<rule> \\<player> \\<power>, or /rg revoke-power \\<list|confirm|cancel>"
       disabled: "<red><prefix> Revoke-power feature is disabled."
       failed: "<red><prefix> Revoke failed."
@@ -79,7 +82,17 @@ messages:
       usage: "<red><prefix> Usage: /rulegems tp \\<gemId|key>"
       not_found: "<yellow><prefix> Couldn't find a gem matching <white><input><yellow>."
       unavailable: "<yellow><prefix> That gem is neither held nor placed."
+    transfer_review:
+      usage: "<prefix> <#FFE066>Usage: /rg transfer-review list [page] | /rg transfer-review resolve [operation UUID] [reconciliation note]"
+      empty: "<prefix> <#69DB7C>There are no pending transfer operations."
+      header: "<prefix> <#FFE066>Pending transfers (<page>/<pages>)"
+      line: "<gray><operation> | <player> | <command> | <status> | <details>"
+      not_found: "<prefix> <#E63946>Pending operation not found."
+      resolved: "<prefix> <#69DB7C>Recorded reconciliation for <operation> and released its guard. Balances and remaining uses were not changed."
+      storage_failed: "<prefix> <#E63946>Reconciliation could not be saved; the retry guard is retained. Check the console."
     help:
+      transfer_review: "<yellow>/rg transfer-review list [page] <dark_gray>— <gray>List pending transfer operations"
+      transfer_resolve: "<yellow>/rg transfer-review resolve [UUID] [note] <dark_gray>— <gray>Record reconciliation and release the retry guard"
       title: "<dark_gray>━━━━━━━━ <gold><bold>RuleGems Help</bold> <dark_gray>━━━━━━━━"
       intro: "<gray>Find gems, redeem power, and build a hierarchy through rulers and appointments."
       tip: "<dark_gray>Tip: players can use <yellow>/rg <dark_gray>to open the main menu."
@@ -183,9 +196,12 @@ messages:
     command_failed_detail: "<prefix> <red>Command execution failed: <command>"
     transfer_success: "<prefix> <green>Transferred <yellow><amount><green> from <yellow><from><green> to <yellow><to><green>."
     transfer_insufficient: "<prefix> <red><from> has insufficient balance; transfer cancelled."
-    transfer_failed: "<prefix> <red>Transfer failed; your attempt has been refunded."
+    transfer_failed: "<prefix> <#E63946>This transfer failed."
+    transfer_review_required: "<prefix> <#FFE066>Operation <operation> requires manual reconciliation. Retries from this source are blocked; ask an administrator to check balances and logs."
+    transfer_blocked: "<prefix> <#FFE066>Operation <operation> is still pending reconciliation; this source cannot be used again yet."
+    transfer_storage_failed: "<prefix> <#E63946>Cannot save the transfer journal. No transfer was executed; ask an administrator to check storage."
     transfer_no_economy: "<prefix> <red>Economy (Vault) is unavailable; transfer cancelled."
-    transfer_disabled: "<prefix> <red>Built-in transfers are disabled; the attempt has been refunded."
+    transfer_disabled: "<prefix> <#E63946>Built-in transfers are disabled."
   inventory:
     drag_denied: "<red><prefix> Cannot drag Gem here!"
     container_denied: "<red><prefix> Cannot put Gem into containers!"

@@ -4,13 +4,17 @@ import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.configuration.ConfigurationSection
 import org.bukkit.configuration.file.FileConfiguration
-import org.bukkit.configuration.file.YamlConfiguration
+import org.cubexmc.config.AtomicYamlFiles
+import org.cubexmc.storage.RevokeCooldownStore
+import java.util.logging.Level
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
 import org.cubexmc.RuleGems
 import org.cubexmc.features.Feature
 import org.cubexmc.manager.GemManager
 import org.cubexmc.model.GemDefinition
+import java.io.IOException
+import org.bukkit.configuration.InvalidConfigurationException
 import java.io.File
 import java.util.Collections
 import java.util.Locale
@@ -23,15 +27,16 @@ class RevokeFeature : Feature {
     private val clock: LongSupplier
     private val rulesInternal: MutableMap<String, RevokeRule> = LinkedHashMap()
     private val confirmations: MutableMap<UUID, RevokeConfirmation> = ConcurrentHashMap()
-    private val cooldownUntil: MutableMap<UUID, MutableMap<String, Long>> = ConcurrentHashMap()
+    private val cooldownStore: RevokeCooldownStore
     private var confirmTimeoutSeconds = 30
-    private var dataFile: File? = null
 
     constructor(plugin: RuleGems, gemManager: GemManager) : this(plugin, gemManager, LongSupplier { System.currentTimeMillis() })
 
     constructor(plugin: RuleGems, gemManager: GemManager, clock: LongSupplier?) : super(plugin, "rulegems.revoke") {
         this.gemManager = gemManager
         this.clock = clock ?: LongSupplier { System.currentTimeMillis() }
+        cooldownStore = RevokeCooldownStore(File(plugin.dataFolder, "data/revokes.yml"))
+        plugin.bind(cooldownStore)
     }
 
     override fun initialize() {
@@ -40,7 +45,7 @@ class RevokeFeature : Feature {
 
     override fun shutdown() {
         confirmations.clear()
-        saveData()
+        cooldownStore.close()
     }
 
     override fun reload() {
@@ -48,24 +53,23 @@ class RevokeFeature : Feature {
         if (!configFile.exists()) {
             plugin.saveResource("features/revoke.yml", false)
         }
-        val config: FileConfiguration = YamlConfiguration.loadConfiguration(configFile)
+        val config: FileConfiguration = AtomicYamlFiles.read(configFile)
+        require(!config.contains("enabled") || config.isBoolean("enabled")) { "Invalid revoke.enabled" }
+        val nextRules = loadRules(config.getConfigurationSection("rules"))
+        cooldownStore.reload()
         enabled = config.getBoolean("enabled", false)
         confirmTimeoutSeconds = maxOf(1, config.getInt("confirm_timeout", 30))
-        loadRules(config.getConfigurationSection("rules"))
-
-        dataFile = File(plugin.dataFolder, "data/revokes.yml")
-        loadData()
+        rulesInternal.clear()
+        rulesInternal.putAll(nextRules)
 
         if (enabled) {
             plugin.logger.info("Revoke feature enabled with " + rulesInternal.size + " rules.")
         }
     }
 
-    private fun loadRules(section: ConfigurationSection?) {
-        rulesInternal.clear()
-        if (section == null) {
-            return
-        }
+    private fun loadRules(section: ConfigurationSection?): Map<String, RevokeRule> {
+        val loadedRules = LinkedHashMap<String, RevokeRule>()
+        if (section == null) return loadedRules
         for (key in section.getKeys(false)) {
             val ruleSection = section.getConfigurationSection(key) ?: continue
             val triggerGem = ruleSection.getString("trigger_gem")
@@ -86,8 +90,9 @@ class RevokeFeature : Feature {
                 ruleSection.getBoolean("broadcast", true),
                 ruleSection.getBoolean("allow_offline_target", false),
             )
-            rulesInternal[normalize(key)] = rule
+            loadedRules[normalize(key)] = rule
         }
+        return loadedRules
     }
 
     val rules: Map<String, RevokeRule>
@@ -272,8 +277,11 @@ class RevokeFeature : Feature {
         val powerKey = context.powerKey ?: return RevokeResult.of(RevokeResult.Status.POWER_NOT_ALLOWED)
         val targetName = context.targetName ?: return RevokeResult.of(RevokeResult.Status.TARGET_NOT_FOUND)
         val rule = context.rule ?: return RevokeResult.of(RevokeResult.Status.RULE_NOT_FOUND)
-        val revokedInstances = revokeTargetPower(targetUuid, powerKey)
+        val previousCooldown = cooldownStore.until(actor.uniqueId, rule.key)
+        if (!saveCooldown(actor.uniqueId, rule)) return RevokeResult.of(RevokeResult.Status.STORAGE_FAILED)
+        val revokedInstances = gemManager.revokeRedeemedPower(targetUuid, powerKey)
         if (revokedInstances <= 0) {
+            if (rule.cooldownSeconds > 0L) restoreCooldown(actor.uniqueId, rule, previousCooldown)
             return RevokeResult.of(
                 RevokeResult.Status.TARGET_HAS_NO_POWER,
                 mapOf("player" to targetName, "power" to powerKey),
@@ -286,7 +294,6 @@ class RevokeFeature : Feature {
             gemManager.placementManager.randomPlaceGem(triggerGemId)
             gemManager.recalculateGrants(actor)
         }
-        setCooldown(actor.uniqueId, rule)
         gemManager.saveGems()
 
         val historyLogger = plugin.historyLogger
@@ -307,36 +314,6 @@ class RevokeFeature : Feature {
             RevokeResult.Status.SUCCESS,
             placeholders(rule, targetName, targetUuid, powerKey, 0L),
         )
-    }
-
-    private fun revokeTargetPower(targetUuid: UUID, powerKey: String): Int {
-        val def = gemManager.findGemDefinitionByKey(powerKey)
-        val matchingGemIds = ArrayList<UUID>()
-        for ((gemId, redeemer) in gemManager.permissionManager.gemIdToRedeemer) {
-            if (targetUuid != redeemer) {
-                continue
-            }
-            val gemKey = gemManager.stateManager.getGemKey(gemId)
-            if (powerKey.equals(gemKey, ignoreCase = true)) {
-                matchingGemIds.add(gemId)
-            }
-        }
-        for (gemId in matchingGemIds) {
-            gemManager.permissionManager.decrementOwnerKeyCount(targetUuid, powerKey, def)
-            gemManager.permissionManager.gemIdToRedeemer.remove(gemId, targetUuid)
-            gemManager.allowanceManager.removeRedeemInstanceAllowance(targetUuid, gemId)
-        }
-        val counts = gemManager.permissionManager.ownerKeyCount[targetUuid]
-        if (counts == null || counts.getOrDefault(powerKey, 0) <= 0) {
-            val redeemed = gemManager.permissionManager.playerUuidToRedeemedKeys[targetUuid]
-            if (redeemed != null) {
-                redeemed.remove(powerKey)
-                if (redeemed.isEmpty()) {
-                    gemManager.permissionManager.playerUuidToRedeemedKeys.remove(targetUuid)
-                }
-            }
-        }
-        return matchingGemIds.size
     }
 
     private fun resolveTarget(targetName: String?, rule: RevokeRule): Target {
@@ -409,18 +386,38 @@ class RevokeFeature : Feature {
     }
 
     private fun cooldownRemainingSeconds(playerUuid: UUID, rule: RevokeRule): Long {
-        val until = cooldownUntil.getOrDefault(playerUuid, emptyMap()).getOrDefault(rule.key, 0L)
+        val until = cooldownStore.until(playerUuid, rule.key)
         val remainingMillis = until - nowMillis()
         return if (remainingMillis <= 0L) 0L else (remainingMillis + 999L) / 1000L
     }
 
-    private fun setCooldown(playerUuid: UUID, rule: RevokeRule) {
-        if (rule.cooldownSeconds <= 0L) {
-            return
+    private fun saveCooldown(playerUuid: UUID, rule: RevokeRule): Boolean = try {
+        if (rule.cooldownSeconds > 0L) {
+            val duration = Math.multiplyExact(rule.cooldownSeconds, 1000L)
+            cooldownStore.setUntil(playerUuid, rule.key, Math.addExact(nowMillis(), duration))
         }
-        val until = nowMillis() + rule.cooldownSeconds * 1000L
-        cooldownUntil.computeIfAbsent(playerUuid) { ConcurrentHashMap() }[rule.key] = until
-        saveData()
+        true
+    } catch (failure: IOException) {
+        reportCooldownFailure(failure)
+    } catch (failure: InvalidConfigurationException) {
+        reportCooldownFailure(failure)
+    } catch (failure: ArithmeticException) {
+        reportCooldownFailure(failure)
+    }
+
+    private fun reportCooldownFailure(failure: Exception): Boolean {
+        plugin.logger.log(Level.SEVERE, "Cannot persist revoke cooldown; power was not revoked.", failure)
+        return false
+    }
+
+    private fun restoreCooldown(playerUuid: UUID, rule: RevokeRule, previous: Long) {
+        try {
+            cooldownStore.setUntil(playerUuid, rule.key, previous)
+        } catch (failure: IOException) {
+            plugin.logger.log(Level.SEVERE, "Cannot restore unused cooldown; guard retained.", failure)
+        } catch (failure: InvalidConfigurationException) {
+            plugin.logger.log(Level.SEVERE, "Cannot restore unused cooldown; guard retained.", failure)
+        }
     }
 
     private fun placeholders(
@@ -441,48 +438,6 @@ class RevokeFeature : Feature {
         placeholders["broadcast"] = rule.isBroadcast.toString()
         placeholders["seconds"] = seconds.toString()
         return placeholders
-    }
-
-    private fun loadData() {
-        cooldownUntil.clear()
-        val file = dataFile
-        if (file == null || !file.exists()) {
-            return
-        }
-        val data: FileConfiguration = YamlConfiguration.loadConfiguration(file)
-        val cooldowns = data.getConfigurationSection("cooldowns") ?: return
-        for (uuidStr in cooldowns.getKeys(false)) {
-            try {
-                val uuid = UUID.fromString(uuidStr)
-                val playerSection = cooldowns.getConfigurationSection(uuidStr) ?: continue
-                val values: MutableMap<String, Long> = ConcurrentHashMap()
-                for (rule in playerSection.getKeys(false)) {
-                    values[rule] = playerSection.getLong(rule)
-                }
-                cooldownUntil[uuid] = values
-            } catch (e: Exception) {
-                plugin.logger.warning("Failed to load revoke cooldown entry '$uuidStr': " + e.message)
-            }
-        }
-    }
-
-    private fun saveData() {
-        val file = dataFile ?: return
-        val parent = file.parentFile
-        if (parent != null && !parent.exists()) {
-            parent.mkdirs()
-        }
-        val data = YamlConfiguration()
-        for ((playerId, byRule) in cooldownUntil) {
-            for ((rule, cooldown) in byRule) {
-                data["cooldowns.$playerId.$rule"] = cooldown
-            }
-        }
-        try {
-            data.save(file)
-        } catch (e: Exception) {
-            plugin.logger.warning("Failed to save revoke cooldown data: " + e.message)
-        }
     }
 
     private fun normalize(value: String?): String {

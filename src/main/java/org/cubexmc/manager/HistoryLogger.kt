@@ -2,14 +2,14 @@ package org.cubexmc.manager
 
 import org.bukkit.entity.Player
 import org.cubexmc.RuleGems
-import org.cubexmc.utils.ColorUtils
-import java.io.BufferedWriter
+import org.cubexmc.core.CubexText
 import java.io.File
-import java.io.FileWriter
 import java.io.IOException
 import java.nio.file.Files
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.nio.charset.StandardCharsets
+import java.nio.file.StandardOpenOption
 import java.util.Locale
 
 class HistoryLogger(
@@ -17,8 +17,9 @@ class HistoryLogger(
     private val languageManager: LanguageManager?,
 ) {
     private val logsDirectory = File(plugin.dataFolder, "history")
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-    private val fileNameFormat = SimpleDateFormat("yyyy-MM")
+    private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+    private val fileNameFormat = DateTimeFormatter.ofPattern("yyyy-MM")
+    private val reader = HistoryFileReader(logsDirectory, plugin.logger)
 
     init {
         if (!logsDirectory.exists()) {
@@ -34,7 +35,7 @@ class HistoryLogger(
         vaultGroup: String?,
         previousOwner: String?,
     ) {
-        val timestamp = dateFormat.format(Date())
+        val timestamp = LocalDateTime.now().format(dateFormat)
         val placeholders: MutableMap<String, String> = HashMap()
         placeholders["player"] = player.name
         placeholders["player_uuid"] = player.uniqueId.toString()
@@ -91,7 +92,7 @@ class HistoryLogger(
         vaultGroup: String?,
         reason: String?,
     ) {
-        val timestamp = dateFormat.format(Date())
+        val timestamp = LocalDateTime.now().format(dateFormat)
         val placeholders: MutableMap<String, String> = HashMap()
         placeholders["player_name"] = playerName ?: "Unknown"
         placeholders["player_uuid"] = playerUuid
@@ -137,7 +138,7 @@ class HistoryLogger(
     }
 
     fun logFullSetRedeem(player: Player, gemCount: Int, permissions: List<String>?, previousFullSetOwner: String?) {
-        val timestamp = dateFormat.format(Date())
+        val timestamp = LocalDateTime.now().format(dateFormat)
         val placeholders: MutableMap<String, String> = HashMap()
         placeholders["player"] = player.name
         placeholders["player_uuid"] = player.uniqueId.toString()
@@ -175,7 +176,7 @@ class HistoryLogger(
     }
 
     fun logGemPlace(player: Player, gemKey: String, location: String) {
-        val timestamp = dateFormat.format(Date())
+        val timestamp = LocalDateTime.now().format(dateFormat)
         val placeholders = mapOf(
             "player" to player.name,
             "gem_key" to gemKey,
@@ -189,7 +190,7 @@ class HistoryLogger(
     }
 
     fun logGemBreak(player: Player, gemKey: String, location: String) {
-        val timestamp = dateFormat.format(Date())
+        val timestamp = LocalDateTime.now().format(dateFormat)
         val placeholders = mapOf(
             "player" to player.name,
             "gem_key" to gemKey,
@@ -211,7 +212,7 @@ class HistoryLogger(
         if (!placeholders.isNullOrEmpty()) {
             template = manager.formatText(template, placeholders) ?: ""
         }
-        return ColorUtils.translateColorCodes(template) ?: ""
+        return CubexText.translateColorCodes(template) ?: ""
     }
 
     private fun buildFallbackRedeem(
@@ -280,12 +281,15 @@ class HistoryLogger(
     private fun buildFallbackBreak(player: Player, gemKey: String, location: String): String =
         "§c[Gem Broken] Player: " + player.name + " | Gem: " + gemKey + " | Location: " + location
 
+    @Synchronized
     private fun writeLog(logEntry: String) {
-        val fileName = fileNameFormat.format(Date()) + ".log"
+        val fileName = LocalDateTime.now().format(fileNameFormat) + ".log"
         val logFile = File(logsDirectory, fileName)
 
         try {
-            BufferedWriter(FileWriter(logFile, true)).use { writer ->
+            Files.newBufferedWriter(
+                logFile.toPath(), StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND,
+            ).use { writer ->
                 val cleanEntry = logEntry.replace(Regex("§[0-9a-fk-or]"), "")
                 writer.write(cleanEntry)
                 writer.newLine()
@@ -295,80 +299,13 @@ class HistoryLogger(
         }
     }
 
-    fun getRecentHistoryPage(page: Int, pageSize: Int): HistoryPage {
-        val entries: MutableList<String> = ArrayList()
-        var total = 0
-        val startIndex = maxOf(0, (page - 1) * pageSize)
-        val endIndex = startIndex + pageSize
+    @Synchronized
+    fun getRecentHistoryPage(page: Int, pageSize: Int): HistoryPage = reader.read(page, pageSize) { true }
 
-        try {
-            val logFiles = logsDirectory.listFiles { _, name -> name.endsWith(".log") }
-            if (logFiles.isNullOrEmpty()) {
-                return HistoryPage(entries, total)
-            }
-
-            logFiles.sortWith { a, b -> b.name.compareTo(a.name) }
-            for (logFile in logFiles) {
-                val fileLines = try {
-                    Files.lines(logFile.toPath()).use { stream -> stream.toList() }
-                } catch (e: IOException) {
-                    plugin.logger.warning("Failed to read log file: " + logFile.name)
-                    continue
-                }
-
-                for (i in fileLines.indices.reversed()) {
-                    val line = fileLines[i]
-                    if (total >= startIndex && total < endIndex) {
-                        entries.add(line)
-                    }
-                    total++
-                }
-            }
-        } catch (e: Exception) {
-            plugin.logger.warning("Failed to read history: " + e.message)
-        }
-
-        return HistoryPage(entries, total)
-    }
-
+    @Synchronized
     fun getPlayerHistoryPage(playerName: String, page: Int, pageSize: Int): HistoryPage {
-        val entries: MutableList<String> = ArrayList()
-        var total = 0
-        val startIndex = maxOf(0, (page - 1) * pageSize)
-        val endIndex = startIndex + pageSize
         val lowerPlayer = playerName.lowercase(Locale.ROOT)
-
-        try {
-            val logFiles = logsDirectory.listFiles { _, name -> name.endsWith(".log") }
-            if (logFiles.isNullOrEmpty()) {
-                return HistoryPage(entries, total)
-            }
-
-            logFiles.sortWith { a, b -> b.name.compareTo(a.name) }
-            for (logFile in logFiles) {
-                val fileLines = try {
-                    Files.lines(logFile.toPath()).use { stream -> stream.toList() }
-                } catch (e: IOException) {
-                    plugin.logger.warning("Failed to read log file: " + logFile.name)
-                    continue
-                }
-
-                for (i in fileLines.indices.reversed()) {
-                    val line = fileLines[i]
-                    if (!lineMatchesPlayer(line, lowerPlayer)) {
-                        continue
-                    }
-                    if (total >= startIndex && total < endIndex) {
-                        entries.add(line)
-                    }
-                    total++
-                }
-            }
-        } catch (e: Exception) {
-            plugin.logger.warning("Failed to read player history: " + e.message)
-        }
-
-        return HistoryPage(entries, total)
+        return reader.read(page, pageSize) { lineMatchesPlayer(it, lowerPlayer) }
     }
 
     fun getRecentHistory(lines: Int): List<String> = getRecentHistoryPage(1, maxOf(1, lines)).entries

@@ -19,6 +19,8 @@ dependencies {
     implementation(project(":modules:cubex-scheduler"))
     implementation(project(":modules:cubex-database"))
     implementation(project(":modules:cubex-command"))
+    implementation(project(":modules:cubex-economy"))
+    implementation(project(":modules:cubex-gui"))
     implementation(platform("net.kyori:adventure-bom:4.25.0"))
     implementation("org.incendo:cloud-paper:2.0.0-beta.17")
     implementation("org.incendo:cloud-minecraft-extras:2.0.0-beta.17")

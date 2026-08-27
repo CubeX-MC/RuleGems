@@ -1,15 +1,17 @@
-lang-version: 2
+lang-version: 3
 prefix: "<gray>[<red>RuleGems<gray>]<reset>"
 
 messages:
   gem:
     default_display_name: "<red>权力宝石"
   command:
+    appointment_storage_failed: "<prefix> <#E63946>任命数据保存失败，本次修改未生效。请联系管理员检查存储。"
     no_permission: "<red><prefix> 你没有权限执行此命令！"
     player_only: "<red><prefix> 该指令仅限玩家使用。"
-    usage: "<yellow><prefix> 用法: /rulegems \\<gui|profile|cabinet|place|tp|revoke|revoke-power|reload|rulers|gems|scatter|redeem|redeemall|history|setaltar|removealtar|appoint|dismiss|appointees|doctor|help>"
+    usage: "<yellow><prefix> 用法: /rulegems \\<gui|profile|cabinet|place|tp|revoke|revoke-power|reload|rulers|gems|scatter|redeem|redeemall|history|setaltar|removealtar|appoint|dismiss|appointees|doctor|transfer-review|help>"
     reload_success: "<green><prefix> 配置已重新加载！"
     reload_failed: "<red><prefix> 重载已中止：宝石数据存储读取失败，当前运行状态保持不变。请检查控制台。"
+    reload_failed_stage: "<red><prefix> 重载未完成（阶段：<stages>）。后续阶段已停止；请检查控制台并修正问题后重试。"
     operation_busy: "<yellow><prefix> 另一个重载或散落操作正在运行，请等待完成后重试。"
     rulers_status: "<green><prefix> 当前的权力持有者是: <yellow><player>"
     no_rulers: "<red><prefix> 当前没有权力持有者！"
@@ -54,6 +56,7 @@ messages:
       revoked_notice: "<red><prefix> 你的宝石权力已被管理员收回。"
       broadcast: "<yellow><prefix> 管理员已收回 <white><player> <yellow>的宝石权力。"
     revoke_power:
+      storage_failed: "<prefix> <#E63946>无法保存撤销冷却，未撤销权限。请联系管理员检查存储。"
       usage: "<red><prefix> 用法: /rg revoke-power \\<规则> \\<玩家> \\<权力>，或 /rg revoke-power \\<list|confirm|cancel>"
       disabled: "<red><prefix> 撤销宝石功能未启用。"
       failed: "<red><prefix> 撤销失败。"
@@ -79,7 +82,17 @@ messages:
       usage: "<red><prefix> 用法: /rulegems tp \\<gemId或key>"
       not_found: "<yellow><prefix> 未找到与 <white><input> <yellow>匹配的宝石。"
       unavailable: "<yellow><prefix> 该宝石既未被持有也未放置。"
+    transfer_review:
+      usage: "<prefix> <#FFE066>用法: /rg transfer-review list [page] | /rg transfer-review resolve [operation UUID] [核账说明]"
+      empty: "<prefix> <#69DB7C>没有待核账的转账操作。"
+      header: "<prefix> <#FFE066>待核账转账 (<page>/<pages>)"
+      line: "<gray><operation> | <player> | <command> | <status> | <details>"
+      not_found: "<prefix> <#E63946>找不到该待核账操作。"
+      resolved: "<prefix> <#69DB7C>已记录操作 <operation> 的人工核账说明并解除保护。未修改余额或使用次数。"
+      storage_failed: "<prefix> <#E63946>核账记录保存失败，重试保护保留。请检查控制台。"
     help:
+      transfer_review: "<yellow>/rg transfer-review list [page] <dark_gray>— <gray>查看待核账转账"
+      transfer_resolve: "<yellow>/rg transfer-review resolve [UUID] [note] <dark_gray>— <gray>记录人工核账并解除重试保护"
       title: "<dark_gray>━━━━━━━━ <gold><bold>RuleGems 帮助</bold> <dark_gray>━━━━━━━━"
       intro: "<gray>寻找宝石、兑换权力，并通过统治者与委任构建权力体系。"
       tip: "<dark_gray>提示：玩家直接输入 <yellow>/rg <dark_gray>即可打开主菜单。"
@@ -183,9 +196,12 @@ messages:
     command_failed_detail: "<prefix> <red>命令执行失败: <command>"
     transfer_success: "<prefix> <green>已从 <yellow><from><green> 转出 <yellow><amount><green> 给 <yellow><to><green>。"
     transfer_insufficient: "<prefix> <red><from> 余额不足，转账已取消。"
-    transfer_failed: "<prefix> <red>转账失败，已为你退回次数。"
+    transfer_failed: "<prefix> <#E63946>本次转账失败。"
+    transfer_review_required: "<prefix> <#FFE066>操作 <operation> 需要人工核账，已冻结此来源重试。请联系管理员核对余额与日志。"
+    transfer_blocked: "<prefix> <#FFE066>此来源有待核账操作 <operation>，暂不能再次执行。"
+    transfer_storage_failed: "<prefix> <#E63946>无法保存转账记录，未执行任何转账。请联系管理员检查存储。"
     transfer_no_economy: "<prefix> <red>经济系统(Vault)不可用，转账已取消。"
-    transfer_disabled: "<prefix> <red>内置转账功能未启用，已为你退回本次次数。"
+    transfer_disabled: "<prefix> <#E63946>内置转账功能未启用。"
   inventory:
     drag_denied: "<red><prefix> 不能将宝石拖拽到此处！"
     container_denied: "<red><prefix> 不能将宝石放入容器！"

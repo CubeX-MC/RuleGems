@@ -1,4 +1,4 @@
-package org.cubexmc.gui
+package org.cubexmc.rulegems.gui
 
 import org.bukkit.Bukkit
 import org.bukkit.ChatColor
@@ -14,7 +14,7 @@ import org.cubexmc.features.appoint.Appointment
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
 import org.cubexmc.model.AppointDefinition
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import java.util.Collections
 import java.util.Locale
 
@@ -57,7 +57,7 @@ class CabinetGUI(
         if (totalPages > 1) {
             title += " &8(${currentPage + 1}/$totalPages)"
         }
-        title = ColorUtils.translateColorCodes(title) ?: ""
+        title = CubexText.translateColorCodes(title) ?: ""
 
         val holder = GUIHolder(GUIHolder.GUIType.CABINET, player.uniqueId, player.hasPermission("rulegems.admin"), currentPage)
         val gui: Inventory = Bukkit.createInventory(holder, GUIManager.GUI_SIZE, title)
@@ -69,7 +69,7 @@ class CabinetGUI(
         if (appointKeys.isEmpty()) {
             gui.setItem(
                 13,
-                ItemBuilder(Material.BARRIER)
+                GuiItems.item(Material.BARRIER)
                     .name("&c" + rawMsg("cabinet.no_roles"))
                     .addLore("&7" + rawMsg("cabinet.no_roles_lore"))
                     .build(),
@@ -84,7 +84,7 @@ class CabinetGUI(
             }
         }
 
-        player.openInventory(gui)
+        manager.openInventory(player, gui)
     }
 
     private fun createRoleItem(
@@ -94,7 +94,7 @@ class CabinetGUI(
         appointFeature: AppointFeature?,
     ): ItemStack {
         val displayName = if (definition != null) {
-            ColorUtils.translateColorCodes(definition.displayName) ?: ""
+            CubexText.translateColorCodes(definition.displayName) ?: ""
         } else {
             appointKey
         }
@@ -103,10 +103,10 @@ class CabinetGUI(
         val appointments: List<Appointment> = appointFeature?.getAppointmentsByAppointer(player.uniqueId, appointKey)
             ?: Collections.emptyList()
 
-        val builder = ItemBuilder(Material.WRITABLE_BOOK)
+        val builder = GuiItems.item(Material.WRITABLE_BOOK)
             .name(displayName)
             .data(manager.appointKeyKey, appointKey)
-            .hideAttributes()
+            .hideDetails()
 
         builder.addEmptyLore()
             .addLore("&e▸ " + rawMsg("cabinet.current_count") + ": &f" + current + "/" + formatMax(max))
@@ -140,7 +140,7 @@ class CabinetGUI(
             .addLore("&a» " + rawMsg("cabinet.click_manage"))
 
         if (current > 0 || max != 0) {
-            builder.glow()
+            builder.cosmeticGlow()
         }
         return builder.build()
     }
@@ -162,7 +162,7 @@ class CabinetGUI(
             compareBy(String.CASE_INSENSITIVE_ORDER) { key ->
                 val definition = appointFeature.getAppointDefinition(key)
                 if (definition != null) {
-                    ChatColor.stripColor(ColorUtils.translateColorCodes(definition.displayName) ?: "") ?: key
+                    ChatColor.stripColor(CubexText.translateColorCodes(definition.displayName) ?: "") ?: key
                 } else {
                     key
                 }
@@ -175,7 +175,7 @@ class CabinetGUI(
 
     private fun getAppointFeature(): AppointFeature? = plugin.featureManager?.appointFeature
 
-    private fun msg(path: String): String = ColorUtils.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
+    private fun msg(path: String): String = CubexText.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
 
     private fun rawMsg(path: String): String = lang.getMessage("gui.$path")
 }

@@ -21,7 +21,7 @@ import org.bukkit.persistence.PersistentDataType
 import org.cubexmc.RuleGems
 import org.cubexmc.gui.ItemBuilder
 import org.cubexmc.model.GemDefinition
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import java.lang.reflect.Method
 import java.lang.ref.WeakReference
 import java.util.Locale
@@ -415,7 +415,7 @@ class GemStateManager(
         val gemKey = gemUuidToKey[gemId] ?: return null
         val definition = findGemDefinition(gemKey)
         if (definition != null && definition.displayName != null) {
-            return ColorUtils.translateColorCodes(definition.displayName)
+            return CubexText.translateColorCodes(definition.displayName)
         }
         return gemKey
     }
@@ -770,18 +770,18 @@ class GemStateManager(
         if (defaultDisplayName == null || defaultDisplayName.startsWith("Missing message")) {
             defaultDisplayName = "&cRule Gem"
         }
-        var displayName = ColorUtils.translateColorCodes(defaultDisplayName) ?: defaultDisplayName
+        var displayName = CubexText.translateColorCodes(defaultDisplayName) ?: defaultDisplayName
 
         val lore: MutableList<String> = ArrayList()
         if (gemKey != null) {
             val definition = findGemDefinition(gemKey)
             if (definition != null && definition.displayName != null) {
-                displayName = ColorUtils.translateColorCodes(definition.displayName) ?: definition.displayName
+                displayName = CubexText.translateColorCodes(definition.displayName) ?: definition.displayName
             }
             val definitionLore = definition?.lore
             if (!definitionLore.isNullOrEmpty()) {
                 for (line in definitionLore) {
-                    lore.add(ColorUtils.translateColorCodes(line) ?: "")
+                    lore.add(CubexText.translateColorCodes(line) ?: "")
                 }
             }
         }

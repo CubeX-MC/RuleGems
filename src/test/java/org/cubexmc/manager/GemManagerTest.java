@@ -152,6 +152,35 @@ class GemManagerTest {
     }
 
     @Test
+    void closeAfterFailedInitialLoadDoesNotSaveAnEmptyRuntime() {
+        GemManager manager = new GemManager(plugin, configManager, gemParser, gameplayConfig, effectUtils, languageManager);
+        when(configManager.readGemsData()).thenReturn(
+                org.cubexmc.storage.StorageLoadResult.failure(new IllegalStateException("unreadable")));
+        assertFalse(manager.loadGems());
+
+        manager.close();
+        manager.close();
+
+        verify(configManager, never()).saveGemData(any());
+        verify(configManager, never()).saveEmergencyGemData(any());
+    }
+
+    @Test
+    void closeAfterSuccessfulLoadSavesOnlyOnce() {
+        GemManager manager = new GemManager(plugin, configManager, gemParser, gameplayConfig, effectUtils, languageManager);
+        when(configManager.readGemsData()).thenReturn(org.cubexmc.storage.StorageLoadResult.notFound(
+                new org.bukkit.configuration.file.YamlConfiguration()));
+        when(configManager.saveGemData(any())).thenReturn(org.cubexmc.storage.StorageSaveResult.success());
+        when(configManager.getGemsData()).thenReturn(new org.bukkit.configuration.file.YamlConfiguration());
+        assertTrue(manager.loadGems());
+
+        manager.close();
+        manager.close();
+
+        verify(configManager).saveGemData(any());
+    }
+
+    @Test
     void altarRedeemConflictCancelsOriginalBlockPlaceAndKeepsStateUnchanged() {
         GemManager manager = createManagerWithHeldFireGem();
         manager.getPermissionManager().getPlayerUuidToRedeemedKeys().put(PLAYER_ID, Set.of("ice"));

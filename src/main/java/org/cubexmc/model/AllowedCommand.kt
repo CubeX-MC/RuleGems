@@ -21,6 +21,8 @@ class AllowedCommand @JvmOverloads constructor(
 
     fun getCommands(): List<String> = executeCommands
 
+    fun hasTransfers(): Boolean = executeCommands.any { parseExecutor(it)[0] == "transfer" }
+
     fun isSimpleCommand(): Boolean =
         executeCommands.size == 1 &&
             !executeCommands[0].startsWith("console:") &&

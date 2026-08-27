@@ -1,6 +1,6 @@
 package org.cubexmc.features.rule
 
-import org.bukkit.configuration.file.YamlConfiguration
+import org.cubexmc.config.AtomicYamlFiles
 import org.bukkit.entity.Player
 import org.cubexmc.RuleGems
 import org.cubexmc.features.Feature
@@ -30,7 +30,10 @@ class RuleGateFeature(
         if (!configFile.exists()) {
             plugin.saveResource("features/rule.yml", false)
         }
-        val config = YamlConfiguration.loadConfiguration(configFile)
+        val config = AtomicYamlFiles.read(configFile)
+        for (path in listOf("enabled", "permission_gate.enabled")) {
+            require(!config.contains(path) || config.isBoolean(path)) { "Expected boolean at rule.$path" }
+        }
         enabled = config.getBoolean("enabled", false)
         permissionGateEnabled = config.getBoolean("permission_gate.enabled", true)
         requiredPermission = config.getString("required_permission")

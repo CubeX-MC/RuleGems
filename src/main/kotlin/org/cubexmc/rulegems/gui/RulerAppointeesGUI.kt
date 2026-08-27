@@ -1,4 +1,4 @@
-package org.cubexmc.gui
+package org.cubexmc.rulegems.gui
 
 import org.bukkit.Bukkit
 import org.bukkit.ChatColor
@@ -14,7 +14,7 @@ import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
 import org.cubexmc.model.AllowedCommand
 import org.cubexmc.model.AppointDefinition
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import org.cubexmc.utils.SchedulerUtil
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -107,7 +107,7 @@ class RulerAppointeesGUI(
         if (totalPages > 1) {
             title += " &8(${currentPage + 1}/$totalPages)"
         }
-        title = ColorUtils.translateColorCodes(title) ?: ""
+        title = CubexText.translateColorCodes(title) ?: ""
 
         val holder = GUIHolder(
             GUIHolder.GUIType.RULER_APPOINTEES,
@@ -136,10 +136,10 @@ class RulerAppointeesGUI(
             }
         }
 
-        player.openInventory(gui)
+        manager.openInventory(player, gui)
     }
 
-    private fun createNoAppointeesItem(): ItemStack = ItemBuilder(Material.BARRIER)
+    private fun createNoAppointeesItem(): ItemStack = GuiItems.item(Material.BARRIER)
         .name("&c" + rawMsg("appointees.no_appointees"))
         .addLore("&7" + rawMsg("appointees.no_appointees_lore"))
         .build()
@@ -152,14 +152,14 @@ class RulerAppointeesGUI(
 
         val definition: AppointDefinition? = appointFeature?.getAppointDefinition(appointment.permSetKey)
         val displayName = if (definition != null) {
-            ColorUtils.translateColorCodes(definition.displayName)
+            CubexText.translateColorCodes(definition.displayName)
         } else {
             appointment.permSetKey
         }
 
         val nameColor = if (isOnline) ChatColor.GREEN else ChatColor.GRAY
 
-        val builder = ItemBuilder(Material.PLAYER_HEAD)
+        val builder = GuiItems.item(Material.PLAYER_HEAD)
             .name("$nameColor◆ $playerName")
             .data(manager.playerUuidKey, appointeeUuid.toString())
 
@@ -238,7 +238,7 @@ class RulerAppointeesGUI(
             for (key in canAppoint) {
                 val delegateDefinition = appointFeature?.getAppointDefinition(key)
                 val delegateName = if (delegateDefinition != null) {
-                    ColorUtils.translateColorCodes(delegateDefinition.displayName)
+                    CubexText.translateColorCodes(delegateDefinition.displayName)
                 } else {
                     key
                 }
@@ -274,7 +274,7 @@ class RulerAppointeesGUI(
         return featureManager.appointFeature
     }
 
-    private fun msg(path: String): String = ColorUtils.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
+    private fun msg(path: String): String = CubexText.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
 
     private fun rawMsg(path: String): String = lang.getMessage("gui.$path")
 }

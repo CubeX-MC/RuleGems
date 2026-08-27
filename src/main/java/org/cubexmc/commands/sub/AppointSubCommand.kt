@@ -8,7 +8,7 @@ import org.cubexmc.commands.SubCommand
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
 import org.cubexmc.model.AppointDefinition
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 
 /**
  * /rulegems appoint &lt;perm_set&gt; &lt;player&gt;
@@ -75,7 +75,7 @@ class AppointSubCommand(
         if (appointFeature.isAppointed(target.uniqueId, permSetKey)) {
             val placeholders = HashMap<String, String>()
             placeholders["player"] = target.name
-            placeholders["perm_set"] = ColorUtils.translateColorCodes(definition.displayName ?: "") ?: ""
+            placeholders["perm_set"] = CubexText.translateColorCodes(definition.displayName ?: "") ?: ""
             languageManager.sendMessage(sender, "command.appoint.already_appointed", placeholders)
             return true
         }
@@ -94,10 +94,15 @@ class AppointSubCommand(
         if (success) {
             val placeholders = HashMap<String, String>()
             placeholders["player"] = target.name
-            placeholders["perm_set"] = ColorUtils.translateColorCodes(definition.displayName ?: "") ?: ""
+            placeholders["perm_set"] = CubexText.translateColorCodes(definition.displayName ?: "") ?: ""
             languageManager.sendMessage(sender, "command.appoint.success", placeholders)
         } else {
-            languageManager.sendMessage(sender, "command.appoint.failed")
+            val key = if (appointFeature.storageFailure) {
+                "command.appointment_storage_failed"
+            } else {
+                "command.appoint.failed"
+            }
+            languageManager.sendMessage(sender, key)
         }
         return true
     }

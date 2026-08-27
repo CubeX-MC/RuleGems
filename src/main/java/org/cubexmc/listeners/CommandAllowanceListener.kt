@@ -9,22 +9,26 @@ import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.event.player.PlayerCommandSendEvent
 import org.bukkit.event.server.TabCompleteEvent
 import org.cubexmc.manager.CustomCommandExecutor
+import org.cubexmc.manager.AllowedCommandSuggestions
 import org.cubexmc.manager.GameplayConfig
 import org.cubexmc.manager.GemAllowanceManager
 import org.cubexmc.manager.LanguageManager
+import org.cubexmc.manager.TransferExecutionCoordinator
 import java.util.Collections
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-class CommandAllowanceListener(
+class CommandAllowanceListener @JvmOverloads constructor(
     private val allowanceManager: GemAllowanceManager,
     private val languageManager: LanguageManager,
     private val customCommandExecutor: CustomCommandExecutor,
     private val gameplayConfig: GameplayConfig?,
+    private val transferExecution: TransferExecutionCoordinator? = null,
 ) : Listener {
     private val proxyLabels: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val bypassPlayers: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
+    private val argumentSuggestions = AllowedCommandSuggestions(allowanceManager)
 
     /**
      * Update the set of command labels that are backed by dedicated proxy commands.
@@ -99,10 +103,10 @@ class CommandAllowanceListener(
             return
         }
 
-        if (parts.size == 1 && trailingSpace) {
-            // command typed exactly, no argument suggestions available yet
-            return
-        }
+        // Proxy.tabComplete already supplied the filtered candidates before this event.
+        if (proxyLabels.contains(base)) return
+        val suggestions = argumentSuggestions.suggest(player, base, parts.drop(1).toTypedArray()) ?: return
+        event.completions = suggestions
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
@@ -154,7 +158,7 @@ class CommandAllowanceListener(
         if (args.isEmpty()) {
             return if (allowed.contains(alias)) Collections.singletonList(alias) else Collections.emptyList()
         }
-        return Collections.emptyList()
+        return argumentSuggestions.suggest(player, alias, args) ?: Collections.emptyList()
     }
 
     private fun handleAllowedCommand(
@@ -215,6 +219,18 @@ class CommandAllowanceListener(
             }
         }
 
+        if (allowedCommand.hasTransfers()) {
+            val attempt = transferExecution?.execute(player, resolved, args)
+                ?: TransferExecutionCoordinator.Attempt("allowance.transfer_storage_failed")
+            if (!attempt.successful) {
+                val placeholders = mapOf("operation" to (attempt.operationId?.toString() ?: "-"))
+                languageManager.sendMessage(player, attempt.message, placeholders)
+            } else {
+                sendUsed(player, uid, matchedLabel)
+            }
+            return true
+        }
+
         val consumed = allowanceManager.tryConsumeAllowed(uid, resolved)
         if (!consumed) {
             languageManager.sendMessage(player, "allowance.none_left")
@@ -258,13 +274,17 @@ class CommandAllowanceListener(
             customCommandExecutor.setCooldown(uid, cooldownKey, allowedCommand.cooldown)
         }
 
+        sendUsed(player, uid, matchedLabel)
+        return true
+    }
+
+    private fun sendUsed(player: Player, uid: UUID, matchedLabel: String) {
         val remain = allowanceManager.getRemainingAllowed(uid, matchedLabel)
         val remainShown = if (remain < 0) "∞" else remain.toString()
         val placeholders = HashMap<String, String>()
         placeholders["command"] = matchedLabel
         placeholders["remain"] = remainShown
         languageManager.sendMessage(player, "allowance.used", placeholders)
-        return true
     }
 
     private fun distinct(values: List<String>): List<String> = ArrayList(LinkedHashSet(values))

@@ -1,4 +1,4 @@
-package org.cubexmc.gui
+package org.cubexmc.rulegems.gui
 
 import org.bukkit.Bukkit
 import org.bukkit.ChatColor
@@ -13,7 +13,7 @@ import org.cubexmc.features.appoint.Appointment
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
 import org.cubexmc.model.AppointDefinition
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import java.util.UUID
 
 class CabinetMembersGUI(
@@ -64,7 +64,7 @@ class CabinetMembersGUI(
                 placeholders["player"] = gemManager.getCachedPlayerName(targetUuid)
                 val definition = appointFeature.getAppointDefinition(appointKey)
                 placeholders["perm_set"] = if (definition != null) {
-                    ColorUtils.translateColorCodes(definition.displayName) ?: ""
+                    CubexText.translateColorCodes(definition.displayName) ?: ""
                 } else {
                     appointKey
                 }
@@ -105,7 +105,7 @@ class CabinetMembersGUI(
             val placeholders = HashMap<String, String>()
             placeholders["player"] = target.name
             placeholders["perm_set"] = if (definition != null) {
-                ColorUtils.translateColorCodes(definition.displayName) ?: ""
+                CubexText.translateColorCodes(definition.displayName) ?: ""
             } else {
                 appointKey
             }
@@ -119,7 +119,7 @@ class CabinetMembersGUI(
             val placeholders = HashMap<String, String>()
             placeholders["player"] = target.name
             placeholders["perm_set"] = if (definition != null) {
-                ColorUtils.translateColorCodes(definition.displayName) ?: ""
+                CubexText.translateColorCodes(definition.displayName) ?: ""
             } else {
                 appointKey
             }
@@ -142,12 +142,12 @@ class CabinetMembersGUI(
         val titleBase = if (definition != null) {
             rawMsg("cabinet_members.title").replace(
                 "%role%",
-                ChatColor.stripColor(ColorUtils.translateColorCodes(definition.displayName) ?: "") ?: "",
+                ChatColor.stripColor(CubexText.translateColorCodes(definition.displayName) ?: "") ?: "",
             )
         } else {
             rawMsg("cabinet_members.title").replace("%role%", appointKey)
         }
-        val title = ColorUtils.translateColorCodes(
+        val title = CubexText.translateColorCodes(
             titleBase + if (totalPages > 1) " &8(${currentPage + 1}/$totalPages)" else "",
         ) ?: ""
 
@@ -161,7 +161,7 @@ class CabinetMembersGUI(
         if (entries.isEmpty()) {
             gui.setItem(
                 13,
-                ItemBuilder(Material.BARRIER)
+                GuiItems.item(Material.BARRIER)
                     .name("&c" + rawMsg("cabinet_members.no_candidates"))
                     .addLore("&7" + rawMsg("cabinet_members.no_candidates_lore"))
                     .build(),
@@ -174,14 +174,14 @@ class CabinetMembersGUI(
             }
         }
 
-        player.openInventory(gui)
+        manager.openInventory(player, gui)
     }
 
     private fun createEntryItem(entry: Entry): ItemStack {
-        val builder = ItemBuilder(Material.PLAYER_HEAD)
+        val builder = GuiItems.item(Material.PLAYER_HEAD)
             .name((if (entry.appointed) "&c" else "&a") + "◆ " + entry.name)
             .data(manager.playerUuidKey, entry.uuid.toString())
-            .hideAttributes()
+            .hideDetails()
         builder.skullOwner(Bukkit.getOfflinePlayer(entry.uuid))
         builder.addEmptyLore()
             .addLore(
@@ -233,7 +233,7 @@ class CabinetMembersGUI(
 
     private fun getAppointFeature(): AppointFeature? = plugin.featureManager?.appointFeature
 
-    private fun msg(path: String): String = ColorUtils.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
+    private fun msg(path: String): String = CubexText.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
 
     private fun rawMsg(path: String): String = lang.getMessage("gui.$path")
 

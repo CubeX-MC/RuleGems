@@ -1,15 +1,10 @@
 package org.cubexmc.manager
 
-import net.kyori.adventure.text.minimessage.MiniMessage
-import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
-import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.ChatColor
 import org.bukkit.command.CommandSender
-import org.bukkit.configuration.file.FileConfiguration
-import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Player
 import org.cubexmc.RuleGems
+import org.cubexmc.core.Reloadable
 import org.cubexmc.i18n.ColorMode
 import org.cubexmc.i18n.I18nOptions
 import org.cubexmc.i18n.I18nService
@@ -17,7 +12,7 @@ import org.cubexmc.i18n.I18nServices
 import org.cubexmc.i18n.MissingKeyMode
 import org.cubexmc.i18n.PlaceholderStyle
 import org.cubexmc.update.LanguageUpdater
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import org.cubexmc.utils.SchedulerUtil
 import java.io.File
 import java.io.IOException
@@ -26,33 +21,22 @@ import java.util.logging.Logger
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
-class LanguageManager(private val plugin: RuleGems) {
-    private val i18n: I18nService = I18nServices.create(
-        plugin,
-        I18nOptions.create()
-            .languageDirectory("lang")
-            .currentLocale { language ?: DEFAULT_LANGUAGE }
-            .defaultLocale(FALLBACK_LANGUAGE)
-            .fallbackLocales(listOf(FALLBACK_LANGUAGE, DEFAULT_LANGUAGE))
-            .bundledLocales(listOf(FALLBACK_LANGUAGE, DEFAULT_LANGUAGE))
-            .prefixKey("prefix")
-            .prefixToken("<prefix>")
-            .missingKeyMode(MissingKeyMode.RETURN_KEY)
-            .placeholderStyles(listOf(PlaceholderStyle.MINIMESSAGE_TAG))
-            .colorMode(ColorMode.MINIMESSAGE),
-    )
-    private val miniMessage: MiniMessage = MiniMessage.miniMessage()
-    private val legacySerializer: LegacyComponentSerializer = LegacyComponentSerializer.builder()
-        .character(LegacyComponentSerializer.SECTION_CHAR)
-        .hexColors()
-        .useUnusualXRepeatedCharacterHexFormat()
-        .build()
+class LanguageManager(private val plugin: RuleGems) : Reloadable {
+    private val options = I18nOptions.create()
+        .languageDirectory("lang")
+        .currentLocale { language ?: DEFAULT_LANGUAGE }
+        .defaultLocale(DEFAULT_LANGUAGE)
+        .fallbackLocales(listOf(FALLBACK_LANGUAGE, DEFAULT_LANGUAGE))
+        .bundledLocales(listOf(FALLBACK_LANGUAGE, DEFAULT_LANGUAGE))
+        .prefixKey("prefix")
+        .prefixToken("<prefix>")
+        .keyPrefix("")
+        .missingKeyMode(MissingKeyMode.RETURN_KEY)
+        .placeholderStyles(listOf(PlaceholderStyle.MINIMESSAGE_TAG))
+        .colorMode(ColorMode.MINIMESSAGE)
+    private val i18n: I18nService = I18nServices.create(plugin, options)
     var language: String? = null
         private set
-    private var langConfig: FileConfiguration? = null
-    private var prefix: String? = null
-    private var prefixTemplate: String? = null
-    private val loadedLanguages: MutableMap<String, FileConfiguration> = HashMap()
     private val missingMessageWarnings: MutableSet<String> = HashSet()
 
     private fun copyLangFileIfNotExists(lang: String): Boolean {
@@ -90,39 +74,17 @@ class LanguageManager(private val plugin: RuleGems) {
         }
     }
 
+    override fun reload() = loadLanguage()
+
     fun loadLanguage() {
-        loadedLanguages.clear()
         missingMessageWarnings.clear()
-        langConfig = null
-        language = plugin.config.getString("language", DEFAULT_LANGUAGE)
+        val configured = plugin.config.getString("language", DEFAULT_LANGUAGE).orEmpty()
+        language = configured.takeIf { it.matches(Regex("[A-Za-z0-9_-]+")) } ?: DEFAULT_LANGUAGE
+        if (!copyLangFileIfNotExists(language ?: DEFAULT_LANGUAGE)) language = DEFAULT_LANGUAGE
         ensureLanguageUpdated(language ?: DEFAULT_LANGUAGE)
-        loadLangConfig(language ?: DEFAULT_LANGUAGE)
-        if (langConfig == null) {
-            language = DEFAULT_LANGUAGE
-            if (copyLangFileIfNotExists(DEFAULT_LANGUAGE)) {
-                ensureLanguageUpdated(DEFAULT_LANGUAGE)
-                loadLangConfig(DEFAULT_LANGUAGE)
-            }
-        }
+        options.defaultLocale(language ?: DEFAULT_LANGUAGE)
         i18n.setCurrentLocale(language)
         i18n.reload()
-        prefixTemplate = langConfig?.getString("prefix", "<gray>[<red>RuleGems<gray>]<reset>")
-            ?: "<gray>[<red>RuleGems<gray>]<reset>"
-        prefix = renderTemplate(prefixTemplate, emptyMap())
-    }
-
-    private fun loadLangConfig(lang: String) {
-        if (!copyLangFileIfNotExists(lang)) {
-            return
-        }
-        val langFile = File(plugin.dataFolder, "lang/$lang.yml")
-        if (langFile.exists()) {
-            val loaded = YamlConfiguration.loadConfiguration(langFile)
-            loadedLanguages[lang] = loaded
-            if (lang.equals(language, ignoreCase = true)) {
-                langConfig = loaded
-            }
-        }
     }
 
     fun getMessage(path: String?): String = getMessage(path, language)
@@ -147,103 +109,11 @@ class LanguageManager(private val plugin: RuleGems) {
         return emptyList()
     }
 
-    private fun lookupMessage(lang: String?, path: String?): String? {
-        if (path.isNullOrEmpty()) {
-            return ""
-        }
+    private fun lookupMessage(lang: String?, path: String?): String? =
+        if (path.isNullOrEmpty()) "" else i18n.rawOrNull(path, lang ?: language)
 
-        val preferred = getLanguageConfig(lang)
-        if (preferred != null) {
-            val message = preferred.getString(path)
-            if (message != null) {
-                return message
-            }
-        }
-
-        val currentLangConfig = langConfig
-        if (currentLangConfig != null && preferred !== currentLangConfig) {
-            val message = currentLangConfig.getString(path)
-            if (message != null) {
-                return message
-            }
-        }
-
-        if (!FALLBACK_LANGUAGE.equals(lang, ignoreCase = true)) {
-            val fallback = getLanguageConfig(FALLBACK_LANGUAGE)
-            if (fallback != null) {
-                val message = fallback.getString(path)
-                if (message != null) {
-                    return message
-                }
-            }
-        }
-
-        if (!DEFAULT_LANGUAGE.equals(lang, ignoreCase = true) &&
-            !DEFAULT_LANGUAGE.equals(FALLBACK_LANGUAGE, ignoreCase = true)
-        ) {
-            val defaultConfig = getLanguageConfig(DEFAULT_LANGUAGE)
-            if (defaultConfig != null) {
-                return defaultConfig.getString(path)
-            }
-        }
-        return null
-    }
-
-    private fun lookupMessageList(lang: String?, path: String?): List<String>? {
-        if (path.isNullOrEmpty()) {
-            return emptyList()
-        }
-
-        val preferred = getLanguageConfig(lang)
-        if (preferred != null && preferred.isList(path)) {
-            return preferred.getStringList(path)
-        }
-
-        val currentLangConfig = langConfig
-        if (currentLangConfig != null && preferred !== currentLangConfig && currentLangConfig.isList(path)) {
-            return currentLangConfig.getStringList(path)
-        }
-
-        if (!FALLBACK_LANGUAGE.equals(lang, ignoreCase = true)) {
-            val fallback = getLanguageConfig(FALLBACK_LANGUAGE)
-            if (fallback != null && fallback.isList(path)) {
-                return fallback.getStringList(path)
-            }
-        }
-
-        if (!DEFAULT_LANGUAGE.equals(lang, ignoreCase = true) &&
-            !DEFAULT_LANGUAGE.equals(FALLBACK_LANGUAGE, ignoreCase = true)
-        ) {
-            val defaultConfig = getLanguageConfig(DEFAULT_LANGUAGE)
-            if (defaultConfig != null && defaultConfig.isList(path)) {
-                return defaultConfig.getStringList(path)
-            }
-        }
-        return null
-    }
-
-    private fun getLanguageConfig(lang: String?): FileConfiguration? {
-        val effectiveLang = if (lang.isNullOrEmpty()) language else lang
-        if (effectiveLang.isNullOrEmpty()) {
-            return null
-        }
-        val cached = loadedLanguages[effectiveLang]
-        if (cached != null) {
-            return cached
-        }
-
-        val langFile = File(plugin.dataFolder, "lang/$effectiveLang.yml")
-        if (!langFile.exists()) {
-            ensureLanguageUpdated(effectiveLang)
-        }
-        if (!langFile.exists()) {
-            return null
-        }
-
-        val loaded = YamlConfiguration.loadConfiguration(langFile)
-        loadedLanguages[effectiveLang] = loaded
-        return loaded
-    }
+    private fun lookupMessageList(lang: String?, path: String?): List<String> =
+        if (path.isNullOrEmpty()) emptyList() else i18n.rawList(path, lang ?: language)
 
     private fun warnMissingKey(path: String?, lang: String?) {
         val warnKey = (lang ?: language) + ":" + path
@@ -304,7 +174,7 @@ class LanguageManager(private val plugin: RuleGems) {
         logger.info(ChatColor.stripColor(translateColorCodes(message)))
     }
 
-    fun translateColorCodes(message: String?): String = ColorUtils.translateColorCodes(message) ?: ""
+    fun translateColorCodes(message: String?): String = CubexText.translateColorCodes(message) ?: ""
 
     private fun renderTemplatePreservingPlaceholders(path: String?, template: String?): String {
         if ("prefix" == path) {
@@ -322,7 +192,7 @@ class LanguageManager(private val plugin: RuleGems) {
         val buffer = StringBuffer()
         while (matcher.find()) {
             val name = matcher.group(1)
-            if (isMiniMessageTag(name)) {
+            if (name == "prefix" || isMiniMessageTag(name)) {
                 continue
             }
             matcher.appendReplacement(buffer, Matcher.quoteReplacement("%$name%"))
@@ -334,30 +204,14 @@ class LanguageManager(private val plugin: RuleGems) {
     private fun isMiniMessageTag(name: String?): Boolean =
         name != null && (MINIMESSAGE_TAGS.contains(name) || name.startsWith("#"))
 
-    private fun renderTemplate(template: String?, placeholders: Map<String, String>?): String {
-        var resolvedTemplate = template ?: ""
-        val currentPrefixTemplate = prefixTemplate
-        if (currentPrefixTemplate != null && resolvedTemplate != currentPrefixTemplate) {
-            resolvedTemplate = resolvedTemplate.replace("<prefix>", currentPrefixTemplate)
-        }
-        val builder = TagResolver.builder()
-        if (placeholders != null) {
-            for ((key, value) in placeholders) {
-                val name = key.lowercase(Locale.ROOT)
-                if (MINIMESSAGE_PLACEHOLDER_NAME.matcher(name).matches()) {
-                    builder.resolver(Placeholder.unparsed(name, value))
-                }
-            }
-        }
-        return legacySerializer.serialize(miniMessage.deserialize(resolvedTemplate, builder.build()))
-    }
+    private fun renderTemplate(template: String?, placeholders: Map<String, String>?): String =
+        i18n.render(template, placeholders?.mapKeys { it.key.lowercase(Locale.ROOT) })
 
     fun renderTitleLine(template: String?, placeholders: Map<String, String>?): String =
         renderTemplate(template, placeholders)
 
     fun showTitle(player: Player, path: String, placeholders: Map<String, String>?) {
-        val currentLangConfig = langConfig ?: return
-        val titleMessages = currentLangConfig.getStringList("title.$path")
+        val titleMessages = i18n.rawList("title.$path")
         if (titleMessages.size == 1) {
             SchedulerUtil.entityRun(
                 plugin,
@@ -398,7 +252,6 @@ class LanguageManager(private val plugin: RuleGems) {
         private const val FALLBACK_LANGUAGE = "en_US"
         private val BUNDLED_LANGUAGES = arrayOf(FALLBACK_LANGUAGE, DEFAULT_LANGUAGE)
         private val MINIMESSAGE_PLACEHOLDER: Pattern = Pattern.compile("(?<!\\\\)<([a-z0-9_:-]+)>")
-        private val MINIMESSAGE_PLACEHOLDER_NAME: Pattern = Pattern.compile("[a-z0-9_:-]+")
         private val MINIMESSAGE_TAGS: Set<String> = setOf(
             "black",
             "dark_blue",

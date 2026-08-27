@@ -10,6 +10,24 @@ A lightweight plugin that passes player power around through collectible "rule g
 2. Start the server to generate configs
 3. Adjust `config.yml` and files under `gems/`, `powers/`, and `features/` as needed
 
+### Framework update and rollback
+
+Stop the server, back up the old jar and the entire RuleGems folder, including
+`data/`, `lang/` and any SQLite file configured outside that folder. Replace only
+the deployment jar and restart normally; do not hot-swap this relocation update.
+Gem UUIDs, counters, permissions and YAML/SQLite formats are unchanged. Missing defaults
+are merged using the existing backup policy; deleting configs or regenerating gems is unnecessary.
+Limited-command cooldowns still clear on restart as before; uses do not refill automatically.
+Revoke-rule cooldowns and pending transfer guards remain durable.
+
+Run `/rg doctor`, check ownership, appointments and remaining uses, then test small
+bank transfers against the actual economy plugin. To roll back, stop the server and
+restore the matching jar and data backup. Resolve pending transfers before downgrading:
+older jars do not enforce the new guards. Reconcile current economy balances separately;
+restoring RuleGems files does not undo economy transactions. Language version 3 changes only
+known obsolete bundled transfer messages; check custom messages for outdated refund promises. See [IMPROVE_PLAN](IMPROVE_PLAN.md)
+for this improvement run's automated verification and outstanding live-server checks.
+
 ## Server-Ready Setup
 - Opening checklist, smoke tests, and production notes live in [server-ready-guide.md](docs/server-ready-guide.md).
 - Copyable gameplay packs live under [presets/](presets/); the first one is `kingdom-power`.
@@ -24,6 +42,8 @@ A lightweight plugin that passes player power around through collectible "rule g
 - `/rulegems revoke <player>` Force clear all gem-granted permissions and allowances from a player (admin intervention). If `inventory_grants` is enabled and the player still holds gems, permissions will be re-issued on the next inventory recalculation.
 - `/rulegems revoke-power list` Show configured revoke-power rules
 - `/rulegems revoke-power <rule> <player> <power>` Use a configured revoke rule to counter a player's redeemed gem power. Rules usually require `/rg revoke-power confirm`; use `/rg revoke-power cancel` to abandon the pending action.
+- `/rulegems transfer-review list [page]` List pending transfer operations (also the default with no subcommand)
+- `/rulegems transfer-review resolve <operation UUID> <note>` Record reconciliation and release its retry guard; no balance or use changes
 - `/rulegems reload` Reload configuration files
 - `/rulegems rulers` List current power holders
 - `/rulegems gems` Show the status of every gem instance
@@ -39,7 +59,9 @@ A lightweight plugin that passes player power around through collectible "rule g
 - `/rulegems appointees [perm_set]` View list of appointees
 
 ## Permissions
-- `rulegems.admin` Admin commands (default OP)
+- `rulegems.admin` Admin commands (default OP; includes both reconciliation permissions)
+- `rulegems.transfer.review` View pending operations (default OP)
+- `rulegems.transfer.resolve` Confirm reconciliation and release guards (default OP; not implied by review)
 - `rulegems.redeem` Redeem single (default true)
 - `rulegems.redeemall` Redeem all (default true)
 - `rulegems.rulers` View current holder (default true)
@@ -87,17 +109,43 @@ Each gem type can grant permissions, Vault groups and limited-use commands. Ever
   - `any_of` defines multiple equivalent recipes and uses the first satisfiable recipe in order.
   - `requires_any` and `requires_count` + `requires_count_from` remain as legacy either/or and at-least-N gates.
   - `allow_redeem_all` defaults to `false` for configured requirements so `/rg redeemall` cannot bypass them accidentally.
-- Config upgrades: startup or reload backs up legacy syntax to `backups/config-optimization-<yyyyMMdd-HHmmss>/` before reading it with coarse compatibility and warnings. Migrate `template`, root-level implicit power fields, `vault_group` / `vault_groups` / `permission_group`, and old requirement forms to `base`, `permission_groups`, and recipe/ingredient syntax; future versions may remove compatibility.
+- Config upgrades: startup or reload backs up legacy syntax to `backups/config-optimization-<unique-id>/` before reading it with coarse compatibility and warnings. Migrate `template`, root-level implicit power fields, `vault_group` / `vault_groups` / `permission_group`, and old requirement forms to `base`, `permission_groups`, and recipe/ingredient syntax; future versions may remove compatibility.
 - Permission backends are selected automatically in LuckPerms → Vault → Bukkit order; group adds/removals are routed through the active provider.
 - Storage: `storage.type: yaml` uses `data/gems.yml` and maintains `data/gems.yml.bak` as the last-known-good write. `storage.type: sqlite` uses the database configured by `storage.sqlite.file`, preserves the existing data shape, and imports `data/gems.yml` when an empty database is first initialized. Corrupt or unreadable data is never treated as a new installation and cannot trigger new UUID generation: startup fails, while reload preserves the active runtime state. If a synchronous primary save fails, RuleGems attempts `data/recovery/gems-emergency-<timestamp>.yml` and reports the failure through `/rg doctor`.
-- Economy transfers: built-in `transfer:` directives default to disabled through
-  `economy.transfer_directives_enabled: false`. Vault exposes separate withdraw
-  and deposit calls, not a cross-account transaction. Keep this disabled in
-  production and call the economy plugin's native command from
-  `command_allows`. If explicitly enabled, RuleGems serializes each account
-  pair, rechecks balance, and verifies compensation, but crash recovery remains
-  the economy plugin's responsibility.
+- Economy transfers: `transfer:` remains disabled by default via
+  `economy.transfer_directives_enabled: false`. RuleGems serializes
+  transfers against the same provider. Only an explicit rejected deposit is refunded;
+  exceptions, null responses and failed refunds require manual balance reconciliation.
+  A committed transfer followed by another command failure retains the consumed use and cooldown.
+  Uncertain/partial operations block retries from the same player/source in `data/transfer-operations.yml`,
+  surviving reload and restart. Vault is not an atomic transaction or automatic crash recovery service.
+- Accounts: player names, UUID / `uuid:<UUID>`, `name:<account>` for Vault string
+  accounts, and `bank:<bank>` where supported. Ordinary names resolve via online/cache
+  players, existing Vault named accounts, then trusted profile lookup; no full offline-player
+  scan occurs. Use `name:cubex_bank` for explicit named-account routing and verify both
+  balances with a small transfer on the actual economy provider.
+- Installation remains unchanged: RuleGems runs independently, without CubeXLib.
+  Stop the server before replacing the jar for this update.
+- Reload: require feature stores to pass their save barrier and save gems synchronously, then validate config, languages and storage before
+  publishing new config. Named failures stop later stages. RuleGems menus close on
+  reload; the command executor and its active cooldowns remain. Runtime failures in
+  world operations or other plugins are not a cross-component atomic rollback.
 - Power gate: `features/rule.yml` is disabled by default. When enabled, `rulegems.rule` allows all gem powers and `rulegems.rule.<gemKey>` allows one specific gem. This is useful during testing when only trusted players should be able to activate powers.
+
+### Reconciliation and data failures
+
+Use `/rg transfer-review list` to inspect operation IDs, players, status and resolved transfer arguments.
+Check both balances and the economy provider's records before correcting money through that provider.
+Then run `/rg transfer-review resolve <UUID> <note>`: allowances must save successfully before the
+acknowledgement is archived under `data/transfer-reviews/` and the guard is released. It does not replay
+commands, refund money, refill uses or clear cooldowns. Do not delete the journal to bypass review.
+
+Unreadable rule/revoke configuration and feature data abort loading; they do not silently disable gates
+or clear cooldowns. Appointments and revoke cooldowns retain their existing YAML formats and save before
+publishing changes. Failed writes do not report success. History queries retain only the requested page
+in memory, but still scan records to count them. Durable transfer protection adds synchronous disk writes;
+unit tests are not a production TPS or economy-provider latency benchmark. Hot-swapping external providers
+is not supported; stop the server for upgrades.
 
 ### Limited-command argument constraints
 
@@ -109,10 +157,14 @@ command_allows:
   - command: /cxfine
     usage: '/cxfine <player> <amount>'
     args:
-      arg1: {type: string, required: true}
-      arg2: {type: number, min: 0.01, max: 10000}
+      arg1: {type: string, required: true, suggestions: online_players}
+      arg2:
+        type: number
+        min: 0.01
+        max: 10000
+        suggestions: [50, 100, 500, 1000, 5000, 10000]
     execute:
-      - 'transfer:%arg1% cubex_bank %arg2%'
+      - 'transfer:%arg1% name:cubex_bank %arg2%'
     time_limit: 5
     cooldown: 7200
 ```
@@ -130,6 +182,8 @@ change the existing counter or cooldown lifecycle.
 | `type: integer` | Integer text such as `25`; rejects `25.0` |
 | `required: true` | Required by default; `false` skips missing inputs but still validates supplied values |
 | `min` / `max` | Optional inclusive bounds for numeric types; excess values are rejected, never clamped |
+| `suggestions: online_players` | String arguments only; suggests online players visible to the sender through Bukkit `canSee` |
+| `suggestions: [50, 100, 500]` | Fixed candidates, deduplicated in configured order; numeric candidates are filtered by the argument type and `min/max` |
 | `usage` | Usage shown on input errors, rendered as plain text; defaults to the command name |
 
 Validation runs before placeholder substitution, the entire command chain, counter consumption, and
@@ -138,6 +192,20 @@ to `console:`, `player:`, `player-op:`, and `transfer:` commands. Malformed cons
 misspelled `max`, reversed bounds, etc.) log a warning and block execution rather than silently dropping
 the restriction. Configurations without `args` retain their behavior. New language keys are merged
 without overwriting existing translations.
+
+Suggestions match the typed prefix (player names ignore case), with at most 50 results per request.
+The appointment's `max: 500` automatically filters `1000`, `5000`, and `10000` from the same list.
+Completion resolves the currently executable power source; exhausted or disabled powers provide no
+RuleGems candidates. Requests never consume uses or start cooldowns. Static amounts are filtered at
+configuration load; player names use the online list only, without offline-player scans, database
+queries, or balance lookups.
+
+Omitting `suggestions` adds no argument completion; `suggestions: []` explicitly supplies no candidates.
+Custom proxies and native-command Bukkit completion events share these rules. Explicitly configured
+candidates replace existing results, even when empty; unconfigured arguments retain native results.
+RuleGems does not inherit completion from other commands in `execute`. Suggestions are hints, not an
+allowlist: users may still type other valid amounts or offline names, subject to execution validation.
+Unknown completion sources or malformed structures log a configuration error and block the command.
 
 **Keep money amounts required.** Constraints validate player input, not configured defaults in
 `%argN|default%`, fixed amounts in templates, or the total of several transfers in a chain. This is not
@@ -148,6 +216,8 @@ transaction. Put transfers before success broadcasts.
 After upgrading, edit powers and run `/rg reload`; existing counters are not automatically refilled.
 **Disable dynamic-amount commands relying on these constraints before rolling back to an older jar**
 that ignores `args`, or their limits will no longer be enforced.
+When rolling back to a version that supports `args` but not `suggestions`, remove `suggestions` first;
+otherwise its strict parser will block the command.
 
 ### Gem Presentation Modes
 
@@ -212,45 +282,30 @@ Allows rulers to delegate permissions to other players, forming a power hierarch
 - **Conditions**: Permission sets can have activation conditions (time/world) that determine when they are active
 
 #### Configuration
-`features/appoint.yml` defines permission sets:
-```yaml
-enabled: true
-cascade_revoke: true  # Cascade revocation
-condition_refresh_interval: 30  # Condition refresh interval (seconds), set to 0 to disable
+`features/appoint.yml` only configures `enabled`, `cascade_revoke` and
+`condition_refresh_interval`. Positions come from `appoints` in loaded gem power structures,
+not from `features/appoint.yml.permission_sets`. For example, place this in a file under
+`powers/` and reference it from a gem with `power: ruler`:
 
-permission_sets:
-  knight:  # Permission set key, corresponds to rulegems.appoint.knight
-    display_name: "&6Knight"
-    description: "Basic combat permissions"
-    max_appointments: 3  # Max appointees per appointer, -1 for unlimited
-    permissions:
-      - example.permission1
-    command_allows:  # Limited commands (same syntax as gems; counters are stored per appointment source)
-      - command: "/kit warrior"
-        time_limit: 3
-    delegate_permissions:  # Permissions that can be further delegated
-      - rulegems.appoint.squire
-    inherits:  # Inherit from other permission sets
-      - squire
-    on_appoint:  # Commands executed on appointment
-      - "console: broadcast %player% appointed %target% as Knight"
-    on_revoke:  # Commands executed on dismissal
-      - "console: broadcast %target%'s Knight title was revoked"
-    
-    # Conditions (optional)
-    conditions:
-      time:
-        enabled: true
-        type: day  # always / day / night / custom
-        from: 0    # Custom time range (only for type=custom)
-        to: 12000  # Minecraft time: 0=sunrise, 6000=noon, 12000=sunset
-      worlds:
-        enabled: true
-        mode: whitelist  # whitelist / blacklist
-        list:
-          - world
-          - world_nether
+```yaml
+ruler:
+  appoints:
+    knight:
+      display_name: "<gold>Knight"
+      max_count: 3
+      power:
+        permissions: ["example.permission1"]
+        command_allows:
+          - command: "/kit warrior"
+            time_limit: 3
+        conditions:
+          time: {enabled: true, type: day}
+          worlds: {enabled: true, mode: whitelist, list: [world]}
 ```
+
+Nested positions belong under the position's `power.appoints`; RuleGems grants the corresponding
+appointment permissions. State remains in `data/appoints.yml`. The legacy
+`features/appoint_data.yml` is validated before migration; migration failure does not create an empty store.
 
 #### Condition System
 Permission sets can have activation conditions. When conditions are not met, the permissions and commands are temporarily disabled:
@@ -272,7 +327,7 @@ Condition refresh triggers:
 #### Power Hierarchy Example
 ```
 King (gem holder, has rulegems.appoint.duke)
-└── Duke (appointed, has rulegems.appoint.knight via delegate_permissions)
+└── Duke (appointed, has rulegems.appoint.knight via nested power.appoints)
     └── Knight (appointed)
 ```
 When King loses the gem → Duke is cascade revoked → Knight is also cascade revoked

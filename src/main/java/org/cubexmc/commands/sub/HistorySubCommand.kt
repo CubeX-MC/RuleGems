@@ -11,7 +11,7 @@ import org.cubexmc.RuleGems
 import org.cubexmc.commands.SubCommand
 import org.cubexmc.manager.HistoryLogger
 import org.cubexmc.manager.LanguageManager
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import org.cubexmc.utils.SchedulerUtil
 import kotlin.math.ceil
 import kotlin.math.max
@@ -178,10 +178,10 @@ class HistorySubCommand(
         if (text.isNullOrEmpty()) {
             return
         }
-        val parts = TextComponent.fromLegacyText(ColorUtils.translateColorCodes(text) ?: "")
+        val parts = TextComponent.fromLegacyText(CubexText.translateColorCodes(text) ?: "")
         val clickEvent = ClickEvent(ClickEvent.Action.RUN_COMMAND, command)
         val hoverEvent = if (!hover.isNullOrEmpty()) {
-            HoverEvent(HoverEvent.Action.SHOW_TEXT, Text(ColorUtils.translateColorCodes(hover) ?: ""))
+            HoverEvent(HoverEvent.Action.SHOW_TEXT, Text(CubexText.translateColorCodes(hover) ?: ""))
         } else {
             null
         }
@@ -198,7 +198,7 @@ class HistorySubCommand(
         if (text.isNullOrEmpty()) {
             return
         }
-        for (part in TextComponent.fromLegacyText(ColorUtils.translateColorCodes(text) ?: "")) {
+        for (part in TextComponent.fromLegacyText(CubexText.translateColorCodes(text) ?: "")) {
             components.add(part)
         }
     }

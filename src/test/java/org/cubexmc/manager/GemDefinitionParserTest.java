@@ -12,8 +12,55 @@ import java.util.logging.Logger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GemDefinitionParserTest {
+
+    @Test
+    void parsesYamlPlayerAndAmountSuggestionsWithoutRestrictingTypedValues() throws Exception {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.loadFromString("""
+                command_allows:
+                  - command: /cxfine
+                    args:
+                      arg1: {type: string, suggestions: online_players}
+                      arg2:
+                        type: number
+                        min: 0.01
+                        max: 500
+                        suggestions: [0, 0.01, 50, 50, 100, 500, 501, 'NaN', '1e2']
+                    execute: ['transfer:%arg1% cubex_bank %arg2%']
+                """);
+        AllowedCommand command = new GemDefinitionParser(Logger.getLogger("RuleGemsTest"), null)
+                .parsePowerStructure(Map.of("command_allows", yaml.getMapList("command_allows")))
+                .getAllowedCommands().get(0);
+        var constraints = command.getArgumentConstraints();
+        assertTrue(constraints.suggestionsFor(1).getOnlinePlayers());
+        assertEquals(List.of("0.01", "50", "100", "500"), constraints.suggestionsFor(2).getValues());
+        assertNull(constraints.suggestionsFor(3));
+        assertNull(constraints.validate(new String[]{"OfflinePlayer", "123.45"}));
+    }
+
+    @Test
+    void integerHintsUseTheSameValidationAndAbsentHintsStayAbsent() {
+        AllowedCommand integer = parseCommand(Map.of("arg2", Map.of("type", "integer", "min", 1, "max", 500,
+                "suggestions", List.of(1, "25.0", 100, 500, 501))));
+        assertEquals(List.of("1", "100", "500"), integer.getArgumentConstraints().suggestionsFor(2).getValues());
+        AllowedCommand legacy = parseCommand(Map.of("arg2", Map.of("type", "number", "max", 500)));
+        assertNull(legacy.getArgumentConstraints().suggestionsFor(2));
+    }
+
+    @Test
+    void malformedSuggestionProvidersBlockInsteadOfDroppingSafetyRules() {
+        for (Object suggestions : List.of("all_players", 500, Map.of("source", "online_players"), List.of(true), List.of("bad value"))) {
+            AllowedCommand command = parseCommand(Map.of("arg2", Map.of("type", "number", "max", 500,
+                    "suggestions", suggestions)));
+            assertNotNull(command.getArgumentConstraints().getConfigurationError(), suggestions.toString());
+            assertNull(command.getArgumentConstraints().suggestionsFor(2));
+        }
+        assertNotNull(parseCommand(Map.of("arg2", Map.of("type", "number", "suggestions", "online_players")))
+                .getArgumentConstraints().getConfigurationError());
+    }
 
     @Test
     void parsesYamlArgumentConstraintsForOwnerAndAppointeeCaps() throws Exception {

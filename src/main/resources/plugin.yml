@@ -18,6 +18,15 @@ permissions:
   rulegems.admin:
     description: Allows access to all RuleGems admin commands
     default: op
+    children:
+      rulegems.transfer.review: true
+      rulegems.transfer.resolve: true
+  rulegems.transfer.review:
+    description: Allows viewing unfinished transfer operations
+    default: op
+  rulegems.transfer.resolve:
+    description: Allows acknowledging reconciliation and releasing a transfer retry guard
+    default: op
   rulegems.redeem:
     description: Allows using /rulegems redeem
     default: true

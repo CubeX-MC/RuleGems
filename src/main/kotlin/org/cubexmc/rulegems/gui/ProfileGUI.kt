@@ -1,4 +1,4 @@
-package org.cubexmc.gui
+package org.cubexmc.rulegems.gui
 
 import org.bukkit.Bukkit
 import org.bukkit.Material
@@ -14,7 +14,7 @@ import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
 import org.cubexmc.model.AppointDefinition
 import org.cubexmc.model.GemDefinition
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 
 class ProfileGUI(
     guiManager: GUIManager,
@@ -38,7 +38,7 @@ class ProfileGUI(
         if (totalPages > 1) {
             title += " &8(${currentPage + 1}/$totalPages)"
         }
-        title = ColorUtils.translateColorCodes(title) ?: ""
+        title = CubexText.translateColorCodes(title) ?: ""
 
         val holder = GUIHolder(GUIHolder.GUIType.PROFILE, player.uniqueId, player.hasPermission("rulegems.admin"), currentPage)
         val gui = Bukkit.createInventory(holder, GUIManager.GUI_SIZE, title)
@@ -57,7 +57,7 @@ class ProfileGUI(
         if (commands.isEmpty()) {
             gui.setItem(
                 22,
-                ItemBuilder(Material.BARRIER)
+                GuiItems.item(Material.BARRIER)
                     .name("&c" + rawMsg("profile.no_commands"))
                     .addLore("&7" + rawMsg("profile.no_commands_lore"))
                     .build(),
@@ -70,23 +70,23 @@ class ProfileGUI(
             }
         }
 
-        player.openInventory(gui)
+        manager.openInventory(player, gui)
     }
 
-    private fun createIdentityItem(player: Player): ItemStack = ItemBuilder(Material.PLAYER_HEAD)
+    private fun createIdentityItem(player: Player): ItemStack = GuiItems.item(Material.PLAYER_HEAD)
         .name("&a" + rawMsg("profile.identity_title"))
         .skullOwner(player)
         .addEmptyLore()
         .addLore("&e▸ " + rawMsg("profile.player_name") + ": &f" + player.name)
         .addLore("&e▸ " + rawMsg("profile.player_uuid") + ": &7" + player.uniqueId)
-        .hideAttributes()
+        .hideDetails()
         .build()
 
     private fun createRulerItem(player: Player): ItemStack {
         val rulerKeys = gemManager.currentRulers.getOrDefault(player.uniqueId, emptySet())
-        val builder = ItemBuilder(Material.GOLDEN_HELMET)
+        val builder = GuiItems.item(Material.GOLDEN_HELMET)
             .name("&6" + rawMsg("profile.ruler_title"))
-            .hideAttributes()
+            .hideDetails()
         builder.addEmptyLore()
         if (rulerKeys.isEmpty()) {
             builder.addLore("&7" + rawMsg("profile.ruler_none"))
@@ -103,13 +103,13 @@ class ProfileGUI(
             .forEach { key ->
                 val definition: GemDefinition? = gemManager.findGemDefinitionByKey(key)
                 val display = if (definition != null) {
-                    ColorUtils.translateColorCodes(definition.displayName) ?: ""
+                    CubexText.translateColorCodes(definition.displayName) ?: ""
                 } else {
                     key
                 }
                 builder.addLore("&f- $display")
             }
-        builder.glow()
+        builder.cosmeticGlow()
         return builder.build()
     }
 
@@ -121,9 +121,9 @@ class ProfileGUI(
             ArrayList()
         }
 
-        val builder = ItemBuilder(Material.WRITABLE_BOOK)
+        val builder = GuiItems.item(Material.WRITABLE_BOOK)
             .name("&d" + rawMsg("profile.appointments_title"))
-            .hideAttributes()
+            .hideDetails()
             .addEmptyLore()
         if (appointments.isEmpty()) {
             builder.addLore("&7" + rawMsg("profile.appointments_none"))
@@ -134,7 +134,7 @@ class ProfileGUI(
         for (appointment in appointments) {
             val definition: AppointDefinition? = appointFeature?.getAppointDefinition(appointment.permSetKey)
             val display = if (definition != null) {
-                ColorUtils.translateColorCodes(definition.displayName) ?: ""
+                CubexText.translateColorCodes(definition.displayName) ?: ""
             } else {
                 appointment.permSetKey
             }
@@ -144,30 +144,30 @@ class ProfileGUI(
         return builder.build()
     }
 
-    private fun createCommandsSummaryItem(commandCount: Int): ItemStack = ItemBuilder(Material.COMPASS)
+    private fun createCommandsSummaryItem(commandCount: Int): ItemStack = GuiItems.item(Material.COMPASS)
         .name("&b" + rawMsg("profile.commands_title"))
         .addEmptyLore()
         .addLore("&e▸ " + rawMsg("profile.command_count") + ": &f" + commandCount)
         .addLore("&7" + rawMsg("profile.commands_summary"))
-        .hideAttributes()
+        .hideDetails()
         .build()
 
-    private fun createManagePowersItem(player: Player): ItemStack = ItemBuilder(Material.REDSTONE_TORCH)
+    private fun createManagePowersItem(player: Player): ItemStack = GuiItems.item(Material.REDSTONE_TORCH)
         .name("&c" + rawMsg("profile.manage_powers_title"))
         .addEmptyLore()
         .addLore("&7" + rawMsg("profile.manage_powers_lore"))
-        .hideAttributes()
+        .hideDetails()
         .build()
 
     private fun createRevokeRulesItem(player: Player): ItemStack {
         val revokeFeature = getRevokeFeature()
         val rules = revokeFeature?.getAvailableRules(player) ?: emptyList()
-        val builder = ItemBuilder(if (rules.isEmpty()) Material.GRAY_DYE else Material.NETHER_STAR)
+        val builder = GuiItems.item(if (rules.isEmpty()) Material.GRAY_DYE else Material.NETHER_STAR)
             .name("&c" + rawMsg("profile.revoke_title"))
             .addEmptyLore()
         if (rules.isEmpty()) {
             return builder.addLore("&7" + rawMsg("profile.revoke_none"))
-                .hideAttributes()
+                .hideDetails()
                 .build()
         }
         builder.addLore("&e▸ " + rawMsg("profile.revoke_count") + ": &f" + rules.size)
@@ -176,15 +176,15 @@ class ProfileGUI(
         }
         return builder.addEmptyLore()
             .addLore("&7" + rawMsg("profile.revoke_hint"))
-            .glow()
-            .hideAttributes()
+            .cosmeticGlow()
+            .hideDetails()
             .build()
     }
 
     private fun createCommandItem(entry: CommandEntry): ItemStack {
-        val builder = ItemBuilder(if (entry.cooldownSeconds > 0) Material.CLOCK else Material.PAPER)
+        val builder = GuiItems.item(if (entry.cooldownSeconds > 0) Material.CLOCK else Material.PAPER)
             .name("&e/" + entry.label)
-            .hideAttributes()
+            .hideDetails()
             .addEmptyLore()
             .addLore("&e▸ " + rawMsg("profile.remaining_uses") + ": &f" + entry.remainingDisplay)
         if (entry.cooldownSeconds > 0) {
@@ -193,7 +193,7 @@ class ProfileGUI(
             builder.addLore("&e▸ " + rawMsg("profile.cooldown") + ": &a" + rawMsg("profile.cooldown_ready"))
         }
         if (entry.cooldownSeconds > 0) {
-            builder.glow()
+            builder.cosmeticGlow()
         }
         return builder.build()
     }
@@ -217,7 +217,7 @@ class ProfileGUI(
 
     private fun getRevokeFeature(): RevokeFeature? = plugin.featureManager?.revokeFeature
 
-    private fun msg(path: String): String = ColorUtils.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
+    private fun msg(path: String): String = CubexText.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
 
     private fun rawMsg(path: String): String = lang.getMessage("gui.$path")
 

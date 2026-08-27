@@ -15,7 +15,7 @@ import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.inventory.EquipmentSlot
 import org.cubexmc.RuleGems
 import org.cubexmc.manager.GemManager
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import org.cubexmc.utils.SchedulerUtil
 import java.io.File
 import java.util.UUID
@@ -121,7 +121,7 @@ class GemNavigator(
         val placeholders = HashMap<String, String>()
         placeholders["seconds"] = cooldowns.remainingSeconds(playerId).toString()
         val msg = plugin.languageManager.formatMessage("feature.navigate.cooldown", placeholders) ?: ""
-        player.sendMessage(ColorUtils.translateColorCodes(msg) ?: "")
+        player.sendMessage(CubexText.translateColorCodes(msg) ?: "")
         return false
     }
 
@@ -135,14 +135,14 @@ class GemNavigator(
         if (result == null) {
             cancelNavigationSession(player, true)
             val msg = plugin.languageManager.formatMessage("feature.navigate.no_gem_found", null) ?: ""
-            player.sendMessage(ColorUtils.translateColorCodes(msg) ?: "")
+            player.sendMessage(CubexText.translateColorCodes(msg) ?: "")
             return
         }
 
         if (maxRange > 0 && result.distance > maxRange) {
             cancelNavigationSession(player, true)
             val msg = plugin.languageManager.formatMessage("feature.navigate.out_of_range", null) ?: ""
-            player.sendMessage(ColorUtils.translateColorCodes(msg) ?: "")
+            player.sendMessage(CubexText.translateColorCodes(msg) ?: "")
             return
         }
 
@@ -156,10 +156,10 @@ class GemNavigator(
             val distanceStr = formatDistance(result.distance)
             placeholders["distance"] = distanceStr
             val msg = plugin.languageManager.formatMessage("feature.navigate.found_with_distance", placeholders) ?: ""
-            player.sendMessage(ColorUtils.translateColorCodes(msg) ?: "")
+            player.sendMessage(CubexText.translateColorCodes(msg) ?: "")
         } else {
             val msg = plugin.languageManager.formatMessage("feature.navigate.found", placeholders) ?: ""
-            player.sendMessage(ColorUtils.translateColorCodes(msg) ?: "")
+            player.sendMessage(CubexText.translateColorCodes(msg) ?: "")
         }
     }
 
@@ -262,7 +262,7 @@ class GemNavigator(
         player.compassTarget = session.originalTarget
         if (notifyExpired) {
             val msg = plugin.languageManager.formatMessage("feature.navigate.expired", null) ?: ""
-            player.sendMessage(ColorUtils.translateColorCodes(msg) ?: "")
+            player.sendMessage(CubexText.translateColorCodes(msg) ?: "")
         }
     }
 

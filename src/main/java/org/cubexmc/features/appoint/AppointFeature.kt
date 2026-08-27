@@ -14,14 +14,16 @@ import org.cubexmc.model.AppointDefinition
 import org.cubexmc.model.GemDefinition
 import org.cubexmc.model.PowerCondition
 import org.cubexmc.model.PowerStructure
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import org.cubexmc.utils.SchedulerUtil
-import java.io.File
 import java.io.IOException
-import java.nio.file.Files
+import org.bukkit.configuration.InvalidConfigurationException
+import java.io.File
+import org.cubexmc.config.AtomicYamlFiles
+import org.cubexmc.storage.AppointmentStore
+import java.util.logging.Level
 import java.util.Locale
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 委任功能
@@ -32,20 +34,25 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
     val appointDefinitions: MutableMap<String, AppointDefinition> = HashMap()
 
     // 任命数据: permSetKey -> appointeeUuid -> Appointment
-    private val appointments: MutableMap<String, MutableMap<UUID, Appointment>> = HashMap()
-    private val toggledOffAppointments: MutableMap<UUID, MutableSet<String>> = ConcurrentHashMap()
+    private val store = AppointmentStore(
+        File(plugin.dataFolder, "data/appoints.yml"),
+        File(plugin.dataFolder, "features/appoint_data.yml"),
+    )
+    private val appointments get() = store.appointments
+    private val toggledOffAppointments get() = store.toggles
+    var storageFailure = false
+        private set
+
+    init {
+        plugin.bind(store)
+    }
 
     // 级联撤销（连坐制）
     var isCascadeRevoke: Boolean = true
         private set
 
     // 配置文件
-    private var configFile: File? = null
     private var config: YamlConfiguration = YamlConfiguration()
-
-    // 数据文件
-    private var dataFile: File? = null
-    private var data: YamlConfiguration = YamlConfiguration()
 
     // 定时任务句柄（Folia 返回 ScheduledTask，Bukkit 返回 BukkitTask）
     private var refreshTaskHandle: Any? = null
@@ -53,69 +60,31 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
     // 条件刷新间隔（秒）
     private var conditionRefreshInterval = 30
 
-    override fun initialize() {
-        initConfigFile()
-        loadData()
-        restoreOnlinePlayersPermissions()
-        startConditionRefreshTask()
-    }
+    override fun initialize() = reload()
 
     override fun shutdown() {
         stopConditionRefreshTask()
-        saveData()
+        store.close()
         psmOrNull()?.clearAllInNamespace("appoint")
     }
 
     override fun reload() {
+        prepare()
         stopConditionRefreshTask()
-        initConfigFile()
-        loadData()
         restoreOnlinePlayersPermissions()
         startConditionRefreshTask()
     }
 
-    /**
-     * 初始化配置文件
-     */
-    private fun initConfigFile() {
-        val featuresFolder = File(plugin.dataFolder, "features")
-        if (!featuresFolder.exists()) {
-            featuresFolder.mkdirs()
+    /** Load gate inputs without restoring grants or starting tasks; used before gem restoration. */
+    fun prepare() {
+        val file = File(plugin.dataFolder, "features/appoint.yml")
+        if (!file.exists()) plugin.saveResource("features/appoint.yml", false)
+        val candidate = AtomicYamlFiles.read(file)
+        for (path in listOf("enabled", "cascade_revoke")) {
+            require(!candidate.contains(path) || candidate.isBoolean(path)) { "Invalid appoint.$path" }
         }
-
-        val loadedConfigFile = File(featuresFolder, "appoint.yml")
-        configFile = loadedConfigFile
-        if (!loadedConfigFile.exists()) {
-            plugin.saveResource("features/appoint.yml", false)
-        }
-        config = YamlConfiguration.loadConfiguration(loadedConfigFile)
-
-        val dataFolder = File(plugin.dataFolder, "data")
-        if (!dataFolder.exists()) {
-            dataFolder.mkdirs()
-        }
-        val loadedDataFile = File(dataFolder, "appoints.yml")
-        dataFile = loadedDataFile
-
-        val oldDataFile = File(featuresFolder, "appoint_data.yml")
-        if (oldDataFile.exists() && !loadedDataFile.exists()) {
-            try {
-                Files.move(oldDataFile.toPath(), loadedDataFile.toPath())
-                plugin.logger.info("Migrated appoint_data.yml to data/appoints.yml")
-            } catch (e: IOException) {
-                plugin.logger.warning("Failed to migrate appoint_data.yml: " + e.message)
-            }
-        }
-
-        if (!loadedDataFile.exists()) {
-            try {
-                loadedDataFile.createNewFile()
-            } catch (e: IOException) {
-                plugin.logger.warning("Failed to create data/appoints.yml: " + e.message)
-            }
-        }
-        data = YamlConfiguration.loadConfiguration(loadedDataFile)
-
+        store.reload()
+        config = candidate
         loadConfig()
     }
 
@@ -172,87 +141,22 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
         }
     }
 
-    /**
-     * 加载任命数据
-     */
-    private fun loadData() {
-        appointments.clear()
-        toggledOffAppointments.clear()
+    fun saveData() = store.flush()
 
-        val appointmentsSection = data.getConfigurationSection("appointments")
-
-        if (appointmentsSection != null) {
-            for (permSetKey in appointmentsSection.getKeys(false)) {
-                val setSection = appointmentsSection.getConfigurationSection(permSetKey) ?: continue
-
-                val setAppointments: MutableMap<UUID, Appointment> = HashMap()
-                for (uuidStr in setSection.getKeys(false)) {
-                    try {
-                        val appointeeUuid = UUID.fromString(uuidStr)
-                        val appointmentSection = setSection.getConfigurationSection(uuidStr) ?: continue
-
-                        val appointerStr = appointmentSection.getString("appointed_by")
-                        val appointerUuid = if (appointerStr != null) UUID.fromString(appointerStr) else null
-                        val appointedAt = appointmentSection.getLong("appointed_at", System.currentTimeMillis())
-
-                        val appointment = Appointment(appointeeUuid, permSetKey, appointerUuid, appointedAt)
-                        setAppointments[appointeeUuid] = appointment
-                    } catch (_: IllegalArgumentException) {
-                        plugin.logger.warning("Invalid UUID in appoint data for perm set '$permSetKey': $uuidStr — skipping entry")
-                    }
-                }
-                appointments[permSetKey] = setAppointments
-            }
-        }
-
-        val toggledSection = data.getConfigurationSection("toggled_off_appointments")
-        if (toggledSection != null) {
-            for (uuidStr in toggledSection.getKeys(false)) {
-                try {
-                    val playerUuid = UUID.fromString(uuidStr)
-                    val keys = toggledSection.getStringList(uuidStr)
-                        .map { normalizeKey(it) }
-                        .filter { it.isNotBlank() }
-                        .toMutableSet()
-                    if (keys.isNotEmpty()) {
-                        toggledOffAppointments[playerUuid] = keys
-                    }
-                } catch (_: IllegalArgumentException) {
-                    plugin.logger.warning("Invalid UUID in toggled_off_appointments data: $uuidStr — skipping entry")
-                }
-            }
-        }
+    private fun persistChange(change: () -> Unit): Boolean = try {
+        change()
+        storageFailure = false
+        true
+    } catch (failure: IOException) {
+        reportStorageFailure(failure)
+    } catch (failure: InvalidConfigurationException) {
+        reportStorageFailure(failure)
     }
 
-    /**
-     * 保存任命数据
-     */
-    fun saveData() {
-        data["appointments"] = null
-        data["toggled_off_appointments"] = null
-
-        for ((permSetKey, byAppointee) in appointments) {
-            for (appointment in byAppointee.values) {
-                val path = "appointments.$permSetKey.${appointment.appointeeUuid}"
-                val appointer = appointment.appointerUuid
-                if (appointer != null) {
-                    data["$path.appointed_by"] = appointer.toString()
-                }
-                data["$path.appointed_at"] = appointment.appointedAt
-            }
-        }
-        for ((playerUuid, keys) in toggledOffAppointments) {
-            if (keys.isNotEmpty()) {
-                data["toggled_off_appointments.$playerUuid"] = ArrayList(keys).sorted()
-            }
-        }
-
-        val file = dataFile ?: return
-        try {
-            data.save(file)
-        } catch (e: IOException) {
-            plugin.logger.warning("Failed to save appoint data: " + e.message)
-        }
+    private fun reportStorageFailure(failure: Exception): Boolean {
+        storageFailure = true
+        plugin.logger.log(Level.SEVERE, "Cannot persist appointment change; previous state retained.", failure)
+        return false
     }
 
     /**
@@ -268,6 +172,7 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
      * 任命玩家
      */
     fun appoint(appointer: Player?, appointee: Player?, permSetKey: String?): Boolean {
+        storageFailure = false
         if (!enabled || appointer == null || appointee == null || permSetKey == null) return false
 
         val def = appointDefinitions[permSetKey] ?: return false
@@ -302,12 +207,11 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
             System.currentTimeMillis(),
         )
 
-        appointments.computeIfAbsent(permSetKey) { HashMap() }[appointee.uniqueId] = appointment
+        if (!persistChange { store.add(appointment) }) return false
 
         applyPermissionsOnEntity(appointee)
         executeCommands(def.onAppoint, appointer, appointee, permSetKey)
         playSound(appointee, def.appointSound)
-        saveData()
 
         return true
     }
@@ -316,6 +220,7 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
      * 撤销任命
      */
     fun dismiss(dismisser: Player?, appointeeUuid: UUID?, permSetKey: String?): Boolean {
+        storageFailure = false
         if (!enabled || dismisser == null || appointeeUuid == null || permSetKey == null) return false
 
         val def = appointDefinitions[permSetKey] ?: return false
@@ -327,9 +232,8 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
 
         if (!canDismiss) return false
 
-        setAppointments.remove(appointeeUuid)
+        if (!persistChange { store.remove(permSetKey, listOf(appointeeUuid)) }) return false
         clearAppointmentAllowance(appointeeUuid, permSetKey)
-        clearAppointmentToggle(appointeeUuid, permSetKey)
 
         val appointee = Bukkit.getPlayer(appointeeUuid)
         if (appointee != null) {
@@ -340,7 +244,6 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
             }
         }
 
-        saveData()
 
         return true
     }
@@ -429,28 +332,15 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
     }
 
     fun setAppointmentPowerEnabled(player: Player?, permSetKey: String?, enabled: Boolean): Boolean {
+        storageFailure = false
         if (player == null || permSetKey.isNullOrBlank() || !isAppointed(player.uniqueId, permSetKey)) {
             return false
         }
 
-        val playerId = player.uniqueId
-        val normalizedKey = normalizeKey(permSetKey)
-        val toggledOff = toggledOffAppointments.computeIfAbsent(playerId) { HashSet() }
-        val currentlyOff = toggledOff.contains(normalizedKey)
-
-        if (enabled && currentlyOff) {
-            toggledOff.remove(normalizedKey)
-            if (toggledOff.isEmpty()) {
-                toggledOffAppointments.remove(playerId)
-            }
-        } else if (!enabled && !currentlyOff) {
-            toggledOff.add(normalizedKey)
-        } else {
-            return true
-        }
+        if (isAppointmentToggledOff(player.uniqueId, permSetKey) == !enabled) return true
+        if (!persistChange { store.setEnabled(player.uniqueId, permSetKey, enabled) }) return false
 
         applyPermissions(player)
-        saveData()
         return true
     }
 
@@ -538,7 +428,7 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
 
         val def = appointDefinitions[permSetKey]
         val displayName = if (def != null) {
-            ColorUtils.translateColorCodes(def.displayName) ?: permSetKey
+            CubexText.translateColorCodes(def.displayName) ?: permSetKey
         } else {
             permSetKey
         }
@@ -657,10 +547,9 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
 
         val def = appointDefinitions[permSetKey]
 
+        if (!persistChange { store.remove(permSetKey, toRevoke) }) return
         for (appointeeUuid in toRevoke) {
-            setAppointments.remove(appointeeUuid)
             clearAppointmentAllowance(appointeeUuid, permSetKey)
-            clearAppointmentToggle(appointeeUuid, permSetKey)
 
             val appointee = Bukkit.getPlayer(appointeeUuid)
             if (appointee != null && appointee.isOnline) {
@@ -672,7 +561,6 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
             onAppointerLostPermissionInternal(appointeeUuid, null, visited)
         }
 
-        saveData()
 
         plugin.logger.info(
             "Cascade revoked " + toRevoke.size + " appointments for perm set '" + permSetKey +
@@ -693,7 +581,7 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
         if (def != null && def.onRevoke != null) {
             for (cmd in def.onRevoke) {
                 val displayName = if (def.displayName != null) {
-                    ColorUtils.translateColorCodes(def.displayName) ?: permSetKey
+                    CubexText.translateColorCodes(def.displayName) ?: permSetKey
                 } else {
                     permSetKey
                 }
@@ -864,15 +752,6 @@ class AppointFeature(plugin: RuleGems) : Feature(plugin, PERMISSION_PREFIX + "*"
         val allowanceManager = getAllowanceManager()
         if (allowanceManager != null) {
             allowanceManager.removeAppointmentAllowedCommands(playerId, permSetKey)
-        }
-    }
-
-    private fun clearAppointmentToggle(playerId: UUID?, permSetKey: String?) {
-        if (playerId == null || permSetKey == null) return
-        val toggledOff = toggledOffAppointments[playerId] ?: return
-        toggledOff.remove(normalizeKey(permSetKey))
-        if (toggledOff.isEmpty()) {
-            toggledOffAppointments.remove(playerId)
         }
     }
 

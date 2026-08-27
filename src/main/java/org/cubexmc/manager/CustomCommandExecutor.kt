@@ -3,14 +3,14 @@ package org.cubexmc.manager
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.cubexmc.RuleGems
-import org.cubexmc.economy.EconomyProvider
+import org.cubexmc.economy.VaultTransfers
 import org.cubexmc.model.AllowedCommand
 import org.cubexmc.utils.SchedulerUtil
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
-import java.util.regex.Matcher
-import java.util.regex.Pattern
+import java.util.function.BooleanSupplier
+import java.util.function.Supplier
 import kotlin.math.max
 
 /**
@@ -21,7 +21,7 @@ class CustomCommandExecutor(
     private val plugin: RuleGems,
     private val languageManager: LanguageManager?,
     private val gameplayConfig: GameplayConfig?,
-    private val economyProvider: EconomyProvider? = null,
+    var economyProvider: VaultTransfers? = null,
 ) {
     // 冷却时间管理: 玩家UUID -> (命令名 -> 过期时间戳)
     private val playerCooldowns: MutableMap<UUID, MutableMap<String, Long>> = ConcurrentHashMap()
@@ -99,177 +99,47 @@ class CustomCommandExecutor(
         }
     }
 
-    /**
-     * 处理 transfer 指令：格式为 "<付款账户> <收款账户> <金额>"（占位符已替换完毕）。
-     * 经 Vault 做带补偿回滚的转账，并向玩家反馈结果。Vault 不提供跨账户事务，
-     * 因此该扩展默认关闭，建议优先使用经济插件自己的转账命令。
-     */
-    private fun executeTransfer(player: Player, spec: String): Boolean {
-        if (gameplayConfig?.isTransferDirectivesEnabled != true) {
-            languageManager?.sendMessage(player, "allowance.transfer_disabled")
-            plugin.logger.warning("Blocked transfer: directive because economy.transfer_directives_enabled is false.")
-            return false
-        }
-        val eco = economyProvider
-        if (eco == null) {
-            languageManager?.sendMessage(player, "allowance.transfer_no_economy")
-            plugin.logger.warning("transfer: directive used but Vault economy is unavailable: $spec")
-            return false
-        }
-
-        val parts = spec.trim().split("\\s+".toRegex())
-        if (parts.size != 3) {
-            languageManager?.sendMessage(player, "allowance.transfer_failed")
-            plugin.logger.warning("transfer: directive must be 'transfer:<from> <to> <amount>', got: $spec")
-            return false
-        }
-        val fromName = parts[0]
-        val toName = parts[1]
-        val amount = parts[2].toDoubleOrNull()
-        if (amount == null) {
-            languageManager?.sendMessage(player, "allowance.transfer_failed")
-            plugin.logger.warning("transfer: invalid amount in: $spec")
-            return false
-        }
-
-        val placeholders = HashMap<String, String>()
-        placeholders["from"] = fromName
-        placeholders["to"] = toName
-        placeholders["amount"] = String.format("%.2f", amount)
-
-        return when (eco.transfer(fromName, toName, amount)) {
-            EconomyProvider.Result.SUCCESS -> {
-                languageManager?.sendMessage(player, "allowance.transfer_success", placeholders)
-                true
-            }
-            EconomyProvider.Result.INSUFFICIENT -> {
-                languageManager?.sendMessage(player, "allowance.transfer_insufficient", placeholders)
-                false
-            }
-            EconomyProvider.Result.NO_ECONOMY -> {
-                languageManager?.sendMessage(player, "allowance.transfer_no_economy", placeholders)
-                false
-            }
-            else -> {
-                languageManager?.sendMessage(player, "allowance.transfer_failed", placeholders)
-                false
-            }
-        }
+    private val transfers by lazy {
+        TransferDirectiveExecutor(
+            plugin.logger, languageManager,
+            BooleanSupplier { gameplayConfig?.isTransferDirectivesEnabled == true },
+            Supplier { economyProvider },
+        )
     }
+    private val chain by lazy { AllowedCommandChain(transfers, ::executeOrdinaryCommand) }
 
-    /**
-     * 替换占位符，支持默认值语法：%arg1|defaultValue%
-     */
-    private fun replacePlaceholders(text: String, placeholders: Map<String, String>, args: Array<String>): String {
-        var result = text
+    fun executeExtendedCommand(player: Player?, allowedCmd: AllowedCommand?, args: Array<String>): Boolean =
+        executeExtendedCommandResult(player, allowedCmd, args) == CommandExecutionResult.SUCCESS
 
-        // 先处理简单占位符
-        for ((key, value) in placeholders) {
-            result = result.replace(key, value)
-        }
-
-        // 处理带默认值的占位符: %arg1|default%
-        val pattern = Pattern.compile("%arg(\\d+)\\|([^%]+)%")
-        val matcher = pattern.matcher(result)
-        val builder = StringBuffer()
-
-        while (matcher.find()) {
-            val argIndex = matcher.group(1).toInt() - 1 // arg1 = index 0
-            val defaultValue = matcher.group(2)
-            val replacement = if (argIndex >= 0 && argIndex < args.size) args[argIndex] else defaultValue
-            matcher.appendReplacement(builder, Matcher.quoteReplacement(replacement))
-        }
-        matcher.appendTail(builder)
-
-        return builder.toString()
-    }
-
-    /**
-     * 执行扩展命令（多命令链或带执行者前缀）
-     */
-    fun executeExtendedCommand(player: Player?, allowedCmd: AllowedCommand?, args: Array<String>): Boolean {
-        if (player == null || allowedCmd == null) return false
-
-        // Also guard direct callers before the first command in the chain can run.
+    fun executeExtendedCommandResult(
+        player: Player?, allowedCmd: AllowedCommand?, args: Array<String>,
+    ): CommandExecutionResult {
+        if (player == null || allowedCmd == null) return CommandExecutionResult.FAILED
         val error = allowedCmd.argumentConstraints.validate(args)
-        if (error != null) {
+        return if (error != null) {
             languageManager?.sendMessage(player, error.messageKey, error.placeholders + ("usage" to allowedCmd.usage))
-            return false
+            CommandExecutionResult.FAILED
+        } else {
+            chain.execute(player, AllowedCommandRenderer.render(player, allowedCmd, args))
         }
+    }
 
-        // 准备占位符映射
-        val placeholders = HashMap<String, String>()
-        placeholders["%player%"] = player.name
-        for (i in args.indices) {
-            placeholders["%arg${i + 1}%"] = args[i]
+    private fun executeOrdinaryCommand(player: Player, entry: AllowedCommandRenderer.Entry): Boolean {
+        val success = when (entry.executor) {
+            "console" -> executeAsConsole(entry.command, player)
+            "player" -> executeAsPlayer(entry.command, player)
+            else -> executeAsPlayerOp(entry.command, player)
         }
-
-        // 调试日志
-        plugin.logger.fine("[Debug] Executing extended command, player: " + player.name)
-        plugin.logger.fine("[Debug] Placeholders: $placeholders")
-        plugin.logger.fine("[Debug] Args: " + args.contentToString())
-        plugin.logger.fine("[Debug] Command list: " + allowedCmd.getCommands())
-
-        // 执行所有命令
-        var allSuccess = true
-        for (commandLine in allowedCmd.getCommands()) {
-            if (commandLine == null || commandLine.trim().isEmpty()) {
-                continue
-            }
-
-            plugin.logger.fine("[Debug] Raw command line: $commandLine")
-
-            // 解析执行者和命令
-            val parsed = AllowedCommand.parseExecutor(commandLine)
-            val executor = parsed[0] // "console"、"player" 或 "player-op"
-            val actualCommand = parsed[1]
-
-            plugin.logger.fine("[Debug] Executor: $executor, actual command: $actualCommand")
-
-            // 替换占位符（包括默认值支持）
-            var finalCommand = replacePlaceholders(actualCommand, placeholders, args)
-
-            plugin.logger.fine("[Debug] Command after substitution: $finalCommand")
-
-            // 移除开头的斜杠（如果有）
-            if (finalCommand.startsWith("/")) {
-                finalCommand = finalCommand.substring(1)
-            }
-
-            plugin.logger.fine("[Debug] Final command: $finalCommand")
-
-            // transfer: 由 Vault 做带验证的补偿式转账。失败（余额不足/无经济/参数错误）时
-            // 中止整条命令链并返回失败，监听器据此退回次数且不进入冷却。
-            if ("transfer" == executor) {
-                if (!executeTransfer(player, finalCommand)) {
-                    return false
-                }
-                continue
-            }
-
-            // 根据执行者类型执行命令
-            val success = if ("console" == executor) {
-                executeAsConsole(finalCommand, player)
-            } else if ("player" == executor) {
-                executeAsPlayer(finalCommand, player)
+        if (!success) {
+            if (languageManager != null) {
+                languageManager.sendMessage(
+                    player, "allowance.command_failed_detail", mapOf("command" to entry.command),
+                )
             } else {
-                // "player-op" 或默认
-                executeAsPlayerOp(finalCommand, player)
-            }
-
-            if (!success) {
-                allSuccess = false
-                if (languageManager != null) {
-                    val messagePlaceholders = HashMap<String, String>()
-                    messagePlaceholders["command"] = finalCommand
-                    languageManager.sendMessage(player, "allowance.command_failed_detail", messagePlaceholders)
-                } else {
-                    player.sendMessage("§cCommand execution failed: $finalCommand")
-                }
+                player.sendMessage("§cCommand execution failed: ${entry.command}")
             }
         }
-
-        return allSuccess
+        return success
     }
 
     /**

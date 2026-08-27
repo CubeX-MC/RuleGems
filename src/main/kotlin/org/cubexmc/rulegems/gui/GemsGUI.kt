@@ -1,5 +1,6 @@
-package org.cubexmc.gui
+package org.cubexmc.rulegems.gui
 
+import org.cubexmc.gui.ItemBuilder
 import org.bukkit.Bukkit
 import org.bukkit.ChatColor
 import org.bukkit.Location
@@ -12,7 +13,7 @@ import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
 import org.cubexmc.model.AllowedCommand
 import org.cubexmc.model.GemDefinition
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import org.cubexmc.utils.SchedulerUtil
 import java.util.Locale
 import java.util.UUID
@@ -28,7 +29,7 @@ class GemsGUI(
 
     override fun getHolderType(): GUIHolder.GUIType = GUIHolder.GUIType.GEMS
 
-    private fun msg(path: String): String = ColorUtils.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
+    private fun msg(path: String): String = CubexText.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
 
     private fun rawMsg(path: String): String = lang.getMessage("gui.$path")
 
@@ -78,7 +79,7 @@ class GemsGUI(
         if (totalPages > 1) {
             title += " &8(${currentPage + 1}/$totalPages)"
         }
-        title = ColorUtils.translateColorCodes(title) ?: ""
+        title = CubexText.translateColorCodes(title) ?: ""
 
         val holder = GUIHolder(GUIHolder.GUIType.GEMS, player.uniqueId, isAdmin, currentPage, filter)
         val gui = Bukkit.createInventory(holder, GUIManager.GUI_SIZE, title)
@@ -88,7 +89,7 @@ class GemsGUI(
         manager.addControlBar(gui, currentPage, totalPages, totalItems, true, true)
         gui.setItem(
             GUIManager.SLOT_FILTER,
-            ItemBuilder.filterButton(
+            GuiItems.filterButton(
                 manager.navActionKey,
                 rawMsg("control.filter"),
                 rawMsg("control.filter_hint") + ": &f" + currentFilterLabel(filter),
@@ -105,7 +106,7 @@ class GemsGUI(
             gui.setItem(i - startIndex, createGemItem(allGemIds[i], isAdmin))
         }
 
-        player.openInventory(gui)
+        manager.openInventory(player, gui)
     }
 
     private fun filterGems(gems: List<UUID>, filter: String): List<UUID> {
@@ -118,7 +119,7 @@ class GemsGUI(
 
             val definition = if (gemKey != null) gemManager.findGemDefinitionByKey(gemKey) else null
             if (definition?.displayName != null) {
-                val stripped = ChatColor.stripColor(ColorUtils.translateColorCodes(definition.displayName) ?: "") ?: ""
+                val stripped = ChatColor.stripColor(CubexText.translateColorCodes(definition.displayName) ?: "") ?: ""
                 if (stripped.lowercase(Locale.ROOT).contains(lowerFilter)) {
                     return@filter true
                 }
@@ -153,7 +154,7 @@ class GemsGUI(
         val material = definition?.material ?: Material.RED_STAINED_GLASS
         val displayName = definition?.displayName ?: rawMsg("gems.default_name")
 
-        val builder = ItemBuilder(material)
+        val builder = GuiItems.item(material)
             .name(displayName)
             .data(manager.gemIdKey, gemId.toString())
 
@@ -167,10 +168,10 @@ class GemsGUI(
         }
 
         if (definition?.isEnchanted == true) {
-            builder.glow()
+            builder.cosmeticGlow()
         }
 
-        return builder.hideAttributes().build()
+        return builder.hideDetails().build()
     }
 
     private fun buildAdminLore(
@@ -267,10 +268,10 @@ class GemsGUI(
         val placeEnabled = manager.plugin.gameplayConfig.isPlaceRedeemEnabled
         val sneakToRedeem = manager.plugin.gameplayConfig.isSneakToRedeem
 
-        val builder = ItemBuilder(Material.EMERALD)
+        val builder = GuiItems.item(Material.EMERALD)
             .name("&a" + rawMsg("menu.redeem_title"))
             .data(manager.navActionKey, "show_redeem_help")
-            .glow()
+            .cosmeticGlow()
 
         builder.addEmptyLore()
             .addLore("&7" + rawMsg("menu.redeem_desc"))

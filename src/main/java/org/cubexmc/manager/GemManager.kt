@@ -16,6 +16,9 @@ import org.bukkit.event.block.BlockDamageEvent
 import org.bukkit.event.block.BlockPlaceEvent
 import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.inventory.ItemStack
+import org.cubexmc.core.Reloadable
+import org.cubexmc.core.Terminable
+import org.cubexmc.core.TerminableRegistry
 import org.cubexmc.RuleGems
 import org.cubexmc.event.GemPickupEvent
 import org.cubexmc.event.GemPlaceEvent
@@ -29,7 +32,7 @@ import org.cubexmc.model.RedeemRecipe
 import org.cubexmc.model.RedeemRequirements
 import org.cubexmc.storage.StorageLoadStatus
 import org.cubexmc.storage.StorageException
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import org.cubexmc.utils.EffectUtils
 import org.cubexmc.utils.SchedulerUtil
 import org.cubexmc.view.GemStatusView
@@ -52,7 +55,9 @@ class GemManager(
     private val gameplayConfig: GameplayConfig,
     private val effectUtils: EffectUtils,
     private val languageManager: LanguageManager,
-) {
+) : Reloadable, Terminable {
+    private var stateLoaded = false
+    private var closed = false
     private var historyLogger: HistoryLogger? = null
     private val pickupsInProgress: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
     private val custodyItemClaims: MutableMap<UUID, Long> = ConcurrentHashMap()
@@ -124,6 +129,24 @@ class GemManager(
         return permissionManager.isGemToggledOff(playerId, gemKey)
     }
 
+    override fun reload() {
+        check(loadGems()) { "Gem storage could not be loaded; see the storage error in the log." }
+    }
+
+    override fun close() {
+        if (closed) return
+        closed = true
+        val cleanup = TerminableRegistry()
+        // Registered in reverse close order. An uninitialized manager must never save an empty runtime.
+        if (stateLoaded) cleanup.bind(Runnable { saveGemsSync() })
+        cleanup.bind(Runnable { shutdownPresentation() })
+        cleanup.bind(Runnable { shutdownEscape() })
+        cleanup.bind(Runnable { custodyAuditor.stop() })
+        cleanup.closeAll { failure ->
+            plugin.logger.log(java.util.logging.Level.SEVERE, "Failed to close gem runtime resource.", failure)
+        }
+    }
+
     fun loadGems(): Boolean {
         val loadResult = configManager.readGemsData()
         if (!loadResult.isUsable) {
@@ -190,6 +213,7 @@ class GemManager(
         if (loadResult.status == StorageLoadStatus.NOT_FOUND) {
             plugin.logger.info("No existing gem data was found; treating this as a new installation.")
         }
+        stateLoaded = true
         return true
     }
 
@@ -580,6 +604,9 @@ class GemManager(
         permissionManager.applyPendingRevokesIfAny(player)
         placementManager.refreshDisplayForPlayer(player)
     }
+
+    fun revokeRedeemedPower(target: UUID, key: String): Int =
+        permissionManager.revokeRedeemedPower(target, key, findGemDefinitionByKey(key))
 
     fun scatterGems(): Boolean {
         if (!globalOperationCoordinator.tryBegin(GlobalOperation.SCATTER)) {
@@ -986,7 +1013,7 @@ class GemManager(
         } else {
             val placeholders = HashMap(result.placeholders)
             placeholders.putIfAbsent("prefix", languageManager.getMessage("prefix"))
-            player.sendMessage(ColorUtils.translateColorCodes(languageManager.formatText(message, placeholders)) ?: "")
+            player.sendMessage(CubexText.translateColorCodes(languageManager.formatText(message, placeholders)) ?: "")
         }
     }
 
@@ -1099,7 +1126,7 @@ class GemManager(
         if (title.isNullOrEmpty()) return
         if (title.size == 1) {
             player.sendTitle(
-                ColorUtils.translateColorCodes(languageManager.formatText(title[0], placeholders)),
+                CubexText.translateColorCodes(languageManager.formatText(title[0], placeholders)),
                 null,
                 10,
                 70,
@@ -1108,7 +1135,7 @@ class GemManager(
         } else {
             val line1 = languageManager.formatText(title[0], placeholders)
             val line2 = languageManager.formatText(title[1], placeholders)
-            player.sendTitle(ColorUtils.translateColorCodes(line1), ColorUtils.translateColorCodes(line2), 10, 70, 20)
+            player.sendTitle(CubexText.translateColorCodes(line1), CubexText.translateColorCodes(line2), 10, 70, 20)
         }
     }
 

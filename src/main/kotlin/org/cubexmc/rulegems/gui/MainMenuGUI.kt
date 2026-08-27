@@ -1,4 +1,4 @@
-package org.cubexmc.gui
+package org.cubexmc.rulegems.gui
 
 import org.bukkit.Material
 import org.bukkit.entity.Player
@@ -6,14 +6,14 @@ import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 
 class MainMenuGUI(
     guiManager: GUIManager,
     private val gemManager: GemManager,
     private val lang: LanguageManager,
 ) : ChestMenu(guiManager) {
-    private fun msg(path: String): String = ColorUtils.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
+    private fun msg(path: String): String = CubexText.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
 
     private fun rawMsg(path: String): String = lang.getMessage("gui.$path")
 
@@ -24,7 +24,7 @@ class MainMenuGUI(
     override fun getHolderType(): GUIHolder.GUIType = GUIHolder.GUIType.MAIN_MENU
 
     override fun populate(gui: Inventory, holder: GUIHolder, player: Player) {
-        val filler = ItemBuilder.filler()
+        val filler = GuiItems.filler()
         for (i in 0 until GUI_SIZE) {
             gui.setItem(i, filler)
         }
@@ -36,14 +36,14 @@ class MainMenuGUI(
         if (manager.canOpenRulers(player)) {
             gui.setItem(SLOT_RULERS, createRulersButton(gemManager.currentRulers.size, isAdmin))
         }
-        gui.setItem(SLOT_CLOSE, ItemBuilder.closeButton(manager.navActionKey, rawMsg("control.close")))
+        gui.setItem(SLOT_CLOSE, GuiItems.closeButton(manager.navActionKey, rawMsg("control.close")))
     }
 
     private fun createGemsButton(gemCount: Int, isAdmin: Boolean): ItemStack {
-        val builder = ItemBuilder(Material.DIAMOND)
+        val builder = GuiItems.item(Material.DIAMOND)
             .name("&b" + rawMsg("menu.gems_title"))
             .data(manager.navActionKey, "open_gems")
-            .glow()
+            .cosmeticGlow()
 
         builder.addEmptyLore()
             .addLore("&7" + rawMsg("menu.gems_desc"))
@@ -62,11 +62,11 @@ class MainMenuGUI(
     }
 
     private fun createRulersButton(rulerCount: Int, isAdmin: Boolean): ItemStack {
-        val builder = ItemBuilder(Material.GOLDEN_HELMET)
+        val builder = GuiItems.item(Material.GOLDEN_HELMET)
             .name("&6" + rawMsg("menu.rulers_title"))
             .data(manager.navActionKey, "open_rulers")
-            .hideAttributes()
-            .glow()
+            .hideDetails()
+            .cosmeticGlow()
 
         builder.addEmptyLore()
             .addLore("&7" + rawMsg("menu.rulers_desc"))

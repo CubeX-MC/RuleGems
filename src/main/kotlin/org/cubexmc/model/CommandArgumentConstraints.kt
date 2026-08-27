@@ -1,6 +1,7 @@
 package org.cubexmc.model
 
 import java.math.BigDecimal
+import java.util.Collections
 
 /** Input constraints for a configured allowance, before placeholders or side effects. */
 class CommandArgumentConstraints(
@@ -8,16 +9,29 @@ class CommandArgumentConstraints(
     val configurationError: String? = null,
 ) {
     private val rules = rules.sortedBy { it.index }
+    private val suggestions = this.rules.associate { rule ->
+        rule.index to rule.suggestions?.let { configured ->
+            val values = configured.values.filter { validateRule(rule, it) == null }.distinct()
+            Suggestions(configured.onlinePlayers, values)
+        }
+    }
 
     enum class Type { STRING, NUMBER, INTEGER }
 
-    class Rule(
+    class Rule @JvmOverloads constructor(
         val index: Int,
         val type: Type,
         val required: Boolean,
         val min: BigDecimal?,
         val max: BigDecimal?,
+        val suggestions: Suggestions? = null,
     )
+
+    class Suggestions(val onlinePlayers: Boolean, values: List<String>) {
+        val values: List<String> = Collections.unmodifiableList(ArrayList(values))
+    }
+
+    fun suggestionsFor(index: Int): Suggestions? = if (configurationError == null) suggestions[index] else null
 
     class Failure(val messageKey: String, val placeholders: Map<String, String>)
 

@@ -23,6 +23,18 @@ RuleGems 用"宝石收集"承载权限流转：权限不是管理员在后台点
 2. 启动服务器自动生成配置
 3. 在 `config.yml` 与 `gems/`、`powers/`、`features/` 目录配置中按需调整
 
+### 本次框架接入的升级
+
+停服后备份旧 jar 和完整 RuleGems 数据目录（包括 `data/`、`lang/`；SQLite 自定义路径也要备份），
+只替换部署 jar，再正常启动。不要用插件热加载工具替换本次含包重定位的更新。
+不必删配置或重建宝石：本次未修改宝石 UUID、次数、权限及 YAML/SQLite 存储格式；
+默认值合并只补缺失项；备份使用独立文件名避免覆盖。限次命令冷却仍按原设计在重启后清空，不会自动补满次数；撤销规则冷却和转账待核账保护持久化保留。
+
+启动后运行 `/rg doctor`，检查宝石数量、归属、委任和剩余次数，再小额核对银行收支；
+修复配置后可用 `/rg reload`。语言版本 3 只替换已知的旧默认转账提示，自定义文案保持不变，请自行检查是否仍声称无条件退回次数。
+回滚前先处理全部待核账操作；旧 jar 不认识新增的转账保护，直接降级会失去保护。停服恢复匹配的旧 jar 与数据备份时，还必须核对经济插件当前余额，恢复 RuleGems 文件不会撤销经济交易。
+本轮修改与验收记录见 [IMPROVE_PLAN](IMPROVE_PLAN.md)；其中列出了仍需实服验证的项目。
+
 ## 开服与预设
 - 开服流程、烟测清单与生产服建议见 [server-ready-guide.md](docs/server-ready-guide.md)。
 - 可复制玩法包位于 [presets/](presets/)，当前包含王权政治服预设 `kingdom-power`。
@@ -37,6 +49,8 @@ RuleGems 用"宝石收集"承载权限流转：权限不是管理员在后台点
 - `/rulegems revoke <玩家>` 强制清理指定玩家的宝石权限与限次额度（管理员干预）。若启用了 `inventory_grants` 且玩家仍持有宝石，下一次背包重算时权限会再次授予。
 - `/rulegems revoke-power list` 查看已配置的撤销规则
 - `/rulegems revoke-power <规则> <玩家> <权力>` 使用指定撤销规则制衡玩家已兑换的宝石权力；默认需要 `/rg revoke-power confirm` 二次确认，可用 `/rg revoke-power cancel` 取消。
+- `/rulegems transfer-review list [页码]` 查看待核账操作（无子命令时等同 list）
+- `/rulegems transfer-review resolve <操作UUID> <核账说明>` 记录人工核账并解除该操作的重试保护；不修改余额或次数
 - `/rulegems reload` 重载配置
 - `/rulegems rulers` 查看当前权力持有者
 - `/rulegems gems` 查看宝石状态
@@ -52,7 +66,9 @@ RuleGems 用"宝石收集"承载权限流转：权限不是管理员在后台点
 - `/rulegems appointees [权限集]` 查看被任命者列表
 
 ## 权限
-- `rulegems.admin` 管理指令（默认 OP）
+- `rulegems.admin` 管理指令（默认 OP，包含以下两项核账权限）
+- `rulegems.transfer.review` 查看待核账操作（默认 OP）
+- `rulegems.transfer.resolve` 确认核账并解除保护（默认 OP；查看权限不会自动授予此权限）
 - `rulegems.redeem` 兑换单颗（默认 true）
 - `rulegems.redeemall` 兑换全部（默认 true）
 - `rulegems.rulers` 查看当前持有者（默认 true）
@@ -130,14 +146,29 @@ RuleGems 用"宝石收集"承载权限流转：权限不是管理员在后台点
   - `any_of`: 配置多套等价 recipe，按顺序使用第一套满足的配方；
   - `requires_any` / `requires_count` + `requires_count_from`: 旧式多选一或至少 N 项条件；
   - `allow_redeem_all`: 默认 `false`，避免 `/rg redeemall` 绕过前置要求。
-- 配置升级：启动或 reload 检测到 `template`、根节点隐式 power、`vault_group` / `vault_groups` / `permission_group` 或旧 requirement 写法时，会先备份到 `backups/config-optimization-<yyyyMMdd-HHmmss>/`，再以粗兼容读取并输出 warning。建议手动迁移到 `base`、`permission_groups` 和 recipe/ingredient 写法；未来版本可能移除这些兼容。
+- 配置升级：启动或 reload 检测到 `template`、根节点隐式 power、`vault_group` / `vault_groups` / `permission_group` 或旧 requirement 写法时，会先备份到 `backups/config-optimization-<唯一标识>/`，再以粗兼容读取并输出 warning。建议手动迁移到 `base`、`permission_groups` 和 recipe/ingredient 写法；未来版本可能移除这些兼容。
 - 权限后端按 LuckPerms → Vault → Bukkit 自动选择；权限组的授予 / 撤销通过当前后端执行。
 - 存储：`storage.type: yaml` 使用默认 `data/gems.yml` 数据文件，并维护最后一次成功写入的 `data/gems.yml.bak`；`storage.type: sqlite` 使用 `storage.sqlite.file` 指定的 SQLite 数据库文件。SQLite 会保留现有数据结构，并在空库首次启动时从 `data/gems.yml` 导入。损坏或无法读取的数据不会被当成空白新服，也不会触发新 UUID 生成；启动会失败，重载则保留当前运行状态。同步保存失败时会尝试写入 `data/recovery/gems-emergency-<时间戳>.yml`，并在 `/rg doctor` 中报告。
-- 经济转账：内置 `transfer:` 默认由 `economy.transfer_directives_enabled: false` 禁用。Vault 只提供分开的扣款与入账调用，并不保证跨账户事务；生产服应保持关闭，优先在 `command_allows` 中调用经济插件自己的转账命令。若明确启用，RuleGems 会按账户对串行执行、复核余额并检查补偿结果，但进程崩溃级恢复仍应由经济插件负责。
+- 经济转账：内置 `transfer:` 仍默认关闭（`economy.transfer_directives_enabled: false`）。同一经济提供方内串行扣款、入账；仅明确的入账失败才尝试补偿退款。成功转账后的后续命令失败、异常、空响应或退款失败会保留次数消耗并进入冷却，同时冻结同一玩家/来源的重试。保护写入 `data/transfer-operations.yml`，重载、重启不会绕过。Vault 仍不提供跨账户原子事务或自动崩溃回滚。
+- 账户路由：支持玩家名、UUID / `uuid:<UUID>`、`name:<账户名>`（Vault 字符串账户）和 `bank:<银行名>`（需提供方支持）。普通名字优先在线/缓存 UUID，然后已有 Vault 命名账户，最后尝试可信玩家解析；不再枚举全部离线玩家。虚拟账户可明确写 `name:cubex_bank`，但实际到账行为仍须在所用经济插件上小额验证。
+- 安装方式不变：RuleGems 仍可独立安装，无需额外安装 CubeXLib；本次更新需停服替换 jar。
+- 重载：先通过功能数据保存门禁并同步保存宝石数据，再分阶段校验配置、语言和存储，失败会报告阶段并停止后续步骤；校验失败不会发布新配置。重载会关闭 RuleGems 菜单，保留限次命令执行器及其运行中冷却。外部插件或世界操作的异常不属于跨组件原子回滚，需按控制台阶段处理。
 - 权力门控：`features/rule.yml` 默认关闭。启用后可用 `rulegems.rule` 授权所有宝石权力，或用 `rulegems.rule.<宝石key>` 只授权单个宝石；这适合测试阶段只让可信玩家实际获得 power。
 - 额外兑换方式：
   - `grant_policy.place_redeem_enabled: true` 启用祭坛放置兑换（配合 `/rulegems setaltar`）
   - `grant_policy.hold_to_redeem_enabled: true` 启用长按右键兑换（`hold_to_redeem` 配置）
+
+### 转账核账与数据故障处理
+
+1. 用 `/rg transfer-review list` 查看操作 UUID、玩家 UUID、来源命令、状态与实际替换后的转账参数；控制台日志也会记录操作 UUID。
+2. 对照经济提供方日志和双方余额，人工判断是否已扣款、到账或补偿。必要的财务修正由管理员在经济系统中完成，RuleGems 不会自动重放。
+3. 确认结果后执行 `/rg transfer-review resolve <UUID> <核账说明>`。它先确认额度可保存，再将说明存入 `data/transfer-reviews/`，最后解除保护；它不会补钱或补次数。已有冷却仍然生效。
+4. 日志或额度保存失败时，尚未开始的转账不会执行；已执行的操作保留保护。磁盘恢复后先核账，不要直接删日志文件来恢复使用。
+
+`features/rule.yml`、撤销配置和功能数据读取失败会中止加载，不能默认为“关闭门控/没有冷却”。
+`data/appoints.yml`、`data/revokes.yml` 沿用旧格式；任命修改和撤销冷却先保存再生效，保存失败不会提示成功。
+历史分页按页流式读取，完整查询仍需扫描日志计数。转账为持久化保护增加了同步磁盘写入；本轮单测不代表真实大服 TPS 或第三方经济延迟的性能认证。
+第三方权限/经济插件热替换不在支持范围内，升级时应停服。
 
 ### 限次命令参数约束
 
@@ -149,10 +180,14 @@ command_allows:
   - command: /cxfine
     usage: '/cxfine <玩家> <金额>'
     args:
-      arg1: {type: string, required: true}
-      arg2: {type: number, min: 0.01, max: 10000}
+      arg1: {type: string, required: true, suggestions: online_players}
+      arg2:
+        type: number
+        min: 0.01
+        max: 10000
+        suggestions: [50, 100, 500, 1000, 5000, 10000]
     execute:
-      - 'transfer:%arg1% cubex_bank %arg2%'
+      - 'transfer:%arg1% name:cubex_bank %arg2%'
     time_limit: 5
     cooldown: 7200
 ```
@@ -169,12 +204,25 @@ command_allows:
 | `type: integer` | 整数字符串，如 `25`；不接受 `25.0` |
 | `required: true` | 默认必填；设为 `false` 时缺省跳过，提供值时仍校验 |
 | `min` / `max` | 可分别省略，包含边界，仅适用于数值类型；超限拒绝，不截断金额 |
+| `suggestions: online_players` | 仅用于 `string`，补全当前在线且发送者通过 Bukkit `canSee` 可见的玩家名 |
+| `suggestions: [50, 100, 500]` | 固定候选，按配置顺序去重；数值候选按本参数的类型和 `min/max` 过滤 |
 | `usage` | 参数错误时显示的用法，按普通文本渲染；省略时显示命令名 |
 
 校验在占位符替换、整条执行链、次数扣减和冷却设置之前完成；失败只提示原因及用法，不执行任何动作。
 支持 `console:`、`player:`、`player-op:` 和 `transfer:`，不限于转账。规则格式错误（例如未知类型、
 `max` 拼错、最小值大于最大值）会记录日志并阻止该命令执行，不会忽略错误约束继续放行。
 不配置 `args` 时保持旧行为；语言文件会自动合并新增提示，不覆盖已有翻译。
+
+补全按已输入的前缀匹配（玩家名不区分大小写），每次最多返回 50 项。上例无需改候选列表，
+委任来源的 `max: 500` 会自动排除 `1000`、`5000`、`10000`。补全使用当前可执行的权力来源，
+没有额度或权力已停用时不提供 RuleGems 候选；不会扣次数或触发冷却。
+静态金额列表在配置加载时过滤，玩家名只读取在线列表，不遍历离线玩家、不查数据库或余额。
+
+不写 `suggestions` 时不新增参数补全；`suggestions: []` 表示该参数不提供候选。
+自定义代理和原始命令的 Bukkit 补全事件使用同一套规则：显式配置的候选会替换原候选（即使为空），
+未配置的参数保留原插件补全，不自动继承 `execute` 中其他命令的补全。
+补全只是提示，不是白名单：仍可手动输入未列出的合法金额和离线玩家名，执行时照常校验。
+拼错补全来源或填写错误的数据结构也会记录配置错误并阻止该命令执行。
 
 **金额应保持必填。** 校验对象是玩家输入，不校验 `%argN|默认值%` 中的配置默认值，
 也不限制模板写死的金额或执行链累计转账总额。此功能不是经济账户的全局限额。
@@ -183,6 +231,7 @@ command_allows:
 
 升级后可编辑 powers 配置并 `/rg reload` 生效，已有次数不会因此自动补满。
 **回退不支持 `args` 的旧 jar 前，先停用依赖这些约束的动态金额命令**，否则旧版本会忽略金额限制。
+若回退至支持 `args` 但尚不支持 `suggestions` 的版本，先删除 `suggestions` 字段，否则严格解析会阻止命令执行。
 
 ### 宝石表现模式
 
@@ -247,45 +296,37 @@ rules:
 - **条件系统 (Conditions)**：权限集可设置生效条件（时间/世界），仅在满足条件时生效
 
 #### 配置文件
-`features/appoint.yml` 定义权限集：
+`features/appoint.yml` 只配置功能开关与刷新间隔：
+
 ```yaml
 enabled: true
-cascade_revoke: true  # 级联撤销（连坐制）
-condition_refresh_interval: 30  # 条件刷新间隔（秒），设为0禁用定时刷新
-
-permission_sets:
-  knight:  # 权限集 key，对应权限节点 rulegems.appoint.knight
-    display_name: "&6骑士"
-    description: "拥有基础战斗相关权限"
-    max_appointments: 3  # 每个任命者最多任命人数，-1为无限
-    permissions:
-      - example.permission1
-    command_allows:  # 限次命令（语法同宝石；额度按该任命来源独立保存）
-      - command: "/kit warrior"
-        time_limit: 3
-    delegate_permissions:  # 可再次委任的权限
-      - rulegems.appoint.squire
-    inherits:  # 继承其他权限集
-      - squire
-    on_appoint:  # 任命时执行的命令
-      - "console: broadcast %player% 任命 %target% 为骑士"
-    on_revoke:  # 撤销时执行的命令
-      - "console: broadcast %target% 的骑士头衔被撤销"
-    
-    # 条件配置（可选）
-    conditions:
-      time:
-        enabled: true
-        type: day  # always / day / night / custom
-        from: 0    # 自定义时间范围（仅type=custom时生效）
-        to: 12000  # Minecraft时间: 0=日出, 6000=正午, 12000=日落
-      worlds:
-        enabled: true
-        mode: whitelist  # whitelist / blacklist
-        list:
-          - world
-          - world_nether
+cascade_revoke: true
+condition_refresh_interval: 30
 ```
+
+职位来自已加载的宝石 power 的 `appoints`，不读取 `features/appoint.yml.permission_sets`。
+例如在 `powers/` 文件中定义以下模板，并让宝石通过 `power: ruler` 引用：
+
+```yaml
+ruler:
+  appoints:
+    knight:
+      display_name: "<gold>骑士"
+      max_count: 3
+      on_appoint:
+        - "console:broadcast %player% 任命 %target% 为骑士"
+      power:
+        permissions: ["example.permission1"]
+        command_allows:
+          - command: "/kit warrior"
+            time_limit: 3
+        conditions:
+          time: {enabled: true, type: day}
+          worlds: {enabled: true, mode: whitelist, list: [world]}
+```
+
+嵌套职位继续放在该职位 `power.appoints` 下，相应委任权限由插件授予。任命记录位于
+`data/appoints.yml`，首次升级会验证并迁移旧的 `features/appoint_data.yml`；迁移失败不会按空数据启动。
 
 #### 条件系统
 权限集可设置生效条件，当条件不满足时，该权限集的权限和限次命令暂时失效：
@@ -307,7 +348,7 @@ permission_sets:
 #### 权力树示例
 ```
 国王（宝石持有者，拥有 rulegems.appoint.duke）
-└── 公爵（被任命，通过 delegate_permissions 拥有 rulegems.appoint.knight）
+└── 公爵（被任命，通过嵌套 power.appoints 获得 rulegems.appoint.knight）
     └── 骑士（被任命）
 ```
 当国王失去宝石 → 公爵被级联撤销 → 骑士也被级联撤销

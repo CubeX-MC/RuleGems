@@ -3,7 +3,7 @@ package org.cubexmc.commands.registrar
 import org.bukkit.entity.Player
 import org.cubexmc.RuleGems
 import org.cubexmc.commands.RuleGemsCommandActor
-import org.cubexmc.gui.GUIManager
+import org.cubexmc.rulegems.gui.GUIManager
 import org.cubexmc.manager.LanguageManager
 import org.incendo.cloud.CommandManager
 

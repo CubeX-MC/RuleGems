@@ -5,7 +5,7 @@ import org.bukkit.entity.Player
 import org.bukkit.event.inventory.InventoryType
 import org.bukkit.inventory.Inventory
 import org.cubexmc.RuleGems
-import org.cubexmc.gui.GUIHolder
+import org.cubexmc.rulegems.gui.GUIHolder
 import org.cubexmc.utils.SchedulerUtil
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap

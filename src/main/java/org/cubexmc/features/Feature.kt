@@ -1,6 +1,8 @@
 package org.cubexmc.features
 
 import org.bukkit.entity.Player
+import org.cubexmc.core.Reloadable
+import org.cubexmc.core.Terminable
 import org.cubexmc.RuleGems
 
 /**
@@ -11,7 +13,7 @@ abstract class Feature(
     @JvmField
     protected val plugin: RuleGems,
     val permissionNode: String,
-) {
+) : Reloadable, Terminable {
     @JvmField
     protected var enabled: Boolean = true
 
@@ -48,5 +50,7 @@ abstract class Feature(
     /**
      * 重载功能配置
      */
-    abstract fun reload()
+    abstract override fun reload()
+
+    override fun close() = shutdown()
 }

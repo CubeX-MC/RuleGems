@@ -6,7 +6,7 @@ import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Player
 import org.cubexmc.RuleGems
 import org.cubexmc.manager.GemManager
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import org.cubexmc.utils.SchedulerUtil
 import java.io.File
 import java.util.Locale
@@ -153,7 +153,7 @@ class GemIntelBroadcaster(
         val message = buildMessage(target) ?: return
 
         recipientCooldowns.mark(recipient.uniqueId)
-        recipient.sendMessage(ColorUtils.translateColorCodes(message) ?: "")
+        recipient.sendMessage(CubexText.translateColorCodes(message) ?: "")
     }
 
     private fun chooseRecipient(): Player? {

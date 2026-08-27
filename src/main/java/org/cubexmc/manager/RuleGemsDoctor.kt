@@ -11,7 +11,7 @@ import org.cubexmc.listeners.QuickShopHealthStatus
 import org.cubexmc.model.GemDefinition
 import org.cubexmc.model.PowerStructure
 import org.cubexmc.provider.PermissionProvider
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import java.util.Locale
 
 class RuleGemsDoctor(private val plugin: RuleGems) {
@@ -340,7 +340,7 @@ class RuleGemsDoctor(private val plugin: RuleGems) {
         }
     }
 
-    private fun color(input: String): String = ColorUtils.translateColorCodes(input) ?: ""
+    private fun color(input: String): String = CubexText.translateColorCodes(input) ?: ""
 
     private data class Entry(val severity: Severity, val message: String)
 

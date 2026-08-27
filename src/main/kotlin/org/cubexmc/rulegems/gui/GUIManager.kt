@@ -1,19 +1,21 @@
-package org.cubexmc.gui
+package org.cubexmc.rulegems.gui
 
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.entity.Player
-import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.inventory.Inventory
 import org.bukkit.persistence.PersistentDataType
+import org.cubexmc.core.Terminable
+import org.cubexmc.gui.Menu
+import org.cubexmc.gui.MenuRegistry
 import org.cubexmc.RuleGems
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import java.util.Locale
 import java.util.UUID
 
@@ -21,7 +23,8 @@ class GUIManager(
     val plugin: RuleGems,
     gemManager: GemManager,
     private val lang: LanguageManager,
-) : Listener {
+) : Listener, Terminable {
+    private val menus = MenuRegistry()
     val gemIdKey: NamespacedKey = NamespacedKey(plugin, "gem_id")
     val navActionKey: NamespacedKey = NamespacedKey(plugin, "nav_action")
     val playerUuidKey: NamespacedKey = NamespacedKey(plugin, "player_uuid")
@@ -37,10 +40,22 @@ class GUIManager(
     private val powerTogglesGUI = PowerTogglesGUI(this, gemManager, lang)
 
     init {
-        Bukkit.getPluginManager().registerEvents(this, plugin)
+        Bukkit.getPluginManager().registerEvents(menus, plugin)
     }
 
-    fun msg(path: String): String = ColorUtils.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
+    fun openInventory(player: Player, inventory: Inventory) {
+        val menu = Menu(inventory)
+        for (slot in 0 until inventory.size) {
+            inventory.getItem(slot)?.let { icon -> menu.button(slot, icon) { onInventoryClick(it) } }
+        }
+        menus.open(player, menu)
+    }
+
+    fun closeSessions() = menus.closeAll()
+
+    override fun close() = closeSessions()
+
+    fun msg(path: String): String = CubexText.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
 
     fun rawMsg(path: String): String = lang.getMessage("gui.$path")
 
@@ -137,7 +152,7 @@ class GUIManager(
         (player.hasPermission("rulegems.admin") || player.hasPermission("rulegems.rulers"))
 
     fun fillDecoration(gui: Inventory) {
-        val filler = ItemBuilder.filler()
+        val filler = GuiItems.filler()
         for (slot in 36..44) {
             gui.setItem(slot, filler)
         }
@@ -146,28 +161,39 @@ class GUIManager(
     }
 
     fun addControlBar(gui: Inventory, currentPage: Int, totalPages: Int, totalItems: Int, showFilter: Boolean, showBack: Boolean) {
-        gui.setItem(SLOT_PREV, ItemBuilder.prevButton(currentPage, navActionKey, rawMsg("control.prev"), rawMsg("control.page")))
-        gui.setItem(SLOT_BACK, if (showBack) ItemBuilder.backButton(navActionKey, rawMsg("control.back")) else ItemBuilder.filler())
+        gui.setItem(
+            SLOT_PREV,
+            GuiItems.prevButton(currentPage, navActionKey, rawMsg("control.prev"), rawMsg("control.page")),
+        )
+        gui.setItem(
+            SLOT_BACK,
+            if (showBack) GuiItems.backButton(navActionKey, rawMsg("control.back")) else GuiItems.filler(),
+        )
         if (showFilter) {
             gui.setItem(
                 SLOT_FILTER,
-                ItemBuilder(Material.HOPPER)
+                GuiItems.item(Material.HOPPER)
                     .name("&e" + rawMsg("control.filter"))
                     .addLore("&7" + rawMsg("control.filter_hint"))
                     .data(navActionKey, "filter")
-                    .hideAttributes()
+                    .hideDetails()
                     .build(),
             )
         } else {
-            gui.setItem(SLOT_FILTER, ItemBuilder.filler())
+            gui.setItem(SLOT_FILTER, GuiItems.filler())
         }
-        gui.setItem(SLOT_INFO, ItemBuilder.pageInfo(currentPage, totalPages, totalItems, rawMsg("control.page"), rawMsg("control.total")))
-        gui.setItem(SLOT_REFRESH, ItemBuilder.refreshButton(navActionKey, rawMsg("control.refresh")))
-        gui.setItem(SLOT_CLOSE, ItemBuilder.closeButton(navActionKey, rawMsg("control.close")))
-        gui.setItem(SLOT_NEXT, ItemBuilder.nextButton(currentPage, totalPages, navActionKey, rawMsg("control.next"), rawMsg("control.page")))
+        gui.setItem(
+            SLOT_INFO,
+            GuiItems.pageInfo(currentPage, totalPages, totalItems, rawMsg("control.page"), rawMsg("control.total")),
+        )
+        gui.setItem(SLOT_REFRESH, GuiItems.refreshButton(navActionKey, rawMsg("control.refresh")))
+        gui.setItem(SLOT_CLOSE, GuiItems.closeButton(navActionKey, rawMsg("control.close")))
+        gui.setItem(
+            SLOT_NEXT,
+            GuiItems.nextButton(currentPage, totalPages, navActionKey, rawMsg("control.next"), rawMsg("control.page")),
+        )
     }
 
-    @EventHandler
     fun onInventoryClick(event: InventoryClickEvent) {
         val player = event.whoClicked as? Player ?: return
         val holder = GUIHolder.getHolder(event.inventory) ?: return
@@ -270,7 +296,7 @@ class GUIManager(
         if (navigator != null && navigator.isEnabled && player.hasPermission("rulegems.navigate")) {
             lang.sendMessage(player, "command.help.navigate")
         } else {
-            player.sendMessage(ColorUtils.translateColorCodes(rawMsg("menu.navigate_disabled_chat")) ?: "")
+            player.sendMessage(CubexText.translateColorCodes(rawMsg("menu.navigate_disabled_chat")) ?: "")
         }
     }
 
@@ -319,7 +345,6 @@ class GUIManager(
         }
     }
 
-    @EventHandler
     fun onInventoryDrag(event: InventoryDragEvent) {
         if (GUIHolder.getHolder(event.inventory) != null) {
             event.isCancelled = true

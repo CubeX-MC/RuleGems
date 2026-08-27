@@ -1,4 +1,4 @@
-package org.cubexmc.gui
+package org.cubexmc.rulegems.gui
 
 import org.bukkit.Bukkit
 import org.bukkit.ChatColor
@@ -13,7 +13,7 @@ import org.cubexmc.features.revoke.RevokeFeature
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
 import org.cubexmc.model.GemDefinition
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import org.cubexmc.utils.SchedulerUtil
 import java.util.Locale
 import java.util.UUID
@@ -75,7 +75,7 @@ class RulersGUI(
         if (totalPages > 1) {
             title += " &8(${currentPage + 1}/$totalPages)"
         }
-        title = ColorUtils.translateColorCodes(title) ?: ""
+        title = CubexText.translateColorCodes(title) ?: ""
 
         val holder = GUIHolder(GUIHolder.GUIType.RULERS, player.uniqueId, isAdmin, currentPage)
         val gui = Bukkit.createInventory(holder, GUIManager.GUI_SIZE, title)
@@ -99,10 +99,10 @@ class RulersGUI(
             }
         }
 
-        player.openInventory(gui)
+        manager.openInventory(player, gui)
     }
 
-    private fun createNoRulersItem(): ItemStack = ItemBuilder(Material.BARRIER)
+    private fun createNoRulersItem(): ItemStack = GuiItems.item(Material.BARRIER)
         .name("&c" + rawMsg("rulers.no_rulers"))
         .addLore("&7" + rawMsg("rulers.no_rulers_lore"))
         .build()
@@ -122,7 +122,7 @@ class RulersGUI(
             else -> ChatColor.GREEN
         }
 
-        val builder = ItemBuilder(Material.PLAYER_HEAD)
+        val builder = GuiItems.item(Material.PLAYER_HEAD)
             .name("$nameColor✦ $playerName ✦")
             .data(manager.playerUuidKey, playerUuid.toString())
 
@@ -152,7 +152,7 @@ class RulersGUI(
             }
             val definition: GemDefinition? = gemManager.findGemDefinitionByKey(key)
             val gemName = if (definition?.displayName != null) {
-                ColorUtils.translateColorCodes(definition.displayName)
+                CubexText.translateColorCodes(definition.displayName)
             } else {
                 key
             }
@@ -210,14 +210,14 @@ class RulersGUI(
         return revokeFeature.getRevokablePowers(viewer, targetUuid, gemKeys)
     }
 
-    private fun createProfileButton(): ItemStack = ItemBuilder(Material.BOOK)
+    private fun createProfileButton(): ItemStack = GuiItems.item(Material.BOOK)
         .name("&b" + rawMsg("menu.profile_title"))
         .addEmptyLore()
         .addLore("&7" + rawMsg("menu.profile_desc"))
         .addEmptyLore()
         .addLore("&a» " + rawMsg("menu.click_to_open"))
         .data(manager.navActionKey, "open_profile")
-        .hideAttributes()
+        .hideDetails()
         .build()
 
     private fun createCabinetButton(holder: GUIHolder, viewer: Player): ItemStack {
@@ -232,7 +232,7 @@ class RulersGUI(
             }
         }
 
-        val builder = ItemBuilder(Material.WRITABLE_BOOK)
+        val builder = GuiItems.item(Material.WRITABLE_BOOK)
             .name("&d" + rawMsg("menu.cabinet_title"))
             .addEmptyLore()
             .addLore("&7" + rawMsg("menu.cabinet_desc"))
@@ -241,16 +241,16 @@ class RulersGUI(
         if (canManageAppointments) {
             builder.addLore("&a» " + rawMsg("menu.click_to_open"))
                 .data(manager.navActionKey, "open_cabinet")
-                .glow()
+                .cosmeticGlow()
         } else {
             builder.addLore("&8" + rawMsg("menu.info_only"))
                 .addLore("&7" + rawMsg("menu.cabinet_unavailable"))
-                .hideAttributes()
+                .hideDetails()
         }
         return builder.build()
     }
 
-    private fun msg(path: String): String = ColorUtils.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
+    private fun msg(path: String): String = CubexText.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
 
     private fun rawMsg(path: String): String = lang.getMessage("gui.$path")
 }

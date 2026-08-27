@@ -20,7 +20,7 @@ import org.cubexmc.config.LegacyTextToMiniMessageStep;
 import org.cubexmc.config.MigrationPlan;
 import org.cubexmc.config.MigrationReport;
 import org.cubexmc.config.MigrationRunner;
-import org.cubexmc.utils.ColorUtils;
+import org.cubexmc.core.CubexText;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -89,9 +89,42 @@ class RuleGemsLanguageMigrationTest {
                 migrated.replace("<prefix>", migratedPrefix),
                 Placeholder.unparsed("player", "Alex")));
 
-        assertEquals(ColorUtils.translateColorCodes("&7[&cRuleGems&7]&r Usage: /rg <gemId> &#12ab34Alex"),
+        assertEquals(CubexText.translateColorCodes("&7[&cRuleGems&7]&r Usage: /rg <gemId> &#12ab34Alex"),
                 miniRendered);
         assertEquals("<yellow><prefix> Usage: /rg \\<gemId> <#12AB34><player>", migrated);
+    }
+
+    @Test
+    void transferSafetyMigrationChangesOnlyKnownDefaultsAndKeepsCustomText() throws Exception {
+        RuleGems plugin = mock(RuleGems.class);
+        when(plugin.getDataFolder()).thenReturn(dataDir.toFile());
+        when(plugin.getLogger()).thenReturn(Logger.getLogger("TransferMessageMigrationTest"));
+        for (String locale : java.util.List.of("zh_CN", "en_US")) {
+            Path file = dataDir.resolve("lang/" + locale + ".yml");
+            Files.createDirectories(file.getParent());
+            YamlConfiguration original = new YamlConfiguration();
+            original.set("lang-version", 2);
+            original.set("messages.allowance.transfer_failed", locale.equals("zh_CN")
+                    ? "<prefix> <red>转账失败，已为你退回次数。"
+                    : "<prefix> <red>Transfer failed; your attempt has been refunded.");
+            original.set("messages.allowance.transfer_review_required", "Operator custom wording");
+            original.save(file.toFile());
+            YamlConfiguration defaults = new YamlConfiguration();
+            try (var stream = getClass().getResourceAsStream("/lang/" + locale + ".yml")) {
+                defaults.load(new java.io.InputStreamReader(java.util.Objects.requireNonNull(stream), StandardCharsets.UTF_8));
+            }
+            var plan = MigrationPlan.yaml("transfer language", "lang/" + locale + ".yml")
+                    .versionKey("lang-version").targetVersion(3)
+                    .addStep(new org.cubexmc.manager.TransferMessageMigrationStep(defaults));
+            var runner = new MigrationRunner(plugin);
+            assertTrue(runner.run(plan).migrated());
+            var migrated = YamlConfiguration.loadConfiguration(file.toFile());
+            assertEquals(3, migrated.getInt("lang-version"));
+            assertEquals(defaults.getString("messages.allowance.transfer_failed"),
+                    migrated.getString("messages.allowance.transfer_failed"));
+            assertEquals("Operator custom wording", migrated.getString("messages.allowance.transfer_review_required"));
+            assertTrue(runner.run(plan).skipped());
+        }
     }
 
     private long countBackupFiles() throws Exception {

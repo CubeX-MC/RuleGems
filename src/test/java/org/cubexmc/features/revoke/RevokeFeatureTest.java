@@ -248,6 +248,48 @@ class RevokeFeatureTest {
         assertEquals(List.of("fire"), powers);
     }
 
+    @Test
+    void corruptCooldownReloadKeepsProtectionAndShutdownDoesNotOverwriteFile() throws Exception {
+        Path dataFile = tempDir.resolve("data/revokes.yml");
+        Files.createDirectories(dataFile.getParent());
+        Files.writeString(dataFile, "cooldowns:\n  " + ACTOR_ID + ":\n    judgment: 1060000\n");
+        feature.reload();
+        Files.writeString(dataFile, "cooldowns: [broken\n");
+        org.junit.jupiter.api.Assertions.assertThrows(Exception.class, feature::reload);
+        assertEquals(RevokeResult.Status.COOLDOWN,
+                feature.requestRevoke(actor, "judgment", "Target", "fire").getStatus());
+        feature.shutdown();
+        assertEquals("cooldowns: [broken\n", Files.readString(dataFile));
+    }
+
+    @Test
+    void failedFirstCooldownLoadCannotWriteEmptyStateOnClose() throws Exception {
+        Path dataFile = tempDir.resolve("data/bad-revokes.yml");
+        Files.createDirectories(dataFile.getParent());
+        Files.writeString(dataFile, "cooldowns: [broken\n");
+        var store = new org.cubexmc.storage.RevokeCooldownStore(dataFile.toFile());
+        org.junit.jupiter.api.Assertions.assertThrows(Exception.class, store::reload);
+        store.close();
+        assertEquals("cooldowns: [broken\n", Files.readString(dataFile));
+    }
+
+    @Test
+    void cooldownWriteFailureDoesNotRevokeOrConsumeGem() throws Exception {
+        Files.createDirectories(tempDir.resolve("data/revokes.yml"));
+        feature.requestRevoke(actor, "judgment", "Target", "fire");
+        assertEquals(RevokeResult.Status.STORAGE_FAILED, feature.confirm(actor).getStatus());
+        assertEquals(TARGET_ID, gemManager.getPermissionManager().getGemIdToRedeemer().get(FIRE_GEM_ID));
+        assertTrue(gemManager.getStateManager().getGemUuidToHolder().containsKey(JUDGMENT_GEM_ID));
+    }
+
+    @Test
+    void corruptRuleConfigurationDoesNotPublishDisabledState() throws Exception {
+        Files.writeString(tempDir.resolve("features/revoke.yml"), "enabled: [broken\n");
+        org.junit.jupiter.api.Assertions.assertThrows(Exception.class, feature::reload);
+        assertTrue(feature.isEnabled());
+        assertTrue(feature.getRules().containsKey("judgment"));
+    }
+
     private void writeRevokeConfig(boolean requireHeld, boolean consumeGem, long cooldown, boolean confirmRequired,
             boolean allowOfflineTarget, int confirmTimeoutSeconds) throws Exception {
         Path featuresDir = tempDir.resolve("features");

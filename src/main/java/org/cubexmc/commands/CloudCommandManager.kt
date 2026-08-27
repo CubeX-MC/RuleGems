@@ -8,6 +8,7 @@ import org.bukkit.command.CommandExecutor
 import org.bukkit.command.SimpleCommandMap
 import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
+import org.cubexmc.core.CubexCommandSuggestions
 import org.cubexmc.RuleGems
 import org.cubexmc.commands.registrar.AdminCommandsRegistrar
 import org.cubexmc.commands.registrar.AppointCommandsRegistrar
@@ -26,8 +27,9 @@ import org.cubexmc.commands.sub.RemoveAltarSubCommand
 import org.cubexmc.commands.sub.RevokePowerSubCommand
 import org.cubexmc.commands.sub.RevokeSubCommand
 import org.cubexmc.commands.sub.SetAltarSubCommand
+import org.cubexmc.commands.sub.TransferReviewSubCommand
 import org.cubexmc.commands.sub.TpSubCommand
-import org.cubexmc.gui.GUIManager
+import org.cubexmc.rulegems.gui.GUIManager
 import org.cubexmc.manager.GameplayConfig
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
@@ -397,6 +399,7 @@ class CloudCommandManager(
                 }
                 return RemoveAltarSubCommand(gemManager, languageManager).execute(sender, tail)
             }
+            "transfer-review" -> return TransferReviewSubCommand(plugin, languageManager).execute(sender, tail)
             "doctor" -> {
                 if (!requirePermission(sender, "rulegems.admin")) return true
                 RuleGemsDoctor(plugin).sendReport(sender)
@@ -408,7 +411,11 @@ class CloudCommandManager(
                     RuleGems.ReloadResult.SUCCESS ->
                         languageManager.sendMessage(sender, "command.reload_success")
                     RuleGems.ReloadResult.FAILED ->
-                        languageManager.sendMessage(sender, "command.reload_failed")
+                        languageManager.sendMessage(
+                            sender,
+                            "command.reload_failed_stage",
+                            mapOf("stages" to plugin.reloadFailureStages),
+                        )
                     RuleGems.ReloadResult.BUSY ->
                         languageManager.sendMessage(sender, "command.operation_busy")
                 }
@@ -423,20 +430,26 @@ class CloudCommandManager(
     }
 
     private fun completeFallback(sender: CommandSender, args: Array<String>): List<String> {
-        if (args.size <= 1) {
-            val prefix = if (args.isEmpty()) "" else args[0].lowercase(Locale.ROOT)
-            val roots = ArrayList(
-                listOf(
-                    "help", "gui", "menu", "profile", "status", "cabinet", "gems", "rulers",
-                    "redeem", "redeemall", "appoint", "dismiss", "appointees", "place", "tp",
-                    "revoke", "revoke-power", "scatter", "history", "setaltar", "removealtar", "doctor", "reload",
-                ),
-            )
-            return roots.filter { value -> value.startsWith(prefix) }
-        }
+        CubexCommandSuggestions.root(
+            args,
+            listOf(
+                "help", "gui", "menu", "profile", "status", "cabinet", "gems", "rulers",
+                "redeem", "redeemall", "appoint", "dismiss", "appointees", "place", "tp",
+                "revoke", "revoke-power", "scatter", "history", "setaltar", "removealtar", "doctor", "reload",
+            ) + if (
+                sender.hasPermission(TransferReviewSubCommand.REVIEW) ||
+                sender.hasPermission(TransferReviewSubCommand.RESOLVE)
+            ) {
+                listOf("transfer-review")
+            } else emptyList(),
+
+        )?.let { return it }
 
         val sub = args[0].lowercase(Locale.ROOT)
         val prefix = args[args.size - 1].lowercase(Locale.ROOT)
+        if (sub == "transfer-review") {
+            return TransferReviewSubCommand(plugin, languageManager).suggest(sender, args.drop(1).toTypedArray())
+        }
         if ((sub == "appoint" || sub == "dismiss" || sub == "appointees") && args.size == 2) {
             val feature = plugin.featureManager?.appointFeature ?: return emptyList()
             return feature.getAppointDefinitions().keys

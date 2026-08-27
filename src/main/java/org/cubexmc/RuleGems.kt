@@ -15,11 +15,14 @@ import org.cubexmc.config.MigrationPlan
 import org.cubexmc.config.MigrationRunner
 import org.cubexmc.config.NoOpMigrationStep
 import org.cubexmc.config.ResourceFiles
+import org.cubexmc.config.ReloadChain
+import org.cubexmc.config.ReloadFailurePolicy
+import org.cubexmc.config.ReloadReport
 import org.cubexmc.core.CubexPlugin
 import org.cubexmc.features.FeatureManager
 import org.cubexmc.features.appoint.AppointFeature
-import org.cubexmc.economy.EconomyProvider
-import org.cubexmc.gui.GUIManager
+import org.cubexmc.economy.VaultTransfers
+import org.cubexmc.rulegems.gui.GUIManager
 import org.cubexmc.listeners.CommandAllowanceListener
 import org.cubexmc.listeners.GemBlockProtectionListener
 import org.cubexmc.listeners.GemConsumeListener
@@ -41,6 +44,15 @@ import org.cubexmc.manager.HistoryLogger
 import org.cubexmc.manager.LanguageManager
 import org.cubexmc.manager.PowerStructureManager
 import org.cubexmc.manager.RuleGemsDoctor
+import org.cubexmc.manager.RuleGemsReloadCoordinator
+import org.cubexmc.manager.TransferExecutionCoordinator
+import org.cubexmc.storage.TransferOperationStore
+import java.io.File
+import org.bukkit.configuration.file.YamlConfiguration
+import java.io.InputStreamReader
+import java.nio.charset.StandardCharsets
+import org.cubexmc.manager.TransferMessageMigrationStep
+import java.util.function.BooleanSupplier
 import org.cubexmc.metrics.Metrics
 import org.cubexmc.model.AppointDefinition
 import org.cubexmc.model.PowerStructure
@@ -80,9 +92,11 @@ class RuleGems : CubexPlugin() {
         private set
     lateinit var powerStructureManager: PowerStructureManager
         private set
+    lateinit var transferOperations: TransferOperationStore
+        private set
     var permissionProvider: PermissionProvider? = null
         private set
-    var economyProvider: EconomyProvider? = null
+    var economyProvider: VaultTransfers? = null
         private set
     var quickShopIntegrationHealth: QuickShopIntegrationHealth = QuickShopIntegrationHealth.absent()
         private set
@@ -94,29 +108,39 @@ class RuleGems : CubexPlugin() {
     private val proxyCommands: MutableMap<String, AllowedCommandProxy> = HashMap()
     private var cachedCommandMap: CommandMap? = null
 
+    private var lastReloadReport: ReloadReport? = null
+
+    val reloadFailureStages: String
+        get() = lastReloadReport?.failures()?.joinToString(", ") { it.stage() } ?: "save"
+
     override fun enablePlugin() {
         languageManager = LanguageManager(this)
+        bind { languageManager.logMessage("plugin_disabled") }
         configManager = ConfigManager(this, languageManager)
         gemParser = configManager.gemParser
         gameplayConfig = configManager.gameplayConfig
         effectUtils = EffectUtils(this)
         powerStructureManager = PowerStructureManager(this)
+        bind { powerStructureManager.stopEffectRefreshTask() }
         historyLogger = HistoryLogger(this, languageManager)
-        economyProvider = EconomyProvider.hook(this)
+        economyProvider = VaultTransfers.hook(this)
         if (economyProvider != null) {
             logger.info("Vault economy hooked. Built-in transfer: directives remain controlled by config.")
         } else {
             logger.info("Vault economy not found; transfer: directives will be unavailable.")
         }
         customCommandExecutor = CustomCommandExecutor(this, languageManager, gameplayConfig, economyProvider)
-        gemManager = GemManager(this, configManager, gemParser, gameplayConfig, effectUtils, languageManager)
+        gemManager = bind(GemManager(this, configManager, gemParser, gameplayConfig, effectUtils, languageManager))
         gemManager.setHistoryLogger(historyLogger)
-        guiManager = GUIManager(this, gemManager, languageManager)
+        transferOperations = bind(TransferOperationStore(File(dataFolder, "data/transfer-operations.yml")))
+        guiManager = bind(GUIManager(this, gemManager, languageManager))
+        bind { cachedCommandMap?.let { unregisterProxyCommands(it) } }
 
         metrics = Metrics(this, 27483)
-        if (!loadPlugin()) {
-            throw IllegalStateException("RuleGems storage load failed. Active gem state was not initialized.")
-        }
+        bind { metrics?.shutdown() }
+        initializePermissionProvider()
+        featureManager = bind(FeatureManager(this, gemManager))
+        check(loadPlugin()) { "RuleGems initialization failed during $reloadFailureStages; see the preceding log." }
 
         val currentGemManager = gemManager
         val currentGameplayConfig = gameplayConfig
@@ -152,6 +176,13 @@ class RuleGems : CubexPlugin() {
             currentLanguageManager,
             customCommandExecutor,
             currentGameplayConfig,
+            TransferExecutionCoordinator(
+                transferOperations,
+                currentGemManager.allowanceManager,
+                customCommandExecutor,
+                BooleanSupplier { currentGemManager.saveGemsSync() },
+                logger,
+            ),
         )
         commandAllowanceListener = allowanceListener
         Bukkit.getPluginManager().registerEvents(allowanceListener, this)
@@ -164,16 +195,6 @@ class RuleGems : CubexPlugin() {
             logger.warning("========================================")
         }
 
-        featureManager = FeatureManager(this, currentGemManager)
-        featureManager.registerFeatures()
-        configureAllowanceSourceLookups()
-
-        val ruleGateFeature = featureManager.ruleGateFeature
-        if (ruleGateFeature != null) {
-            powerStructureManager.setRuleGateFeature(ruleGateFeature)
-            currentGemManager.allowanceManager.setRuleGateFeature(ruleGateFeature)
-        }
-        initializePermissionProvider()
         RuleGemsDoctor(this).logWarnings()
 
         SchedulerUtil.globalRun(
@@ -195,7 +216,6 @@ class RuleGems : CubexPlugin() {
         powerStructureManager.startEffectRefreshTask()
 
         refreshAllowedCommandProxies()
-        bindShutdownActions()
 
         currentLanguageManager.logMessage("plugin_enabled")
         currentLanguageManager.logMessage("documentation", linkPlaceholders())
@@ -229,64 +249,46 @@ class RuleGems : CubexPlugin() {
     override fun disablePlugin() {
     }
 
-    private fun bindShutdownActions() {
-        bind {
-            if (::languageManager.isInitialized) {
-                languageManager.logMessage("plugin_disabled")
+    fun loadPlugin(): Boolean {
+        val report = ReloadChain.create()
+            .failurePolicy(ReloadFailurePolicy.ABORT)
+            .add("defaults") { saveDefaultResources() }
+            .add("transfer-operations", transferOperations)
+            .add("migrations") { migrateConfigAndLang() }
+            .add("language-defaults") { languageManager.updateBundledLanguages() }
+            .add("config-and-storage-validation", configManager)
+            .add("language", languageManager)
+            .add("rule-gate") {
+                featureManager.prepareRuleGate()
+                powerStructureManager.setRuleGateFeature(featureManager.ruleGateFeature)
+                gemManager.allowanceManager.setRuleGateFeature(featureManager.ruleGateFeature)
             }
-        }
-        bind {
-            if (::gemManager.isInitialized) {
-                gemManager.custodyAuditor.stop()
-                gemManager.shutdownEscape()
-                gemManager.saveGemsSync()
+            .add("gem-data", gemManager)
+            .add("runtime") { refreshRuntimeAfterLoad() }
+            .addIf("features", { ::featureManager.isInitialized }) {
+                featureManager.reload()
+                configureAllowanceSourceLookups()
+                RuleGemsDoctor(this).logWarnings()
             }
-        }
-        bind {
-            val map = getCommandMapSafely()
-            if (map != null) {
-                unregisterProxyCommands(map)
+            .add("economy") {
+                economyProvider = VaultTransfers.hook(this)
+                // Retain the executor so a config reload does not reset command cooldowns.
+                customCommandExecutor.economyProvider = economyProvider
             }
+            .run()
+        lastReloadReport = report
+        for (failure in report.failures()) {
+            logger.log(Level.SEVERE, "RuleGems reload failed at " + failure.stage(), failure.cause())
         }
-        bind {
-            if (::featureManager.isInitialized) {
-                featureManager.shutdownAll()
-            }
-        }
-        bind {
-            if (::gemManager.isInitialized) {
-                gemManager.shutdownPresentation()
-            }
-        }
-        bind {
-            if (::powerStructureManager.isInitialized) {
-                powerStructureManager.stopEffectRefreshTask()
-            }
-        }
+        return report.ok()
     }
 
-    fun loadPlugin(): Boolean {
-        saveDefaultResources()
-        reloadConfig()
-        try {
-            migrateConfigAndLang()
-        } catch (ex: MigrationException) {
-            logger.severe("RuleGems reload aborted: migration failed. " + ex.message)
-            throw IllegalStateException("RuleGems migration failed. See logs for details.", ex)
-        }
-        languageManager.updateBundledLanguages()
-        languageManager.loadLanguage()
-        configManager.loadConfigs()
+    private fun refreshRuntimeAfterLoad() {
         if (gameplayConfig.isTransferDirectivesEnabled) {
             logger.warning(
                 "economy.transfer_directives_enabled is true. Vault transfers use compensation, " +
-                    "not a cross-account transaction; prefer the economy plugin's native command.",
+                    "not a cross-account transaction; review uncertain results before retrying.",
             )
-        }
-        configManager.initGemFile()
-        if (!gemManager.loadGems()) {
-            logger.severe("RuleGems load aborted because gem storage is unavailable.")
-            return false
         }
         // 配置(含 effects.duration/refresh_interval)已刷新；若刷新任务在运行则用新间隔重启
         if (::powerStructureManager.isInitialized) {
@@ -303,28 +305,26 @@ class RuleGems : CubexPlugin() {
             }
         }
 
-        if (::featureManager.isInitialized) {
-            featureManager.reloadAll()
-            configureAllowanceSourceLookups()
-            RuleGemsDoctor(this).logWarnings()
-        }
-        return true
     }
 
     fun reloadFromCommand(): ReloadResult {
-        if (!gemManager.globalOperationCoordinator.tryBegin(GlobalOperation.RELOAD)) {
-            return ReloadResult.BUSY
-        }
-        return try {
-            if (!gemManager.saveGemsSync() || !loadPlugin()) {
-                ReloadResult.FAILED
-            } else {
-                refreshAllowedCommandProxies()
-                ReloadResult.SUCCESS
+        val coordinator = RuleGemsReloadCoordinator(
+            gemManager.globalOperationCoordinator,
+            Runnable { guiManager.closeSessions() },
+            Runnable { featureManager.appointFeature?.saveData() },
+            BooleanSupplier { gemManager.saveGemsSync() },
+            BooleanSupplier { loadPlugin() },
+            Runnable { refreshAllowedCommandProxies() },
+        )
+        val result = coordinator.reload()
+        val report = coordinator.report
+        if (report != null && report.failures().none { it.stage() == "load" }) {
+            lastReloadReport = report
+            for (failure in report.failures()) {
+                logger.log(Level.SEVERE, "RuleGems reload failed at " + failure.stage(), failure.cause())
             }
-        } finally {
-            gemManager.globalOperationCoordinator.end(GlobalOperation.RELOAD)
         }
+        return result
     }
 
     enum class ReloadResult {
@@ -392,11 +392,16 @@ class RuleGems : CubexPlugin() {
 
     @Throws(MigrationException::class)
     private fun migrateLang(migrations: MigrationRunner, locale: String) {
+        val defaults = YamlConfiguration()
+        requireNotNull(getResource("lang/$locale.yml")).use { stream ->
+            defaults.load(InputStreamReader(stream, StandardCharsets.UTF_8))
+        }
         migrations.run(
             MigrationPlan.yaml("RuleGems lang $locale", "lang/$locale.yml")
                 .versionKey("lang-version")
-                .targetVersion(2)
-                .addStep(LegacyTextToMiniMessageStep(1, 2)),
+                .targetVersion(TransferMessageMigrationStep.VERSION)
+                .addStep(LegacyTextToMiniMessageStep(1, 2))
+                .addStep(TransferMessageMigrationStep(defaults)),
         )
     }
 

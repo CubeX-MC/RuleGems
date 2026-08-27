@@ -2,6 +2,7 @@ package org.cubexmc.manager
 
 import org.cubexmc.model.CommandArgumentConstraints
 import org.cubexmc.model.CommandArgumentConstraints.Rule
+import org.cubexmc.model.CommandArgumentConstraints.Suggestions
 import org.cubexmc.model.CommandArgumentConstraints.Type
 import java.math.BigDecimal
 import java.util.Locale
@@ -33,7 +34,7 @@ internal object CommandArgumentParser {
         val index = name.removePrefix("arg").toIntOrNull() ?: error("Argument index too large: $name")
         val settings = value as? Map<*, *> ?: error("$name must be a mapping")
         require(settings.keys.all { it in RULE_KEYS }) {
-            "Unknown constraint in $name (expected type, required, min, max)"
+            "Unknown constraint in $name (expected type, required, min, max, suggestions)"
         }
         val type = if (settings.containsKey("type")) {
             Type.valueOf(settings["type"].toString().uppercase(Locale.ROOT))
@@ -49,7 +50,29 @@ internal object CommandArgumentParser {
         val max = bound(settings, "max", name)
         require(type != Type.STRING || (min == null && max == null)) { "$name: min/max require number or integer type" }
         require(min == null || max == null || min <= max) { "$name: min must not exceed max" }
-        return Rule(index, type, required, min, max)
+        return Rule(index, type, required, min, max, parseSuggestions(settings, type, name))
+    }
+
+    private fun parseSuggestions(settings: Map<*, *>, type: Type, name: String): Suggestions? {
+        if (!settings.containsKey("suggestions")) return null
+        return when (val value = settings["suggestions"]) {
+            "online_players" -> {
+                require(type == Type.STRING) { "$name: online_players suggestions require string type" }
+                Suggestions(true, emptyList())
+            }
+            is List<*> -> {
+                val values = value.map { item ->
+                    require(item is String || item is Number) { "$name.suggestions must contain strings or numbers" }
+                    val text = item.toString()
+                    require(text.isNotEmpty() && text.none { it.isWhitespace() }) {
+                        "$name.suggestions must contain single argument values"
+                    }
+                    text
+                }
+                Suggestions(false, values)
+            }
+            else -> error("$name.suggestions must be online_players or a list")
+        }
     }
 
     private fun bound(settings: Map<*, *>, key: String, name: String): BigDecimal? {
@@ -68,5 +91,5 @@ internal object CommandArgumentParser {
     private const val MIN_BOUND_SCALE = -308
     private const val MAX_BOUND_SCALE = 324
     private val ARGUMENT_KEY = Regex("arg[1-9][0-9]*")
-    private val RULE_KEYS = setOf("type", "required", "min", "max")
+    private val RULE_KEYS = setOf("type", "required", "min", "max", "suggestions")
 }

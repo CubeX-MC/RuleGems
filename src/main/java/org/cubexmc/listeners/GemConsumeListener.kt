@@ -19,7 +19,7 @@ import org.cubexmc.RuleGems
 import org.cubexmc.manager.GameplayConfig
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import org.cubexmc.utils.SchedulerUtil
 import java.util.UUID
 import kotlin.math.min
@@ -242,7 +242,7 @@ class GemConsumeListener(
         var message = languageManager.getMessage("messages.hold_redeem.progress_bar")
             .replace("%bar%", bar.toString())
             .replace("%percent%", percent.toString())
-        message = ColorUtils.translateColorCodes(message) ?: ""
+        message = CubexText.translateColorCodes(message) ?: ""
 
         player.spigot().sendMessage(ChatMessageType.ACTION_BAR, *TextComponent.fromLegacyText(message))
     }
@@ -287,7 +287,7 @@ class GemConsumeListener(
         if (player.isOnline) {
             // 清除进度条，显示取消消息
             var cancelledMessage = languageManager.getMessage("messages.hold_redeem.cancelled")
-            cancelledMessage = ColorUtils.translateColorCodes(cancelledMessage) ?: ""
+            cancelledMessage = CubexText.translateColorCodes(cancelledMessage) ?: ""
             player.spigot().sendMessage(ChatMessageType.ACTION_BAR, *TextComponent.fromLegacyText(cancelledMessage))
 
             // 延迟清除消息

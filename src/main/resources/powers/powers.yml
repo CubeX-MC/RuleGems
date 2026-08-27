@@ -14,14 +14,21 @@
 #   - command: /cxfine
 #     usage: '/cxfine <玩家> <金额>'
 #     args:
-#       arg1: {type: string, required: true}
-#       arg2: {type: number, min: 0.01, max: 10000}
+#       arg1: {type: string, required: true, suggestions: online_players}
+#       arg2:
+#         type: number
+#         min: 0.01
+#         max: 10000
+#         suggestions: [50, 100, 500, 1000, 5000, 10000]
 #     execute:
 #       - 'transfer:%arg1% cubex_bank %arg2%'
 #     time_limit: 5
 #     cooldown: 7200
 # 委任版本可将 max 改为 500、time_limit 改为 3；规则随实际权力来源解析。
 # type 支持 string（默认）、number、integer；required 默认为 true。
+# suggestions 可选：online_players（在线且可见的玩家名，仅 string），或固定候选列表。
+# 金额候选按 type/min/max 在加载时过滤；按输入前缀匹配，每次最多 50 项，不查余额。
+# 不配置 suggestions 则不新增补全；空列表表示不提供候选。可手动输入其他合法值。
 # min/max 包含边界，只能用于数值类型；只校验配置的参数，不禁止额外参数。
 # number 只接受普通十进制写法，不接受 NaN、Infinity、指数、十六进制或单位后缀。
 # 校验发生在任何命令、次数扣减、冷却之前；错误规则会阻止执行并记录日志。

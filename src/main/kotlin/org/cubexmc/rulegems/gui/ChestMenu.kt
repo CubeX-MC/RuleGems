@@ -1,4 +1,4 @@
-package org.cubexmc.gui
+package org.cubexmc.rulegems.gui
 
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
@@ -33,7 +33,7 @@ abstract class ChestMenu protected constructor(@JvmField protected val manager: 
         val inv = Bukkit.createInventory(holder, getSize(), getTitle())
         holder.setInventory(inv)
         populate(inv, holder, player)
-        player.openInventory(inv)
+        manager.openInventory(player, inv)
     }
 
     protected open fun getHolderType(): GUIHolder.GUIType = GUIHolder.GUIType.MAIN_MENU

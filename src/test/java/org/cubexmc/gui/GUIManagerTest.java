@@ -1,4 +1,4 @@
-package org.cubexmc.gui;
+package org.cubexmc.rulegems.gui;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -57,6 +57,49 @@ class GUIManagerTest {
         if (mockedBukkit != null) {
             mockedBukkit.close();
         }
+    }
+
+    @Test
+    void sharedRegistryRoutesTopButtonsButNeverPlayerInventoryItems() {
+        GUIManager manager = new GUIManager(plugin, gemManager, languageManager);
+        org.mockito.ArgumentCaptor<org.bukkit.event.Listener> registered =
+                org.mockito.ArgumentCaptor.forClass(org.bukkit.event.Listener.class);
+        verify(pluginManager).registerEvents(registered.capture(), org.mockito.ArgumentMatchers.eq(plugin));
+        org.cubexmc.gui.MenuRegistry registry =
+                (org.cubexmc.gui.MenuRegistry) registered.getValue();
+        Player player = mock(Player.class);
+        UUID playerId = UUID.randomUUID();
+        when(player.getUniqueId()).thenReturn(playerId);
+        org.bukkit.inventory.Inventory inventory = mock(org.bukkit.inventory.Inventory.class);
+        when(inventory.getSize()).thenReturn(54);
+        when(inventory.getHolder()).thenReturn(new GUIHolder(GUIHolder.GUIType.MAIN_MENU,
+                playerId, false));
+        org.bukkit.inventory.ItemStack icon = mock(org.bukkit.inventory.ItemStack.class);
+        when(icon.getType()).thenReturn(org.bukkit.Material.PAPER);
+        org.bukkit.inventory.meta.ItemMeta meta = mock(org.bukkit.inventory.meta.ItemMeta.class);
+        when(icon.getItemMeta()).thenReturn(meta);
+        org.bukkit.persistence.PersistentDataContainer pdc = mock(org.bukkit.persistence.PersistentDataContainer.class);
+        when(meta.getPersistentDataContainer()).thenReturn(pdc);
+        when(pdc.get(manager.getNavActionKey(), org.bukkit.persistence.PersistentDataType.STRING)).thenReturn("close");
+        when(inventory.getItem(0)).thenReturn(icon);
+        manager.openInventory(player, inventory);
+
+        org.bukkit.event.inventory.InventoryClickEvent event =
+                mock(org.bukkit.event.inventory.InventoryClickEvent.class);
+        org.bukkit.inventory.InventoryView view = mock(org.bukkit.inventory.InventoryView.class);
+        when(view.getTopInventory()).thenReturn(inventory);
+        when(event.getView()).thenReturn(view);
+        when(event.getWhoClicked()).thenReturn(player);
+        when(event.getInventory()).thenReturn(inventory);
+        when(event.getCurrentItem()).thenReturn(icon);
+        when(event.getRawSlot()).thenReturn(54);
+        registry.onClick(event);
+        verify(event).setCancelled(true);
+        verify(player, org.mockito.Mockito.never()).closeInventory();
+
+        when(event.getRawSlot()).thenReturn(0);
+        registry.onClick(event);
+        verify(player).closeInventory();
     }
 
     @Test

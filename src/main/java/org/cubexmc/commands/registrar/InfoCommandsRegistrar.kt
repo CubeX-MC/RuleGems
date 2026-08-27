@@ -2,10 +2,11 @@ package org.cubexmc.commands.registrar
 
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
+import org.cubexmc.commands.sub.TransferReviewSubCommand
 import org.cubexmc.RuleGems
 import org.cubexmc.commands.RuleGemsCommandActor
 import org.cubexmc.features.appoint.AppointFeature
-import org.cubexmc.gui.GUIManager
+import org.cubexmc.rulegems.gui.GUIManager
 import org.cubexmc.manager.GameplayConfig
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
@@ -201,6 +202,8 @@ class InfoCommandsRegistrar(
         }
 
         languageManager.sendMessage(sender, "command.help.spacer")
+        if (sender.hasPermission(TransferReviewSubCommand.REVIEW)) sendHelpItem(sender, "transfer_review")
+        if (sender.hasPermission(TransferReviewSubCommand.RESOLVE)) sendHelpItem(sender, "transfer_resolve")
         languageManager.sendMessage(sender, "command.help.section_more")
         sendHelpItem(sender, "help")
         val links = RuleGemsLinks.placeholders(plugin.config)

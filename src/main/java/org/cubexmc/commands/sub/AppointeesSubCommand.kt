@@ -7,7 +7,7 @@ import org.cubexmc.features.appoint.AppointFeature
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
 import org.cubexmc.model.AppointDefinition
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 
 /**
  * /rulegems appointees [perm_set]
@@ -67,7 +67,7 @@ class AppointeesSubCommand(
     private fun showPermSetBlock(sender: CommandSender, appointFeature: AppointFeature, definition: AppointDefinition) {
         val appointees = appointFeature.getAppointees(definition.key)
         val placeholders = HashMap<String, String>()
-        placeholders["perm_set"] = ColorUtils.translateColorCodes(definition.displayName ?: "") ?: ""
+        placeholders["perm_set"] = CubexText.translateColorCodes(definition.displayName ?: "") ?: ""
         placeholders["count"] = appointees.size.toString()
         languageManager.sendMessage(sender, "command.appointees.set_header", placeholders)
 

@@ -9,12 +9,15 @@ import org.cubexmc.commands.sub.RemoveAltarSubCommand
 import org.cubexmc.commands.sub.RevokePowerSubCommand
 import org.cubexmc.commands.sub.RevokeSubCommand
 import org.cubexmc.commands.sub.SetAltarSubCommand
+import org.cubexmc.commands.sub.TransferReviewSubCommand
 import org.cubexmc.commands.sub.TpSubCommand
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
 import org.cubexmc.manager.RuleGemsDoctor
 import org.incendo.cloud.CommandManager
 import org.incendo.cloud.parser.standard.IntegerParser
+import org.incendo.cloud.suggestion.Suggestion
+import org.incendo.cloud.suggestion.SuggestionProvider
 import org.incendo.cloud.parser.standard.StringParser
 
 class AdminCommandsRegistrar(
@@ -32,6 +35,7 @@ class AdminCommandsRegistrar(
     private val removeAltarSubCommand = RemoveAltarSubCommand(gemManager, languageManager)
 
     override fun register(manager: CommandManager<RuleGemsCommandActor>) {
+        registerTransferReview(manager)
         registerReload(manager)
         registerDoctor(manager)
         registerTp(manager)
@@ -44,6 +48,33 @@ class AdminCommandsRegistrar(
         registerRemoveAltar(manager)
     }
 
+    private fun registerTransferReview(manager: CommandManager<RuleGemsCommandActor>) {
+        val command = TransferReviewSubCommand(plugin, languageManager)
+        val root = manager.commandBuilder("rulegems", "rg").literal("transfer-review")
+        manager.command(root.permission(TransferReviewSubCommand.REVIEW)
+            .handler { ctx -> command.execute(ctx.sender().sender(), emptyArray()) })
+        manager.command(
+            root.literal("list").permission(TransferReviewSubCommand.REVIEW)
+                .optional("page", IntegerParser.integerParser(1))
+                .handler { ctx ->
+                    val page = if (ctx.contains("page")) ctx.get<Int>("page") else 1
+                    command.execute(ctx.sender().sender(), arrayOf("list", page.toString()))
+                },
+        )
+        val operations = SuggestionProvider.blocking<RuleGemsCommandActor> { ctx, _ ->
+            command.suggest(ctx.sender().sender(), arrayOf("resolve", "")).map { Suggestion.suggestion(it) }
+        }
+        manager.command(
+            root.literal("resolve").permission(TransferReviewSubCommand.RESOLVE)
+                .required("operation", StringParser.stringParser(), operations)
+                .required("note", StringParser.greedyStringParser())
+                .handler { ctx ->
+                    val args = arrayOf("resolve", ctx.get<String>("operation"), ctx.get<String>("note"))
+                    command.execute(ctx.sender().sender(), args)
+                },
+        )
+    }
+
     private fun registerReload(manager: CommandManager<RuleGemsCommandActor>) {
         manager.command(
             manager.commandBuilder("rulegems", "rg")
@@ -54,7 +85,11 @@ class AdminCommandsRegistrar(
                         RuleGems.ReloadResult.SUCCESS ->
                             languageManager.sendMessage(ctx.sender().sender(), "command.reload_success")
                         RuleGems.ReloadResult.FAILED ->
-                            languageManager.sendMessage(ctx.sender().sender(), "command.reload_failed")
+                            languageManager.sendMessage(
+                            ctx.sender().sender(),
+                            "command.reload_failed_stage",
+                            mapOf("stages" to plugin.reloadFailureStages),
+                        )
                         RuleGems.ReloadResult.BUSY ->
                             languageManager.sendMessage(ctx.sender().sender(), "command.operation_busy")
                     }

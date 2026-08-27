@@ -22,7 +22,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.cubexmc.RuleGems;
-import org.cubexmc.economy.EconomyProvider;
+import org.cubexmc.economy.VaultTransfers;
 import org.cubexmc.model.AllowedCommand;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -130,7 +130,7 @@ class EconomySafetyTest {
             bukkit.when(() -> Bukkit.getOfflinePlayer(TO_ID)).thenReturn(to);
 
             assertEquals(
-                    EconomyProvider.Result.FAILED,
+                    VaultTransfers.Result.FAILED,
                     provider(economy).transfer("uuid:" + FROM_ID, "uuid:" + TO_ID, 10.0));
         }
 
@@ -152,14 +152,14 @@ class EconomySafetyTest {
             bukkit.when(() -> Bukkit.getOfflinePlayer(TO_ID)).thenReturn(to);
 
             assertEquals(
-                    EconomyProvider.Result.ROLLBACK_FAILED,
+                    VaultTransfers.Result.ROLLBACK_FAILED,
                     provider(economy).transfer("uuid:" + FROM_ID, "uuid:" + TO_ID, 10.0));
         }
     }
 
-    private EconomyProvider provider(Economy economy) throws Exception {
-        Constructor<EconomyProvider> constructor =
-                EconomyProvider.class.getDeclaredConstructor(Economy.class);
+    private VaultTransfers provider(Economy economy) throws Exception {
+        Constructor<VaultTransfers> constructor =
+                VaultTransfers.class.getDeclaredConstructor(Economy.class);
         constructor.setAccessible(true);
         return constructor.newInstance(economy);
     }

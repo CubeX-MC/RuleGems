@@ -78,6 +78,8 @@ class RevokePowerSubCommand(
                     }
                 }
             }
+            RevokeResult.Status.STORAGE_FAILED ->
+                languageManager.sendMessage(actor, "command.revoke_power.storage_failed")
             RevokeResult.Status.DISABLED -> languageManager.sendMessage(actor, "command.revoke_power.disabled")
             RevokeResult.Status.RULE_NOT_FOUND -> languageManager.sendMessage(actor, "command.revoke_power.rule_not_found", placeholders)
             RevokeResult.Status.POWER_NOT_ALLOWED -> languageManager.sendMessage(actor, "command.revoke_power.power_not_allowed", placeholders)

@@ -1,4 +1,4 @@
-package org.cubexmc.gui
+package org.cubexmc.rulegems.gui
 
 import org.bukkit.Bukkit
 import org.bukkit.Material
@@ -12,7 +12,7 @@ import org.cubexmc.manager.GemPermissionManager
 import org.cubexmc.manager.LanguageManager
 import org.cubexmc.features.appoint.AppointFeature
 import org.cubexmc.model.GemDefinition
-import org.cubexmc.utils.ColorUtils
+import org.cubexmc.core.CubexText
 import java.util.Collections
 
 class PowerTogglesGUI(
@@ -39,7 +39,7 @@ class PowerTogglesGUI(
         if (totalPages > 1) {
             title += " &8(${currentPage + 1}/$totalPages)"
         }
-        title = ColorUtils.translateColorCodes(title) ?: ""
+        title = CubexText.translateColorCodes(title) ?: ""
 
         val holder = GUIHolder(GUIHolder.GUIType.POWER_TOGGLES, player.uniqueId, player.hasPermission("rulegems.admin"), currentPage)
         val gui: Inventory = Bukkit.createInventory(holder, GUIManager.GUI_SIZE, title)
@@ -50,7 +50,7 @@ class PowerTogglesGUI(
 
         gui.setItem(
             45,
-            ItemBuilder(Material.ARROW)
+            GuiItems.item(Material.ARROW)
                 .name("&a" + rawMsg("power_toggles.back_to_profile"))
                 .build(),
         )
@@ -58,7 +58,7 @@ class PowerTogglesGUI(
         if (entries.isEmpty()) {
             gui.setItem(
                 22,
-                ItemBuilder(Material.BARRIER)
+                GuiItems.item(Material.BARRIER)
                     .name("&c" + rawMsg("power_toggles.no_powers"))
                     .addLore("&7" + rawMsg("power_toggles.no_powers_lore"))
                     .build(),
@@ -71,13 +71,13 @@ class PowerTogglesGUI(
             }
         }
 
-        player.openInventory(gui)
+        manager.openInventory(player, gui)
     }
 
     private fun createToggleItem(entry: ToggleEntry): ItemStack {
-        val builder = ItemBuilder(entry.material)
-            .name(ColorUtils.translateColorCodes("&f${entry.displayName}") ?: "")
-            .hideAttributes()
+        val builder = GuiItems.item(entry.material)
+            .name(CubexText.translateColorCodes("&f${entry.displayName}") ?: "")
+            .hideDetails()
             .addEmptyLore()
 
         builder.addLore(
@@ -95,7 +95,7 @@ class PowerTogglesGUI(
             builder.addLore("&c" + rawMsg("power_toggles.status_off"))
             builder.addLore("&7" + rawMsg("power_toggles.click_to_enable"))
         } else {
-            builder.glow()
+            builder.cosmeticGlow()
             builder.addLore("&a" + rawMsg("power_toggles.status_on"))
             builder.addLore(
                 "&7" + rawMsg(
@@ -157,7 +157,7 @@ class PowerTogglesGUI(
 
     private fun getAppointFeature(): AppointFeature? = manager.plugin.featureManager?.appointFeature
 
-    private fun msg(path: String): String = ColorUtils.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
+    private fun msg(path: String): String = CubexText.translateColorCodes(lang.getMessage("gui.$path")) ?: ""
 
     private fun rawMsg(path: String): String = lang.getMessage("gui.$path")
 
