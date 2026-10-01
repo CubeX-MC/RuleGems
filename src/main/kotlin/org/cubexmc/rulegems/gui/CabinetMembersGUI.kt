@@ -6,7 +6,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataContainer
-import org.bukkit.persistence.PersistentDataType
+import org.cubexmc.core.getUuid
 import org.cubexmc.RuleGems
 import org.cubexmc.features.appoint.AppointFeature
 import org.cubexmc.features.appoint.Appointment
@@ -37,20 +37,14 @@ class CabinetMembersGUI(
         shiftClick: Boolean,
     ) {
         val appointKey = holder.getContext()
-        val targetUuidText = pdc.get(manager.playerUuidKey, PersistentDataType.STRING)
-        if (appointKey == null || targetUuidText == null) {
+        val targetUuid = pdc.getUuid(manager.playerUuidKey)
+        if (appointKey == null || targetUuid == null) {
             return
         }
 
         val appointFeature = getAppointFeature()
         if (appointFeature == null || !appointFeature.isEnabled) {
             lang.sendMessage(player, "command.appoint.disabled")
-            return
-        }
-
-        val targetUuid = try {
-            UUID.fromString(targetUuidText)
-        } catch (_: IllegalArgumentException) {
             return
         }
 

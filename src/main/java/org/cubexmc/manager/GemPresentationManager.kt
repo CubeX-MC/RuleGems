@@ -9,7 +9,10 @@ import org.bukkit.entity.Entity
 import org.bukkit.entity.EntityType
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
-import org.bukkit.persistence.PersistentDataType
+import org.cubexmc.core.getUuid
+import org.cubexmc.core.hasFlag
+import org.cubexmc.core.setFlag
+import org.cubexmc.core.setUuid
 import org.cubexmc.RuleGems
 import org.cubexmc.utils.SchedulerUtil
 import java.lang.reflect.Method
@@ -144,13 +147,8 @@ class GemPresentationManager(
             return mapped
         }
         val pdc = entity.persistentDataContainer
-        if (!pdc.has(displayMarkerKey, PersistentDataType.BYTE)) return null
-        val rawId = pdc.get(displayGemIdKey, PersistentDataType.STRING) ?: return null
-        return try {
-            UUID.fromString(rawId).takeIf { records.containsKey(it) }
-        } catch (_: IllegalArgumentException) {
-            null
-        }
+        if (!pdc.hasFlag(displayMarkerKey)) return null
+        return pdc.getUuid(displayGemIdKey)?.takeIf { records.containsKey(it) }
     }
 
     fun shutdown() {
@@ -271,8 +269,8 @@ class GemPresentationManager(
         entity.isSilent = true
         entity.isPersistent = false
         entity.addScoreboardTag(DISPLAY_SCOREBOARD_TAG)
-        entity.persistentDataContainer.set(displayMarkerKey, PersistentDataType.BYTE, 1.toByte())
-        entity.persistentDataContainer.set(displayGemIdKey, PersistentDataType.STRING, gemId.toString())
+        entity.persistentDataContainer.setFlag(displayMarkerKey)
+        entity.persistentDataContainer.setUuid(displayGemIdKey, gemId)
         if (hiddenByDefault) {
             visibleByDefaultMethod?.invoke(entity, false)
         }

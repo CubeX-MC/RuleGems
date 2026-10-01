@@ -8,7 +8,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataContainer
-import org.bukkit.persistence.PersistentDataType
+import org.cubexmc.core.getUuid
 import org.cubexmc.manager.GemManager
 import org.cubexmc.manager.LanguageManager
 import org.cubexmc.model.AllowedCommand
@@ -44,9 +44,8 @@ class GemsGUI(
         if (!holder.isAdmin) {
             return
         }
-        val gemIdStr = pdc.get(manager.gemIdKey, PersistentDataType.STRING) ?: return
+        val gemId = pdc.getUuid(manager.gemIdKey) ?: return
         try {
-            val gemId = UUID.fromString(gemIdStr)
             val gemHolder = gemManager.getGemHolder(gemId)
             if (gemHolder != null && gemHolder.isOnline) {
                 player.closeInventory()

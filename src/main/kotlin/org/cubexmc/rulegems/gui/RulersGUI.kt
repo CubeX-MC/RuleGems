@@ -6,7 +6,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataContainer
-import org.bukkit.persistence.PersistentDataType
+import org.cubexmc.core.getUuid
 import org.cubexmc.RuleGems
 import org.cubexmc.features.appoint.AppointFeature
 import org.cubexmc.features.revoke.RevokeFeature
@@ -43,9 +43,8 @@ class RulersGUI(
         if (clicked.type != Material.PLAYER_HEAD) {
             return
         }
-        val playerUuidStr = pdc.get(manager.playerUuidKey, PersistentDataType.STRING) ?: return
+        val targetUuid = pdc.getUuid(manager.playerUuidKey) ?: return
         try {
-            val targetUuid = UUID.fromString(playerUuidStr)
             if (!shiftClick) {
                 manager.openRulerAppointeesGUI(player, targetUuid, holder.isAdmin)
                 return

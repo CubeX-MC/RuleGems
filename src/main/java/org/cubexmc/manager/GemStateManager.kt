@@ -18,6 +18,10 @@ import org.bukkit.inventory.meta.BlockStateMeta
 import org.bukkit.inventory.meta.ItemMeta
 import org.bukkit.persistence.PersistentDataContainer
 import org.bukkit.persistence.PersistentDataType
+import org.cubexmc.core.getUuid
+import org.cubexmc.core.hasFlag
+import org.cubexmc.core.setFlag
+import org.cubexmc.core.setUuid
 import org.cubexmc.RuleGems
 import org.cubexmc.gui.ItemBuilder
 import org.cubexmc.model.GemDefinition
@@ -491,7 +495,7 @@ class GemStateManager(
         }
         val meta = item.itemMeta ?: return false
         val pdc: PersistentDataContainer = meta.persistentDataContainer
-        return pdc.has(ruleGemKey, PersistentDataType.BYTE)
+        return pdc.hasFlag(ruleGemKey)
     }
 
     /**
@@ -712,12 +716,7 @@ class GemStateManager(
         if (item == null || !item.hasItemMeta()) return null
         val meta = item.itemMeta ?: return null
         val pdc = meta.persistentDataContainer
-        val uuidStr = pdc.get(uniqueIdKey, PersistentDataType.STRING) ?: return null
-        return try {
-            UUID.fromString(uuidStr)
-        } catch (_: Exception) {
-            null
-        }
+        return pdc.getUuid(uniqueIdKey)
     }
 
     fun getGemUUID(block: Block?): UUID? {
@@ -798,8 +797,8 @@ class GemStateManager(
         }
 
         val pdc = meta.persistentDataContainer
-        pdc.set(ruleGemKey, PersistentDataType.BYTE, 1.toByte())
-        pdc.set(uniqueIdKey, PersistentDataType.STRING, gemId.toString())
+        pdc.setFlag(ruleGemKey)
+        pdc.setUuid(uniqueIdKey, gemId)
         if (gemKey != null) {
             pdc.set(gemKeyKey, PersistentDataType.STRING, gemKey)
         }
