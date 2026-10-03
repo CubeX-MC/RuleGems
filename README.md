@@ -1,7 +1,25 @@
-# RuleGems
-
-[English](README_en.md) | 中文<br>
-[Discord](https://discord.com/invite/7tJeSZPZgv) | [QQ频道](https://pd.qq.com/s/1n3hpe4e7?b=9)
+<div align="center">
+  <img src="img/rulegems.webp" width="112" alt="RuleGems Logo">
+  <h1>RuleGems</h1>
+  <p>用宝石收集流转玩家权限的轻量插件</p>
+  <p>
+    <a href="https://github.com/CubeX-MC/RuleGems"><img src="https://img.shields.io/github/stars/CubeX-MC/RuleGems?style=flat-square&logo=github&label=Stars" alt="GitHub Stars"></a>
+    <a href="https://github.com/CubeX-MC/RuleGems/network/members"><img src="https://img.shields.io/github/forks/CubeX-MC/RuleGems?style=flat-square&logo=github&label=Forks" alt="GitHub Forks"></a>
+    <a href="https://github.com/CubeX-MC/RuleGems/issues"><img src="https://img.shields.io/github/issues/CubeX-MC/RuleGems?style=flat-square&label=Issues" alt="GitHub Issues"></a>
+    <img src="https://img.shields.io/badge/Java-17%2B-ED8B00?style=flat-square&logo=openjdk&logoColor=white" alt="Java 17+">
+    <img src="https://img.shields.io/badge/Spigot%20%2F%20Paper-1.16%2B-5D8AA8?style=flat-square" alt="Spigot / Paper 1.16+">
+    <a href="https://github.com/CubeX-MC/RuleGems/actions/workflows/build.yml"><img src="https://github.com/CubeX-MC/RuleGems/actions/workflows/build.yml/badge.svg" alt="CI"></a>
+  </p>
+  <p>
+    <a href="README_en.md">English</a>
+    ·
+    <a href="https://discord.com/invite/7tJeSZPZgv">Discord</a>
+    ·
+    <a href="https://pd.qq.com/s/1n3hpe4e7?b=9">QQ频道</a>
+    ·
+    <a href="https://modrinth.com/plugin/rulegems">Modrinth</a>
+  </p>
+</div>
 
 一个用“宝石收集”来流转玩家权限的轻量插件，面向 Spigot/Paper 多版本。
 
